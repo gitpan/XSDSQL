@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ProgrammazioneOlo>
+	<ProgrammazioneWLR>
+		<CodiceArea>CCCC</CodiceArea>
+		<DescrizioneArea>DescrizioneArea</DescrizioneArea>
+		<QuantitaRichiesta>0</QuantitaRichiesta>
+	</ProgrammazioneWLR>
+	<ProgrammazioneCPS>
+		<CodiceArea>CCCC</CodiceArea>
+		<DescrizioneArea>DescrizioneArea</DescrizioneArea>
+		<QuantitaRichiesta>0</QuantitaRichiesta>
+	</ProgrammazioneCPS>
+</ProgrammazioneOlo>
