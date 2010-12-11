@@ -12,7 +12,7 @@ our @EXPORT_OK=( @{$EXPORT_TAGS{all}} );
 our @EXPORT=qw( );
 
 sub _init_output_stream {
-	my $self=shift;
+	my ($self,%params)=@_;
 	return $self unless defined $self->{OUTPUT_STREAM}; 
 	my $r=ref($self->{OUTPUT_STREAM});
 	if ($r eq  'ARRAY') {
@@ -23,8 +23,7 @@ sub _init_output_stream {
 
 
 sub new {
-	my $class=shift;
-	my %params=@_;
+	my ($class,%params)=@_;
 	my $s=bless(\%params,$class);
 	return $s->_init_output_stream;
 }
@@ -82,7 +81,7 @@ sub put_chars {
 
 sub print($@) { 
 	my $self=shift;
-	return CORE::print($self,@_) unless ref($self) =~/::/;  #non e' una classe
+	return CORE::print($self,@_) unless ref($self) =~/::/; #if $self is not a class use CORE::print
 	return $self->put_chars(@_);
 }
 
@@ -92,7 +91,7 @@ sub put_line { my $self=shift; return $self->put_chars(@_,"\n"); }
 
 sub say {  
 			my $self=shift;
-			return $self->put_line(@_) if ref($self) =~/::/;  	  #e' una classe
+			return $self->put_line(@_) if ref($self) =~/::/;  	  #if $self is not a class use CORE::say if is implemented
 			local $@;
 			my $r=eval("CORE::say($self,@_)");
 			return print STDOUT $self,@_,"\n" if $@;

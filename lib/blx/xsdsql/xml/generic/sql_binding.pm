@@ -50,17 +50,13 @@ sub get_clone {
 }
 
 sub get_next_sequence {
-	my $self=shift;
-	my $table=shift;
-	my %params=@_;
+	my ($self,$table,%params)=@_;
 	croak "abstract method ";
 }
 
 
 sub _create_prepare {
-	my $self=shift;
-	my $sql=shift;
-	my %params=@_;
+	my ($self,$sql,%params)=@_;
 	my $tag=delete $params{TAG};
 	croak "$sql: already prepared" if defined $self->{STH};
 	print STDERR "(D ",nvl($tag),") $sql: prepare\n" if $self->{DEBUG};
@@ -70,14 +66,12 @@ sub _create_prepare {
 }
 
 sub bind_column {
-	my $self=shift;
-	my $col=shift;
-	my $value=shift;
-	my %params=@_;
+	my ($self,$col,$value,%params)=@_;
+	croak 'param col not defined' unless defined $col;
 	my $name=$col->get_sql_name;
 	croak Dumper($value).'the bind value is not a scalar for column '.$name if ref($value) ne '';
-	$self->{STH}->bind_param(':'.$name,$value);
 	print STDERR "(D ",nvl($params{TAG}),") bind column '".$self->{BINDING_TABLE}->get_sql_name.".$name' with value '".nvl($value,'<undef>')."'\n" if $self->{DEBUG};
+	$self->{STH}->bind_param(':'.$name,$value);
 	my $pk_seq=$col->get_attrs_value qw(PK_SEQ);
 #	$self->{BINDING_VALUES}->[$pk_seq]=$value if defined $pk_seq;
 	my $col_seq=$col->get_attrs_value(qw(COLUMN_SEQUENCE));
@@ -87,23 +81,18 @@ sub bind_column {
 }
 
 sub _get_column_value_init {
-	my $self=shift;
-	my $table=shift;
-	my $col=shift;
-	my %params=@_;
+	my ($self,$table,$col,%params)=@_;
 	my $pk_seq=$col->get_attrs_value qw(PK_SEQ);
 	return undef unless defined $pk_seq;
 	return $params{PK_SEQ_VALUES}->[$pk_seq] 
 		if ref($params{PK_SEQ_VALUES}) eq 'ARRAY' && $pk_seq < scalar(@{$params{PK_SEQ_VALUES}});
-
 	return  $self->get_next_sequence($table,%params) if $pk_seq == 0;
 	return  0 if $pk_seq == 1;
 	croak "$pk_seq: invalid PK_SEQ";
 }
 
 sub _get_insert_sql {
-	my $self=shift;
-	my $table=shift;
+	my ($self,$table,%params)=@_;
 	return "insert into ".$table->get_sql_name
 			." ( ".join(',',map { $_->get_sql_name } $table->get_columns)
 			. ") values ( ".join(',',map { ':'.$_->get_sql_name } $table->get_columns)
@@ -111,9 +100,7 @@ sub _get_insert_sql {
 }
 
 sub insert_binding  {
-	my $self=shift;
-	my $table=shift;
-	my %params=@_;
+	my ($self,$table,%params)=@_;
 	unless (defined $self->{BINDING_TYPE}) {
 		croak "table not defined " unless defined $table;
 		my $sql=$self->_get_insert_sql($table,%params);
@@ -127,19 +114,20 @@ sub insert_binding  {
 		croak $self->{BINDING_TABLE}.': binding already in active'
 			if $self->{BINDING_TYPE} ne BINDING_TYPE_INSERT 
 				|| $self->{BINDING_TABLE}->get_sql_name ne $table->get_sql_name;
-		croak "execute method pending" if $self->{EXECUTE_PENDING};
+		print STDERR "(W) execute method pending\n" if $self->{EXECUTE_PENDING};
 	}
-	for my $col($table->get_columns) {
-		my $value=$self->_get_column_value_init($table,$col,%params);
-		$self->bind_column($col,$value,%params);
+	unless ($self->{EXECUTE_PENDING}) {
+		for my $col($table->get_columns) {
+			my $value=$self->_get_column_value_init($table,$col,%params);
+			$self->bind_column($col,$value,%params);
+		}
+		$self->{EXECUTE_PENDING}=1;
 	}
-	$self->{EXECUTE_PENDING}=1;
 	return $self;
 }
 
 sub _get_delete_sql {
-	my $self=shift;
-	my $table=shift;
+	my ($self,$table,%params)=@_;
 	my @cols=$table->find_columns(PK_SEQ => 0);
 	return "delete from "
 			.$table->get_sql_name
@@ -148,10 +136,7 @@ sub _get_delete_sql {
 }
 
 sub delete_rows_for_id  {
-	my $self=shift;
-	my $table=shift;
-	my $id=shift;
-	my %params=@_;
+	my ($self,$table,$id,%params)=@_;
 	unless (defined $self->{BINDING_TYPE}) {
 		croak "table not defined " unless defined $table;
 		my $sql=$self->_get_delete_sql($table,%params);
@@ -180,8 +165,7 @@ sub delete_rows_for_id  {
 }
 
 sub _get_query_row_sql {
-	my $self=shift;
-	my $table=shift;
+	my ($self,$table,%params)=@_;
 	my @cols=$table->find_columns(PK_SEQ => sub { my $col=shift; defined $col->get_attrs_value qw(PK_SEQ) });
 	my $sql="select * from ".$table->get_sql_name." where ".$cols[0]->get_sql_name."=:".$cols[0]->get_sql_name." order by ".$cols[0]->get_sql_name;
 	$sql.=",".$cols[1]->get_sql_name if scalar(@cols) > 1;
@@ -189,10 +173,7 @@ sub _get_query_row_sql {
 }
 
 sub query_rows {
-	my $self=shift;
-	my $table=shift;
-	my $id=shift;
-	my %params=@_;
+	my ($self,$table,$id,%params)=@_;
 	unless (defined $self->{BINDING_TYPE}) {
 		croak "table not defined " unless defined $table;
 		my $sql=$self->_get_query_row_sql($table);
@@ -219,8 +200,7 @@ sub query_rows {
 }
 
 sub get_binding_columns {
-	my $self=shift;
-	my %params=@_;
+	my ($self,%params)=@_;
 	if (!defined $self->{BINDING_VALUES}) {
 		return wantarray ? () : [];
 	}
@@ -229,15 +209,13 @@ sub get_binding_columns {
 }
 
 sub get_binding_values {
-	my $self=shift;
-	my %params=@_;
+	my ($self,%params)=@_;
 	my @values= map { $_->{VALUE} } $self->get_binding_columns(%params);
 	return wantarray ? @values : \@values;
 }
 
 sub execute {
-	my $self=shift;
-	my %params=@_;
+	my ($self,%params)=@_;
 	croak "not prepared for execute" unless $self->{EXECUTE_PENDING};
 	my $tag=delete $params{TAG};
 	$self->get_sth->execute(%params);
@@ -253,7 +231,7 @@ sub get_query_prepared { return $_[0]->{SQL}; }
 
 
 sub finish {
-	my $self=shift;
+	my ($self,%params)=@_;
 	if (defined  $self->{STH}) {
 		croak "execute pending (".$self->get_query_prepared.")" if $self->is_execute_pending;
 		$self->{STH}->finish;

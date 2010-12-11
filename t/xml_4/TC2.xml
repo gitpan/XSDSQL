@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ComunicazioneNP>
+	<Richiesta>
+		<Portin>
+			<TipoComunicazione>1</TipoComunicazione>
+			<Referente>
+				<QualificaRef>CF</QualificaRef>
+				<CognomeReferente>string</CognomeReferente>
+			</Referente>
+			<NumerazioneAggiuntiva>n1</NumerazioneAggiuntiva>
+			<NumerazioneAggiuntiva>n2</NumerazioneAggiuntiva>
+			<CodiceOrdine>OPI0009128</CodiceOrdine>
+			<DataOrdine>2010-02-10</DataOrdine>
+			<NomeCliente>pincopallo</NomeCliente> 
+			<Correlazioni>
+				<IdentificativoCorrelazioni>OPI1000001</IdentificativoCorrelazioni>
+				<TotaleRichieste>2</TotaleRichieste>
+			</Correlazioni>
+			<CodiceSegreto>AAA</CodiceSegreto>
+			<RoutingNumber>C60123456</RoutingNumber>
+		</Portin>
+	</Richiesta>
+</ComunicazioneNP>

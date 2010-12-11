@@ -7,7 +7,7 @@ use Carp;
 
 use base qw(blx::xsdsql::xml::pg::catalog blx::xsdsql::xml::generic::column);
 
-our  %_DEFAULT_SIZE =(
+my  %_DEFAULT_SIZE =(
 		VARCHAR         =>         4096
 );
 
@@ -19,8 +19,7 @@ sub _get_hash_sql_types {
 
 
 sub new {
-	my $class=shift;
-	my %params=@_;
+	my ($class,%params)=@_;
 	return bless(blx::xsdsql::xml::generic::column->new(%params),$class)
 }
 
@@ -38,12 +37,12 @@ my %_TRANSLATE_TYPE= (
 							$type=~s/number/numeric/i;
 							return $type;
 		}
+		,default	=> 'varchar('.$_DEFAULT_SIZE{VARCHAR}.')'
 );
 
 sub _translate_type {
-	my $self=shift;
-	my $type=shift;
-	my %params=@_;
+	my ($self,$type,%params)=@_;
+	$type='default' unless defined $type;
 	my $t=$_TRANSLATE_TYPE{$type};
 	$t=$_TRANSLATE_TYPE{oth}->($type) unless defined $t;
 	return $t;

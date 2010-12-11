@@ -6,25 +6,26 @@ use integer;
 use Rinchi::XMLSchema;
 use Carp;
 use blx::xsdsql::ut qw(nvl ev);
+use File::Basename;
 
 use constant {
 			 DEFAULT_OCCURS_TABLE_PREFIX 	=> 'm_'
 			,UNBOUNDED						=> 2 ** 32
 			,XS_STRING_TYPE					=> 'string  normalizedString  token  base64Binary  hexBinary duration ID IDREF  IDREFS  NMTOKEN NMTOKENS language Name QName NCName anyURI' 
 			,XS_INTEGER_TYPE				=> 'integer integer  nonPositiveInteger  negativeInteger  long  int  short  byte  nonNegativeInteger  unsignedLong  unsignedInt  unsignedShort  unsignedByte  positiveInteger'
-			,XS_DOUBLE_TYPE				=> 'double'
+			,XS_DOUBLE_TYPE					=> 'double'
 			,XS_FLOAT_TYPE				    => 'float'
 			,XS_DECIMAL_TYPE				=> 'decimal'
-			,XS_DATETIME_TYPE			=> 'dateTime'
-			,XS_DATE_TYPE			        => 'date'
-			,XS_TIME_TYPE			        => 'time'
-			,XS_GYEAR_TYPE			        => 'gYear'
-			,XS_GYEARMONTH_TYPE		 => 'gYearMonth'
-			,XS_GMONTHDAY_TYPE		 => 'gMonthDay'
-			,XS_BOOLEAN_TYPE             => 'boolean'
-			,SIMPLE_TYPE_CLASS			=> 'blx::xsdsql::xml::simple_type'
-			,STRING_MAXSIZE               =>  2**32
-			,XML_STD_NAMESPACES      =>  'xs xsd' 
+			,XS_DATETIME_TYPE				=> 'dateTime'
+			,XS_DATE_TYPE					=> 'date'
+			,XS_TIME_TYPE					=> 'time'
+			,XS_GYEAR_TYPE					=> 'gYear'
+			,XS_GYEARMONTH_TYPE				=> 'gYearMonth'
+			,XS_GMONTHDAY_TYPE				=> 'gMonthDay'
+			,XS_BOOLEAN_TYPE				=> 'boolean'
+			,SIMPLE_TYPE_CLASS				=> 'blx::xsdsql::xml::simple_type'
+			,STRING_MAXSIZE					=>  2**32
+			,XML_STD_NAMESPACES			=>  'xs xsd' 
 };
 
 
@@ -149,18 +150,17 @@ sub _get_type_x {
 			? _get_simple_type_x( { BASE => $type },%params)
 			: $type;
 	}
-	my $r=ref($node->{_content_}->[0]);
+	my $i=0;while (ref($node->{_content_}->[$i]) =~/::Annotation$/) { ++$i; } #annotation skipped
+	my $content=$node->{_content_}->[$i];
+	return bless({},SIMPLE_TYPE_CLASS) unless defined $content;
+	my $r=ref($content);
 	return undef if $r =~/::ComplexType$/;
-	return _get_simple_type_from_node($node->{_content_}->[0],%params) if $r =~/::SimpleType$/;
+	return _get_simple_type_from_node($content,%params) if $r =~/::SimpleType$/;
 	confess $r;
 }
 
 sub _parse_x {
-	my $parent=shift;
-	my $level=shift;
-	my $parent_table=shift;
-	my $types=shift;
-	my %params=@_;
+	my ($parent,$level,$parent_table,$types,%params)=@_;
 	for my $node(@{$parent->{_content_}}) {
 		my $r=ref($node);
 		if ($r =~/::Element$/) {
@@ -188,7 +188,8 @@ sub _parse_x {
 						,TABLE_IS_TYPE  => 1
 					);
 					$table->get_sql_name(%params); #force the resolve of sql name
-					$table->get_constraint_name('pk',%params); #force the resolve of pk constraint 
+					$table->get_constraint_name('pk',%params); #force the resolve of pk constraint
+					$table->get_view_sql_name(%params);   #force the resolve of view sql name
 					$table->add_columns(
 						$params{SELF}->{ANONYMOUS_COLUMN}->factory_column(qw(ID))
 						,$params{SELF}->{ANONYMOUS_COLUMN}->factory_column(qw(SEQ))
@@ -218,6 +219,7 @@ sub _parse_x {
 				);
 				$table->get_sql_name(%params); #force the resolve of sql name
 				$table->get_constraint_name('pk',%params); #force the resolve of pk constraint
+				$table->get_view_sql_name(%params);   #force the resolve of view sql name
 				$table->add_columns($params{SELF}->{ANONYMOUS_COLUMN}->factory_column(qw(ID)));
 
 				my $maxocc=nvl($params{MAXOCCURS},1);
@@ -253,6 +255,8 @@ sub _parse_x {
 				);
 				$table->get_sql_name(%params); #force the resolve of sql name
 				$table->get_constraint_name('pk',%params); #force the resolve of pk constraint 
+				$table->get_view_sql_name(%params);   #force the resolve of view sql name
+
 				$table->add_columns(
 					$params{SELF}->{ANONYMOUS_COLUMN}->factory_column qw(ID)
 					,$params{SELF}->{ANONYMOUS_COLUMN}->factory_column qw(SEQ)
@@ -278,6 +282,8 @@ sub _parse_x {
 				);
 				$table->get_sql_name(%params); #force the resolve of sql name
 				$table->get_constraint_name('pk',%params); #force the resolve of pk constraint 
+				$table->get_view_sql_name(%params);   #force the resolve of view sql name
+
 				$table->add_columns(
 					$params{SELF}->{ANONYMOUS_COLUMN}->factory_column(qw(ID))
 					,$params{SELF}->{ANONYMOUS_COLUMN}->factory_column(qw(SEQ))
@@ -290,7 +296,7 @@ sub _parse_x {
 					,TYPE		=>  Storable::dclone($params{ID_SQL_TYPE})
 					,MINOCCURS	=> 0
 					,MAXOCCURS	=> 1
-					,PATH_REFERENCE	=> $table->{NAME}
+					,PATH_REFERENCE	=> $table->get_sql_name
 				);
 				if (defined $parent_table->{XSD_SEQ}) {	  
 					$column->{XSD_SEQ}=$parent_table->{XSD_SEQ}; 
@@ -317,6 +323,8 @@ sub _parse_x {
 				);
 				$table->get_sql_name(%params); #force the resolve of sql name
 				$table->get_constraint_name('pk',%params); #force the resolve of pk constraint 
+				$table->get_view_sql_name(%params);   #force the resolve of view sql name
+
 				$table->add_columns(
 					$params{SELF}->{ANONYMOUS_COLUMN}->factory_column(qw(ID))
 					,$params{SELF}->{ANONYMOUS_COLUMN}->factory_column(qw(SEQ))
@@ -328,7 +336,7 @@ sub _parse_x {
 					,TYPE		=> Storable::dclone($params{ID_SQL_TYPE})
 					,MINOCCURS	=> 0
 					,MAXOCCURS	=> 1
-					,PATH_REFERENCE	=> $table->{NAME}
+					,PATH_REFERENCE	=> $table->get_sql_name
 				);
 				if (defined $parent_table->{XSD_SEQ}) {	   #the table is a sequence or a choise 
 					$column->{XSD_SEQ}=$parent_table->{XSD_SEQ}; 
@@ -363,9 +371,60 @@ sub _parse_x {
 				$table->add_columns(@cols);
 				$table->get_sql_name(%params); #force the resolve of sql name
 				$table->get_constraint_name('pk',%params); #force the resolve of pk constraint 
+				$table->get_view_sql_name(%params);   #force the resolve of view sql name
+
 				push @$types,$table;
 			}
 			next;
+		}
+		elsif ($r=~/::Annotation$/) {
+			#ignored
+		}
+		elsif ($r=~/::Group$/) {
+			my $ref=$node->ref;
+			if (defined $ref) {  # is a reference 
+				my ($maxoccurs,$minoccurs) = (nvl($node->{_maxOccurs},1),nvl($node->{_minOccurs},1));
+ 				$maxoccurs=UNBOUNDED if $maxoccurs eq 'unbounded';
+				my $name=nvl($node->name,$ref);
+				my $column = $params{COLUMN_CLASS}->new(
+					PATH		=> $parent->{complete_name}.'/'.$name
+					,TYPE		=> $ref
+					,MINOCCURS	=> $minoccurs
+					,MAXOCCURS	=> $maxoccurs
+					,GROUP_REF	=> 1
+				);
+				if (defined $parent_table->{XSD_SEQ}) {	   #the table is a sequence or choise
+					$column->{XSD_SEQ}=$parent_table->{XSD_SEQ}; 
+					++$parent_table->{XSD_SEQ} unless $parent_table->{CHOISE}; #the columns of a choise have the same xsd_seq
+				}
+				$parent_table->add_columns($column);
+			}
+			else {
+				my $name=$node->name();
+				if (defined $name) {
+					$node->{complete_name}=$parent->{complete_name}.'/'.$name;
+					my $table = $params{TABLE_CLASS}->new (
+						 PATH		=> $node->{complete_name}
+						,TABLE_IS_TYPE	=> 1
+						,GROUP_TYPE	=> 1
+						,XSD_SEQ	=> 1
+						,COMPLEX_TYPE	=> 1
+					);
+					$table->get_sql_name(%params); #force the resolve of sql name
+					$table->get_constraint_name('pk',%params); #force the resolve of pk constraint 
+					$table->get_view_sql_name(%params);   #force the resolve of view sql name
+
+					$table->add_columns(
+						$params{SELF}->{ANONYMOUS_COLUMN}->factory_column qw(ID)
+						,$params{SELF}->{ANONYMOUS_COLUMN}->factory_column qw(SEQ)
+					);
+					push @$types,$table;
+					_parse_x($node,$level + 1,$table,undef,%params);
+				}
+				else {
+					confess "invalid xsd: group without name and ref"	
+				}
+			}
 		}
 		else {
 			confess "$r: unknow type";
@@ -390,6 +449,15 @@ sub _parse_user_def_types {
 				elsif ($ty->{COMPLEX_TYPE}) {		  
 					my $h=Storable::dclone($params{ID_SQL_TYPE});
 					$c->{PATH_REFERENCE}=$ty->{PATH};
+					if ($c->{GROUP_REF}) {
+						$c->{PATH}=dirname($c->{PATH});
+						my @t=grep($_->{PATH} eq $c->{PATH_REFERENCE},@$types);
+						confess $c->{PATH_REFERENCE}.": not table reference for group "
+							if scalar(@t) == 0;
+						confess $c->{PATH_REFERENCE}.": too many  reference for group "
+							if scalar(@t) > 1;
+						$c->{TABLE_REFERENCE}=$t[0];
+					}
 					$c->{TYPE}=$h; 
 				}
 				else {
@@ -410,8 +478,10 @@ sub _parse_user_def_types {
 }
 
 sub _parse {
-	my $r=shift;
-	my %params=@_;
+	my ($r,%params)=@_;
+	for my $p qw( TABLENAME_LIST  CONSTRAINT_LIST) {
+		confess "param $p not defined or not corrent" if ref($params{$p}) ne 'HASH';
+	}
 	my $root=$params{TABLE_CLASS}->new (
 		NAME			=> undef
 		,PATH			=> '/'
@@ -420,6 +490,8 @@ sub _parse {
 	);
 	$root->get_sql_name(%params); #force the resolve of sql name 
 	$root->get_constraint_name('pk',%params); #force the resolve of pk constraint
+	$root->get_view_sql_name(%params); #force the resolve of the corresponding view name 	
+	$root->get_sequence_name(%params); #force the resolve of the corresponding sequence name
 	$root->add_columns($params{SELF}->{ANONYMOUS_COLUMN}->factory_column(qw(ID)));
 	_parse_x($r,0,$root,$root->{TYPES},%params);
 	_parse_user_def_types($root->{CHILD_TABLES},$root->{TYPES},%params);
@@ -427,9 +499,9 @@ sub _parse {
 	return $root;
 }
 
-sub  parsefile {
+sub parsefile {
 	my ($self,$file_name,%params)=@_;
-	my $r = Rinchi::XMLSchema->parsefile($file_name);
+	my $r=Rinchi::XMLSchema->parsefile($file_name);
 	$r->{complete_name} = '';
 	$params{SELF}=$self;
 	for my $k qw(ID_SQL_TYPE TABLE_CLASS COLUMN_CLASS) {
@@ -437,42 +509,45 @@ sub  parsefile {
 	}
 	$params{TABLENAME_LIST}={};
 	$params{CONSTRAINT_LIST}={};
+	for my $p qw(TABLE_PREFIX VIEW_PREFIX SEQUENCE_PREFIX) {
+		$params{$p}='' unless defined $params{$p};
+	}
 	return _parse($r,%params);
 }
 
 
 sub new {
-	my $class=shift;
-	my %params=@_;
+	my ($class,%params)=@_;
 	my $namespace=$params{DB_NAMESPACE};
 	croak "no param DB_NAMESPACE spec" unless defined $namespace;
-	$params{CATALOG_CLASS}='blx::xsdsql::xml::'.$namespace.'::catalog';
-	$params{TABLE_CLASS}='blx::xsdsql::xml::'.$namespace.'::table';
-	$params{COLUMN_CLASS}='blx::xsdsql::xml::'.$namespace.'::column';
-	for my $cl qw( CATALOG_CLASS TABLE_CLASS COLUMN_CLASS ) {
-		ev('use',$params{$cl});
+
+	for my $cl qw(catalog table column) {
+		my $class=uc($cl).'_CLASS';
+		$params{$class}='blx::xsdsql::xml::'.$namespace.'::'.$cl;
+		ev('use',$params{$class});
 	}
 	$params{ANONYMOUS_COLUMN}=$params{COLUMN_CLASS}->new;
 	$params{ID_SQL_TYPE}=$params{ANONYMOUS_COLUMN}->factory_column(qw(ID))->get_attrs_value(qw(TYPE));
 	return bless \%params,$class;
 }
 	
-sub  get_db_namespaces {
+sub get_db_namespaces {
 	my @n=();
 	for my $i(@INC) {
 		my $dir=File::Spec->catdir($i,'blx','xsdsql','xml');
-		next unless  -d "$dir";
+		next unless  -d $dir;
+		next if $dir=~/^\./;
 		next unless opendir(my $fd,$dir);
 		while(my $d=readdir($fd)) {
 			next unless -d File::Spec->catdir($dir,$d);
-			next if $d eq '.';
-			next if $d eq '..';
+			next if $d=~/^\./;
 			push @n,$d;
 		}
 		closedir($fd);
 	}
 	return wantarray ? @n : \@n;
 }
+
 
 if ($0 eq __FILE__) {
 	use strict;
@@ -525,12 +600,14 @@ parsefile - parse a xsd file
  
 	the first param if an object compatible with the input of Rinchi::XMLSchema::parsefile, normally a file name    
 	the method return a tree of objects rapresented the  tables of database 
-
+	
+	PARAMS:
+		TABLE_PREFIX - prefix for tables - the default is none
+		VIEW_PREFIX  - prefix for views  - the default is none
 
 get_db_namespaces - static method 
 
-	the method return an array of namespace founded 
-
+	the method return an array of database namespace founded (Es: pg) 
 
 
 =head1 EXPORT

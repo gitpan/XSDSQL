@@ -3,11 +3,11 @@ package blx::xsdsql::xml::generic::table;
 use strict;
 use warnings;
 use integer;
-use Carp;
 use blx::xsdsql::ut qw(nvl);
 use File::Basename;
 
 use base qw(blx::xsdsql::xml::generic::catalog);
+use Carp;
 
 our %_ATTRS_R=( 
 			NAME   => sub {
@@ -16,7 +16,7 @@ our %_ATTRS_R=(
 			}							
 			,PATH_RESOLVED => sub {
 							my $self=shift;
-							return $self->get_path_resolved(@_);
+							return $self->get_path_resolved;
 			}
 			,TYPES => sub {
 							my $self=shift;
@@ -28,8 +28,7 @@ our %_ATTRS_R=(
 our %_ATTRS_W=();
 
 sub new {
-	my $class=shift;
-	my %params=@_;
+	my ($class,%params)=@_;
 	$params{COLUMNS}=[] unless  defined $params{COLUMNS};
 	$params{CHILD_TABLES}=[] unless defined $params{CHILD_TABLES}; 
 	$params{XSD_SEQ}=0 unless defined $params{XSD_SEQ}; 
@@ -48,7 +47,7 @@ sub add_columns {
 }
 
 sub get_columns {
-	my $self=shift;
+	my ($self,%params)=@_;
 	my $v=$self->get_attrs_value qw(COLUMNS);
 	return wantarray ? @$v : $v;
 }
@@ -60,36 +59,55 @@ sub add_child_tables {
 }
 
 sub resolve_path_for_table_type {
-	my $self=shift;
-	croak $self->get_sql_name.': table is not a type ' unless $self->get_attrs_value qw(TABLE_IS_TYPE);
-	my $orig_path_name=shift;
-	my $path=shift;	
+	my ($self,$orig_path_name,$path,%params)=@_;
+#	croak $self->get_sql_name.': table is not a type ' unless $self->get_attrs_value qw(TABLE_IS_TYPE);
 	my $table_path=$self->get_attrs_value qw(PATH);
 	croak "$path\n$orig_path_name\nnot omogemus path " if substr($path,0,length($orig_path_name)) ne $orig_path_name;
 	my $p=$table_path.substr($path,length($orig_path_name));
 	return $p;
 }
 
+
+sub _is_column_group_ref {
+	my ($self,$col,$path_orig,%params)=@_;
+	my $v=$col->get_attrs_value qw(PATH);
+	my $table_ref=$col->get_attrs_value qw(TABLE_REFERENCE);
+	my $table_path=$table_ref->get_attrs_value qw(PATH);
+	for my $c($table_ref->get_columns) {
+		my $path=$c->get_attrs_value qw(PATH);
+		$path='/'.$c->get_attrs_value qw(NAME) unless defined $path;
+		next unless defined $path;
+		$path=~s/^$table_path//;
+		return 1 if $v.$path eq $path_orig;
+		
+	}	
+	return 0;
+}
+			
 sub find_columns {
-	my $self=shift;
-	my %params=@_;
+	my ($self,%params)=@_;
 	my $cols=$self->get_columns;
 	return wantarray ? () : undef if scalar(keys %params) == 0;
 	my @r=map {
 		my $col=$_;
 		(grep {
-			my $param_value=$params{$_};
-			my $v=$col->get_attrs_value($_);
 			my $r=undef;
-			if (ref($param_value) eq '') {
-				$r=defined $v && defined $param_value && $v eq $param_value
-					|| !defined $v && !defined $param_value ? 1 : 0;
-			}
-			elsif (ref($param_value) eq 'CODE') {
-				$r=$param_value->($col,$cols);
+			if ($col->{GROUP_REF} && $_ eq 'PATH') {  #the column is a reference to table group
+				$r=1 if $self->_is_column_group_ref($col,$params{$_});
 			}
 			else {
-				croak "param value must e scalar or a CODE";
+				my $param_value=$params{$_};
+				my $v=$col->get_attrs_value($_);
+				if (ref($param_value) eq '') {
+					$r=defined $v && defined $param_value && $v eq $param_value
+						|| !defined $v && !defined $param_value ? 1 : 0;
+				}
+				elsif (ref($param_value) eq 'CODE') {
+					$r=$param_value->($col,$cols);
+				}
+				else {
+					croak "param value must e scalar or a CODE";
+				}
 			}
 			$r;
 		}  keys %params) ? ($col) : (); 
@@ -115,40 +133,39 @@ sub get_attrs_value {
 }
 
 sub _adjdup_sql_name {
-	my $self=shift;
-	my $name=shift;
-	my %params=@_;
+	my ($self,$name,%params)=@_;
 	$name=substr($name,0,length($name) -1).'0' if $name!~/\d+$/;
 	confess "param TABLENAME_LIST not defined" unless defined $params{TABLENAME_LIST}; 
 	my $l=$params{TABLENAME_LIST};
 	while(1) {
 		last unless exists $l->{$name};
 		my ($suff)=$name=~/(\d+)$/;
-		$suff+=1;
+		++$suff;
 		$name=~s/\d+$/$suff/;
 	}
 	return $name;
 }
 
 sub _translate_path  {
-	my $self=shift;
+	my ($self,%params)=@_;
 	my $path=defined $self->{PATH} ? $self->{PATH} : $self->{NAME};
-	my %params=@_;
 	$path=nvl($params{ROOT_TABLE_NAME},'ROOT') if $path eq '/';
 	$path=~s/\//_/g;
 	$path=~s/^_//;
 	$path=~s/-/_/g;
+	$path=$params{VIEW_PREFIX}.'_'.$path if $params{VIEW_PREFIX};
+	$path=$params{TABLE_PREFIX}.'_'.$path if $params{TABLE_PREFIX};
 	return $path;
 }
 
 sub _reduce_sql_name {
-	my $self=shift;
-	my $name=shift;
-	my %params=@_;
+	my ($self,$name,%params)=@_;
 	my $maxsize=$self->get_name_maxsize;
 	my @s=split('_',$name);
-	for my $s(@s) {
-		$s=~s/([A-Z])[a-z0-9]+/$1/g;
+	for my $i(0..scalar(@s) - 1) {
+		next if $i == 0 && $params{TABLE_PREFIX}; #not reduce the table prefix
+		next if $i == 1 && $params{VIEW_PREFIX}; #not reduce  the view prefix
+		$s[$i]=~s/([A-Z])[a-z0-9]+/$1/g;
 		my $t=join('_',@s);
 		return $t if  length($t) <= $maxsize;
 	}
@@ -156,14 +173,13 @@ sub _reduce_sql_name {
 }
 
 sub get_sql_name {
-	my $self=shift;
-	my %params=@_;
+	my ($self,%params)=@_;
 	return $self->{SQL_NAME} if defined $self->{SQL_NAME};
 	my $l=$params{TABLENAME_LIST};
 	croak "param TABLENAME_LIST not defined" unless defined $l;
+	delete $params{VIEW_PREFIX}; #only for views
 	my $name= $self->_translate_path(%params);
-
-	$name=$self->_reduce_sql_name($name) if length($name) > $self->get_name_maxsize();
+	$name=$self->_reduce_sql_name($name,%params) if length($name) > $self->get_name_maxsize();
 	if (exists $l->{$name}) {
 		$name=$self->_adjdup_sql_name($name,%params);
 		confess "'$name' duplicate" if exists $l->{$name};
@@ -173,25 +189,39 @@ sub get_sql_name {
 	return $name;
 }
 
+sub get_view_sql_name {
+	my ($self,%params)=@_;
+	return $self->{VIEW_SQL_NAME} if defined $self->{VIEW_SQL_NAME};
+	my $l=$params{TABLENAME_LIST};
+	croak "param TABLENAME_LIST not defined" unless defined $l;
+	$params{TABLE_PREFIX}=delete $params{VIEW_PREFIX} if $params{VIEW_PREFIX} && !$params{TABLE_PREFIX};
+	my $name= $self->_translate_path(%params);
+	$name=$self->_reduce_sql_name($name,%params) if length($name) > $self->get_name_maxsize();
+	if (exists $l->{$name}) {
+		$name=$self->_adjdup_sql_name($name,%params);
+		confess "'$name' duplicate" if exists $l->{$name};
+	}
+	$l->{$name}=undef;
+	$self->{VIEW_SQL_NAME}=$name;
+	return $name;
+}
+
+
 sub _get_constraint_suffix { 
-	my $self=shift;
-	my $type=shift;
-	my %params=@_;
+	my ($self,$type,%params)=@_;
 	return '_'.$type;
 }
 
 sub get_constraint_name {
-	my $self=shift;
-	my $type=shift;
-	my %params=@_;
+	my ($self,$type,%params)=@_;
 	return $self->{SQL_CONSTRAINT}->{$type} if defined $self->{SQL_CONSTRAINT}->{$type}; 
 	my $l=$params{CONSTRAINT_LIST};
 	croak "param CONSTRAINT_LIST not defined" unless defined $l;
 	my $pk_suffix=$self->_get_constraint_suffix($type,%params);
-	my $table_name=$self->get_sql_name(TABLENAME_LIST => {});
+	my $table_name=$self->get_sql_name(%params,TABLENAME_LIST => undef);
 	my $pt=substr($table_name,0,$self->get_name_maxsize - length($pk_suffix));
 	if (exists $l->{$type}->{$pt}) {
-		$pt=$self->_adjdup_sql_name($pt,TABLENAME_LIST => $l->{$type});
+		$pt=$self->_adjdup_sql_name($pt,%params,TABLENAME_LIST => $l->{$type});
 		confess "'$pt' duplicate" if exists $l->{$type}->{$pt};
 	}
 	$l->{$type}->{$pt}=undef;
@@ -199,8 +229,26 @@ sub get_constraint_name {
 }
 
 sub get_path_resolved {
-	my $self=shift;
-	return defined $self->{PATH} ? $self->{PATH} : $self->{NAME}
+	my ($self,%params)=@_;
+	return defined $self->{PATH} ? $self->{PATH} : $self->get_sql_name;
+}
+
+sub get_sequence_name {
+	my ($self,%params)=@_;
+	return $self->{SEQ_SQL_NAME} if defined $self->{SEQ_SQL_NAME};
+	my $l=$params{TABLENAME_LIST};
+	croak "param TABLENAME_LIST not defined" unless defined $l;
+	delete $params{VIEW_PREFIX}; #only for views
+	$params{TABLE_PREFIX}=$params{SEQUENCE_PREFIX};
+	my $name= $self->_translate_path(%params);
+	$name=$self->_reduce_sql_name($name,%params) if length($name) > $self->get_name_maxsize();
+	if (exists $l->{$name}) {
+		$name=$self->_adjdup_sql_name($name,%params);
+		confess "'$name' duplicate" if exists $l->{$name};
+	}
+	$l->{$name}=undef;
+	$self->{SEQ_SQL_NAME}=$name;
+	return $name;
 }
 
 1;

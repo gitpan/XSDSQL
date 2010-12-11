@@ -23,11 +23,11 @@ WriteMakefile(
 	,PREREQ_PM         => { 
 						'Rinchi::XMLSchema' => '0.02' 
 						, 'XML::Parser' => '1.21' 
-						, 'XML::Writer' => '0.611'
+						, 'XML::Writer' => '0.600'
+						, 'DBI'		=> '1.58'
 	}
 	,LICENSE => "perl"
 	,EXE_FILES => [ map "bin/$_", @prog ]
-	,MIN_PERL_VERSION => 5.008 
 	,($] >= 5.005 ?     ## Add these new keywords supported since 5.005
 		(
 			ABSTRACT => 'xsd converter to sql objects and xml loader'

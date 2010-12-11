@@ -1,15 +1,15 @@
-package blx::xsdsql::generator::sql::generic::handle::addpk;
+package blx::xsdsql::generator::sql::generic::handle::drop_sequence;
 use strict;
 use warnings;
 use Carp;
 use base qw(blx::xsdsql::generator::sql::generic::handle);
+use blx::xsdsql::ut qw(nvl);
 
 sub table_header {
 	my ($self,$table,%params)=@_;
-	my $table_name=$table->get_sql_name(%params);
-	my $pk_name=$table->get_constraint_name('pk');
-	my @cols=map { $_->get_sql_name } $table->find_columns(PK_SEQ => sub { my $col=shift; defined $col->get_attrs_value qw(PK_SEQ) });
-	$self->{STREAMER}->put_line("alter table $table_name add constraint $pk_name primary key (".join(',',@cols).')',$table->command_terminator);
+	return $self if nvl($table->get_attrs_value qw(PATH)) ne '/';  #bypass if is not the root table
+	my $name=$table->get_sequence_name(%params);
+	$self->{STREAMER}->put_line("drop sequence $name ",$table->command_terminator);
 	return $self;
 }
 
@@ -19,12 +19,12 @@ __END__
 
 =head1 NAME
 
-blx::xsdsql::generator::sql::generic::handle::addpk - generic handle for add primary key
+blx::xsdsql::generator::sql::generic::handle::drop_sequence - generic handle for drop a  sequence
 
 
 =head1 SYNOPSIS
 
-use blx::xsdsql::generator::sql::generic::handle::addpk
+use blx::xsdsql::generator::sql::generic::handle::drop_sequence
 
 
 =head1 DESCRIPTION

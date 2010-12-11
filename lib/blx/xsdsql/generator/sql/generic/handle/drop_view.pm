@@ -1,15 +1,19 @@
-package blx::xsdsql::generator::sql::generic::handle::addpk;
+package blx::xsdsql::generator::sql::generic::handle::drop_view;
 use strict;
 use warnings;
 use Carp;
 use base qw(blx::xsdsql::generator::sql::generic::handle);
 
+sub _get_drop_prefix {
+	my ($self,%params)=@_;
+	return "drop view";
+}
 sub table_header {
 	my ($self,$table,%params)=@_;
-	my $table_name=$table->get_sql_name(%params);
-	my $pk_name=$table->get_constraint_name('pk');
-	my @cols=map { $_->get_sql_name } $table->find_columns(PK_SEQ => sub { my $col=shift; defined $col->get_attrs_value qw(PK_SEQ) });
-	$self->{STREAMER}->put_line("alter table $table_name add constraint $pk_name primary key (".join(',',@cols).')',$table->command_terminator);
+	my $path=$table->get_attrs_value qw(PATH);
+	my $comm=defined $path ? $table->comment('PATH: '.$path) : '';
+	my $name=$table->get_view_sql_name;
+	$self->{STREAMER}->put_line($self->_get_drop_prefix,' ',$name,' ',$comm,$table->command_terminator);
 	return $self;
 }
 
@@ -19,12 +23,13 @@ __END__
 
 =head1 NAME
 
-blx::xsdsql::generator::sql::generic::handle::addpk - generic handle for add primary key
+blx::xsdsql::generator::sql::generic::handle::drop_view  - generic handle for drop views
 
 
 =head1 SYNOPSIS
 
-use blx::xsdsql::generator::sql::generic::handle::addpk
+
+use blx::xsdsql::generator::sql::generic::handle::drop_view
 
 
 =head1 DESCRIPTION
@@ -37,7 +42,6 @@ this package is a class - instance it with the method new
 =head1 FUNCTIONS
 
 see the methods of blx::xsdsql::generator::sql::generic::handle 
-
 
 =head1 EXPORT
 

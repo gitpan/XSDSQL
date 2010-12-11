@@ -75,8 +75,7 @@ our %_ATTRS_R=(
 our %_ATTRS_W=();
 
 sub new {
-	my $class=shift;
-	my %params=@_;
+	my ($class,%params)=@_;
 	$params{XSD_SEQ}=0 unless defined $params{XSD_SEQ}; 
 	return bless(\%params,$class);
 }
@@ -94,9 +93,7 @@ sub get_attrs_value {
 }
 
 sub _translate_type {
-	my $self=shift;
-	my $type=shift;
-	my %params=@_;
+	my ($self,$type,%params)=@_;
 	return $type;
 }
 
@@ -127,9 +124,7 @@ sub get_sql_type {
 }
 
 sub _adjdup_sql_name {
-	my $self=shift;
-	my $name=shift;
-	my %params=@_;
+	my ($self,$name,%params)=@_;
 	my $l=$params{COLUMNNAME_LIST};
 	confess "param COLUMNNAME_LIST not defined " unless defined $params{COLUMNNAME_LIST};
 	$name=substr($name,0,length($name) -1).'0' if $name!~/\d+$/;
@@ -143,8 +138,7 @@ sub _adjdup_sql_name {
 }
 
 sub _translate_path  {
-	my $self=shift;
-	my %params=@_;
+	my ($self,%params)=@_;
 	my $path=$self->get_attrs_value qw(NAME);
 	$path=~s/^_//;
 	$path=~s/-/_/g;
@@ -171,8 +165,7 @@ sub _resolve_invalid_name {
 }
 
 sub get_sql_name {
-	my $self=shift;
-	my %params=@_;
+	my ($self,%params)=@_;
 	return $self->{SQL_NAME} if defined $self->{SQL_NAME};
 	my $l=$params{COLUMNNAME_LIST};
 	confess "param COLUMNNAME_LIST not defined " unless defined $l; 
@@ -188,7 +181,7 @@ sub get_sql_name {
 }
 
 sub is_internal_reference {
-	my $self=shift;
+	my ($self,%params)=@_;
 	return $self->{INTERNAL_REFERENCE} ? 1 : 0;
 }
 

@@ -9,8 +9,7 @@ use base qw( blx::xsdsql::xml::pg::catalog blx::xsdsql::xml::generic::table   );
 
 
 sub new {
-	my $class=shift;
-	my %params=@_;
+	my ($class,%params)=@_;
 	return bless(blx::xsdsql::xml::generic::table->new(%params),$class)
 }
 

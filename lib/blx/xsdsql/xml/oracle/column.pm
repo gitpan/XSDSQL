@@ -8,7 +8,7 @@ use Carp;
 use base qw(blx::xsdsql::xml::oracle::catalog blx::xsdsql::xml::generic::column);
 
 my  %_DEFAULT_SIZE =(
-		VARCHAR         =>         4096
+		VARCHAR         =>         4000
 );
 
 my %_TRANSLATE_TYPE= (
@@ -24,18 +24,20 @@ my %_TRANSLATE_TYPE= (
 							my $type=shift;
 							return $type;
 		}
+		,boolean	=> 'number(1)'
+		,default	=> 'varchar('.$_DEFAULT_SIZE{VARCHAR}.')'
+		
 );
 
 sub _translate_type {
-	my $self=shift;
-	my $type=shift;
-	my %params=@_;
+	my ($self,$type,%params)=@_;
+	$type='default' unless defined $type;
 	my $t=$_TRANSLATE_TYPE{$type};
 	$t=$_TRANSLATE_TYPE{oth}->($type) unless defined $t;
 	return $t;
 }
 
-my @INVALID_NAMES=qw ( int  short byte column varchar date time long number float table alter create drop ); 
+my @INVALID_NAMES=qw ( int  short byte column varchar date time long number float table alter create drop decimal integer); 
 
 sub _resolve_invalid_name {
 	my ($self,$name,%params)=@_;
@@ -50,8 +52,7 @@ sub _get_hash_sql_types {
 
 
 sub new {
-	my $class=shift;
-	my %params=@_;
+	my ($class,%params)=@_;
 	return bless(blx::xsdsql::xml::generic::column->new(%params),$class)
 }
 

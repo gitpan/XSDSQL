@@ -1,4 +1,4 @@
-blx::xsdsql version 0.01
+blx::xsdsql version 0.02
 ==========================
 
 The README is used to introduce the module and provide instructions on
@@ -27,17 +27,19 @@ This module requires these other modules and libraries:
 
 	Rinchi::XMLSchema => '0.02' 
 	XML::Parser => '1.21' 
-	XML::Writer => '0.611'
+	XML::Writer => '0.600'
+	DBI	    => '1.58'
 
-For the connection to a database  the module DBI (version 1.6 or better) 
+For the connection to a database  the module DBI (version 1.58 or better) 
 and the driver of the appropriate database are  required. 
 
 After the installation the directory $PREFIX/bin contain two example of programs:
 	xsd2sql - convert a xsd file into a database schema (text file with prefix .sql)
 	xml.pl  - load | write | unload  a xml file from / to the database  
 
-COPYRIGHT AND LICENCE
 
+COPYRIGHT AND LICENCE
+ 
 Copyright (C) 2010 by  lorenzo bellotti
 
 This library is free software; you can redistribute it and/or modify

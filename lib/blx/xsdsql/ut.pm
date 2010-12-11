@@ -3,6 +3,7 @@ use 5.008000;
 use strict;
 use warnings;
 use base qw(Exporter);
+use Carp;
 
 our %EXPORT_TAGS = ( 'all' => [ qw( nvl ev get_attrs_value set_attrs_value ) ] );
 
@@ -10,7 +11,7 @@ our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
 our @EXPORT = qw( );
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 sub  nvl {
 	return '' if scalar(@_) == 0;

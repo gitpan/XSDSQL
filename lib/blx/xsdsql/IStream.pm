@@ -13,8 +13,23 @@ our %EXPORT_TAGS=( all => [ map { @{$t{$_}} } keys %t ],%t);
 our @EXPORT_OK=( @{$EXPORT_TAGS{all}} );
 our @EXPORT=qw( );
 
+sub _pop_str {  #pop n chars from str pointer
+	my ($p,$n)=@_;
+	my $l=length($$p);
+	my $s=substr($$p,$l - $n);
+	$$p=substr($$p,0,$l - $n);
+	return defined wantarray ? $s : undef;
+}
+
+sub _push_str { # push s to str pointer
+	my ($p,$s,$maxsize)=@_;
+	my $r=$$p.$s;
+	$$p=substr($r,length($r) - $maxsize);	
+	return defined wantarray ? $$p : undef;
+} 
+
 sub _init_input_stream {
-	my $self=shift;
+	my ($self,%params)=@_;
 	return $self unless defined $self->{INPUT_STREAM}; 
 	my $r=ref($self->{INPUT_STREAM});
 	if ($r eq '') { #string
@@ -26,22 +41,37 @@ sub _init_input_stream {
 	elsif ($r eq 'SCALAR') { #reference to scalar
 		$self->{I}->{P}=0;  #current index
 	}
+	elsif ($self->{INPUT_STREAM} eq *STDIN || $r eq 'GLOB') {
+		$params{MAX_PUSHBACK_SIZE}=0 unless defined $params{MAX_PUSHBACK_SIZE};
+		croak $params{MAX_PUSHBACK_SIZE}.': invalid param value MAX_PUSHBACK_SIZE'
+			unless $params{MAX_PUSHBACK_SIZE}=~/^\d+$/;
+		my $s='';
+		$self->{BUFFER}=\$s;
+		$self->{PUSHBACK_N}=0;
+		$self->{MAX_PUSHBACK_SIZE}=$params{MAX_PUSHBACK_SIZE};
+	}
+	elsif ($r eq 'CODE') {
+		#empty
+	}
+	else {
+		croak $r.': type non implemented';
+	}
 	return $self;
 }
 
 
 sub new {
-	my $class=shift;
-	my %params=@_;
-	my $s=bless(\%params,$class);
-	return $s->_init_input_stream;
+	my ($class,%params)=@_;
+	my $max_pushback_size=delete $params{MAX_PUSHBACK_SIZE};
+	my $self=bless(\%params,$class);
+	return $self->_init_input_stream(MAX_PUSHBACK_SIZE => $max_pushback_size);
 }
 
 
 sub set_input_descriptor {
 	my ($self,$fd,%params)=@_;
 	$self->{INPUT_STREAM}=$fd;
-	return $self->_init_input_stream;
+	return $self->_init_input_stream(%params);
 }
 
 
@@ -50,14 +80,28 @@ sub get_chars {
 	$n=1 unless defined $n;
 	my $stream=$self->{INPUT_STREAM};
 	croak "INPUT_STREAM non set" unless defined $stream;
-	return '' if $n <= 0;
+	croak "$n: invalid first param value" unless $n=~/^\d+$/;
+	return '' if $n == 0;
 	my $r=ref($stream);
 	if ($stream eq *STDIN || ref($stream) eq 'GLOB') {
-		my $s=undef;
-		my $r=read $stream,$s,$n;
-		croak "$!" unless defined $r;
-		return '' if $r == 0;
-		return $s;
+		my $outs='';
+		if ($self->{PUSHBACK_N}) {
+			my $m=$n > $self->{PUSHBACK_N} ? $self->{PUSHBACK_N} : $n;
+			$outs=_pop_str($self->{BUFFER},$m);
+			$n -= $m;
+			$self->{PUSHBACK_N}-=$m;  
+		}
+		if ($n) {
+			my $s=undef;
+			my $r=read $stream,$s,$n;
+			croak "$!" unless defined $r;
+			$s='' if $r == 0;
+			if ($self->{MAX_PUSHBACK_SIZE} && length($s) > 0) {
+				_push_str($self->{BUFFER},$s,$self->{MAX_PUSHBACK_SIZE});				
+			}
+			$outs.=$s;
+		}
+		return $outs;
 	}
 	elsif ($r eq '') { #string
 		return  '' if  $self->{I}->{P} >= length($stream);
@@ -97,6 +141,10 @@ sub get_chars {
 	return undef;	
 }
 
+sub get_char {
+	my ($self,%params)=@_;
+	return $self->get_chars(1,%params);
+}
 
 sub get_line {
 	my $self=shift;
@@ -105,7 +153,10 @@ sub get_line {
 	croak "INPUT_STREAM non set" unless defined $stream;
 	my $r=ref($stream);
 	if (wantarray) {
-		return <$stream> if $stream eq *STDIN || $r eq 'GLOB'; 	#use the optimized version for file descriptor
+		if ($stream eq *STDIN || $r eq 'GLOB') { 	#use the optimized version for file descriptor
+			confess "push back not implemented for get_line " if  $self->{PUSHBACK_N};
+			return <$stream>;
+		} 
 		my @s=();
 		while(my $s=$self->get_line) {
 			push @s,$s;
@@ -114,6 +165,7 @@ sub get_line {
 	}
 
 	if ($stream eq *STDIN || $r eq 'GLOB') {
+		confess "push back not implemented for get_line " if $self->{PUSHBACK_N};
 		my $s=<$stream>;
 		return $s;
 	}
@@ -132,6 +184,7 @@ sub get_line {
 		return 	$stream->[$self->{I}->{R}++]."\n";
 	}
 	elsif ($r eq 'CODE') {
+		confess "push back not implemented for get_line " if $self->{PUSHBACK_N};
 		return $stream->($self,@_);
 	}
 	elsif ($r eq 'SCALAR') {
@@ -148,6 +201,38 @@ sub get_line {
 		croak $r.': type non implemented';
 	}
 	return undef;	
+}
+
+sub push_back {
+	my ($self,$n,%params)=@_;
+	my $stream=$self->{INPUT_STREAM};
+	croak "INPUT_STREAM non set" unless defined $stream;
+	$n=1 unless defined $n;
+	croak "$n: invalid first param value" unless $n=~/^\d+$/;
+	my $r=ref($stream);
+	if ($stream eq *STDIN || ref($stream) eq 'GLOB') {
+		$self->{PUSHBACK_N} += $n;
+		croak "pushback oveflow " if $self->{PUSHBACK_N} > $self->{MAX_PUSHBACK_SIZE}
+			or $self->{PUSHBACK_N} > length(${$self->{BUFFER}})
+	}
+	elsif ($r eq '') { #string
+		$self->{I}->{P} -= $n;
+		croak $n.": invalid value for push_back" if $self->{I}->{P} < 0; 
+	}
+	elsif ($r eq 'ARRAY') {
+		confess "push_back not implemented for ARRAY";
+	}
+	elsif ($r eq 'CODE') {
+		confess "push_back not implemented for CODE";
+	}
+	elsif ($r eq 'SCALAR') {		
+		$self->{I}->{P} -= $n;
+		croak $n.": invalid value for push_back" if $self->{I}->{P} < 0; 
+	}
+	else {
+		croak $r.': type non implemented';
+	}
+	return $self;
 }
 
 if (__FILE__ eq $0 || $ENV{REGRESSION_TEST}) {
@@ -232,10 +317,12 @@ new - constructor
 
 	PARAMS:
 		INPUT_STREAMER  - an array,string,soubroutine or a file descriptor (default not set) 
-
-
+		MAX_PUSHBACK_SIZE - the max size in characters for the internal buffer used by push_back and the streamer is a file descriptor
+                            the default is 0		
 
 set_input_descriptor - the first param  is a value same as INPUT_STREAMER
+                       params:
+                       MAX_PUSHBACK_SIZE - equal to same param of the constructor
 
 	the method return the self object
 
@@ -244,19 +331,23 @@ set_input_descriptor - the first param  is a value same as INPUT_STREAMER
 get_chars - the first param is the number of chars to read (default 1)
 
 	on EOF the method return a  null string
-	if the first param is <= 0 the method return null string
+	if the first param is == 0 the method return null string
 	on error throw an exception
  
-
-
- get_line - return a line in scalar mode or an array in array mode
+get_char - equivalent to get_chars(1)
+ 
+get_line - return a line in scalar mode or an array in array mode
 
 	on EOF the method return a  null string
 	on error throw an exception
 	Note: if INPUT_STREAM is an array the line is an element of the array
 	the line has the new line terminator "\n" also the result of <> iterator
 
-
+push_back - push character into the streamer
+            the first param is a number of characters to push back 
+            the default is 1 
+    the metod return the self object
+    
 =head1 EXPORT
 
 None by default.

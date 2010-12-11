@@ -1,13 +1,10 @@
-package blx::xsdsql::generator::sql::pg::handle::drop_table;
+package blx::xsdsql::generator::sql::oracle::handle::drop_view;
 use strict;
 use warnings;
 use Carp;
-use base qw(blx::xsdsql::generator::sql::generic::handle::drop_table);
+use base qw(blx::xsdsql::generator::sql::generic::handle::drop_view);
 
-sub _get_drop_prefix {
-	my ($self,%params)=@_;
-	return "drop table if exists";
-}
+
 
 1;
 
@@ -16,13 +13,13 @@ __END__
 
 =head1 NAME
 
-blx::xsdsql::generator::sql::pg::handle::drop_table  - drop table  for postgres
+blx::xsdsql::generator::sql::oracle::handle::drop_view  - drop view  for oracle
 
 
 =head1 SYNOPSIS
 
 
-use blx::xsdsql::generator::sql::pg::handle::drop_table
+use blx::xsdsql::generator::sql::oracle::handle::drop_view
 
 
 =head1 DESCRIPTION

@@ -1,4 +1,6 @@
 #!/usr/bin/perl
+eval 'exec /usr/bin/perl  -S $0 ${1+"$@"}'
+    if 0; # not running under some shell
 use strict;
 use warnings;
 use integer;
@@ -6,38 +8,30 @@ use English '-no_match_vars';
 
 use Carp;
 use DBI;
-use blx::xsdsql::ut qw(:all);
-use blx::xsdsql::parser;
-use blx::xsdsql::xml;
-use Getopt::Std;
 use File::Basename;
 use XML::Parser;
 use XML::Writer;
+use Getopt::Std;
+
+use blx::xsdsql::ut qw(:all);
+use blx::xsdsql::parser;
+use blx::xsdsql::xml;
+use blx::xsdsql::dbconn;
+
 
 use constant {
-		DBI_TYPE  => 'dbi:Pg'
-};
-
-my %Connection=(
-	 DBNAME    => 'mydb'
-	,HOST     => '127.0.0.1'
-	,PORT     =>  undef
-	,OPTIONS  => undef
-	,TTY      => undef
-);
-
-
-my $Connect_string=DBI_TYPE.':'.join(';',map { lc($_).'='.$Connection{$_} } grep(defined $Connection{$_},keys %Connection));
-
-use constant {
-	USER  => 'xmldb'     #set the correct user
-	,PWD  => 'xmldb'     #set the correct pwd
-	,SEQUENCE_NAME   =>  'xmldb_seq'  # create this sequence if is not created
-	,DEBUG  => 0
+	DEBUG  => 0
 	,DEBUG_SQL => 0
 	,COMMIT => 1
 	,AUTOCOMMIT => 0
 };
+
+use constant {
+ 	DEFAULT_VIEW_PREFIX			=> 'V'
+	,DEFAULT_ROOT_TABLE_NAME 	=> 'ROOT'
+	,DEFAULT_SEQUENCE_PREFIX	=> 'S'
+};
+
 
 my %CMD=();
 %CMD=(
@@ -51,7 +45,7 @@ my %CMD=();
 										}
 										my $id=$xml->read(FD => $fd);
 										close $fd unless  $fd eq *STDIN;
-										print STDERR "xml load with id $id\n";
+										print STDERR "xml load with id $id\n" if defined $id;
 										return wantarray ? (0,$id) : 0;
 			}
 			,read             => sub { return $CMD{r}->(@_); }
@@ -95,20 +89,32 @@ my %CMD=();
 
 
 my %Opt=();
-getopts ('hdt:n:s:c:U:P:r:',\%Opt) or exit 1;
+unless (getopts ('hdt:n:s:c:r:p:w:i:q:',\%Opt)) {
+	print STDERR "invalid option or option not set\n";
+	exit 1;
+}
+
 if ($Opt{h}) {
 	print STDOUT "
-		$0  [<options>]  <command>  <xsdfile> [<xmlfile>|<root_id>] 
+		$0  [<options>]  <command>  [<xsdfile>] [<xmlfile>|<root_id>] 
 		<options>: 
 			-h  - this help
 			-d  - emit debug info 
-			-c - connect string to database - default is $Connect_string
-			-U - user for connect to database - defaul is ",USER,"
-			-P - pwd for connect to database - default is ",PWD,"
+			-c - connect string to database - the default is the value of the env var DB_CONNECT_STRING
+				otherwise is an error
+			     the form is  <user/password\@dbname[:hostname[:port]]>
+			     for the database type see <n> option
 			-t <c|r>	 - issue a commit or rollback at the end  (default commit)
-			-n <namespace> - default pg (PostgreSQL)
-			-s <schema> - schema name for output xml (default <none>)
-			-r <root table name> - set the root table name (default ROOT)
+			-n <db_namespace> - default pg (PostgreSQL)
+			-s <schema> - schema name in header for output xml (default <none>)
+			-i <schema_instance> schema instance in header for output xml (default <none>)
+			-r <root_table_name> - set the root table name  (default '".DEFAULT_ROOT_TABLE_NAME."')
+			-p <table_prefix_name> - set the prefix for the tables name (default none)
+			-w <view_prefix_name>  - set the prefix for views name (default '".DEFAULT_VIEW_PREFIX."')
+					WARNING - This option can influence table names
+			-q <sequence_prefix_name>  - set the prefix for sequences name (default '".DEFAULT_SEQUENCE_PREFIX."')
+					WARNING - This option can influence table names
+			
 		<command>
 			C      - test the conmnection to the database and exit
 			r[ead] - read <xmlfile> and put into into a database 
@@ -121,35 +127,49 @@ if ($Opt{h}) {
 }
 
 
-$Opt{c}=$Connect_string unless nvl($Opt{c});
-$Opt{U}=USER unless nvl($Opt{U});
-$Opt{P}=PWD unless nvl($Opt{P});
+$Opt{c}=$ENV{DB_CONNECT_STRING} unless $Opt{c};
+unless ($Opt{c}) {
+	print STDERR "the connect string (see 'c' option) is not defined\n";
+	exit 1;
+}
+
+$Opt{t}='c' unless $Opt{t};
+
+if (scalar(@ARGV) < 1) {
+	print STDERR "missing arguments\n";
+	exit 1;
+}
+
+$Opt{n}='pg' unless $Opt{n};
+unless (grep($Opt{n} eq $_,blx::xsdsql::parser::get_db_namespaces)) {
+	print STDERR $Opt{n},": Can't locate db_namespace in \@INC\n";
+	exit 1;
+}
+
+my $dbconn=blx::xsdsql::dbconn->new;
+my @dbi_params=$dbconn->get_application_string($Opt{c},APPLICATION => 'dbi',DBTYPE => $Opt{n});
+if (scalar(@dbi_params) == 0) {
+	print STDERR $Opt{c},": connection string is not correct\n";
+	exit 1;
+}
+
+if ($ARGV[0] eq 'C') {
+	my $conn=DBI->connect(@dbi_params);
+	exit 1 unless defined $conn;
+	$conn->disconnect;
+	exit 0;
+}
 
 if (scalar(@ARGV) < 2) {
 	print STDERR "missing arguments\n";
 	exit 1;
 }
 
-print STDERR "connected string is: '",$Opt{c}," with user ",$Opt{U},"\n";
-
-if ($ARGV[0] eq 'C') {
-	my $conn=DBI->connect($Opt{c},$Opt{U},$Opt{P});
-	exit 1 unless defined $conn;
-	$conn->disconnect;
-	exit 0;
-}
-
-
 unless (-r $ARGV[1]) {
 	print STDERR "xsdfile is not readable\n";
 	exit 1;
 }
 
-$Opt{n}='pg' unless defined $Opt{n};
-unless (grep($Opt{n} eq $_,blx::xsdsql::parser::get_db_namespaces)) {
-	print STDERR $Opt{n},": Can't locate db_namespace in \@INC\n";
-	exit 1;
-}
 
 my $p=blx::xsdsql::parser->new(DB_NAMESPACE => $Opt{n}); 
 
@@ -159,8 +179,18 @@ unless (defined $cmd)  {
 	exit 1;
 }
 
-my $root_table=$p->parsefile($ARGV[1],ROOT_TABLE_NAME => nvl($Opt{r},'ROOT'));
-my $conn=DBI->connect($Opt{c},$Opt{U},$Opt{P}) || exit 1;
+$Opt{r}=DEFAULT_ROOT_TABLE_NAME unless defined $Opt{r};
+$Opt{w}=DEFAULT_VIEW_PREFIX unless defined $Opt{w};
+
+my $root_table=$p->parsefile(
+	$ARGV[1]
+	,ROOT_TABLE_NAME 	=> $Opt{r}
+	,TABLE_PREFIX 		=> $Opt{p}
+	,VIEW_PREFIX 		=> $Opt{w}
+	,SEQUENCE_PREFIX	=> $Opt{q}	
+) || exit 1;
+
+my $conn=DBI->connect(@dbi_params) || exit 1;
 $conn->{AutoCommit}=AUTOCOMMIT;
 
 my $xml=blx::xsdsql::xml->new(
@@ -168,11 +198,12 @@ my $xml=blx::xsdsql::xml->new(
 	,DB_NAMESPACE => $Opt{n}
 	,XSD_FILE     => $ARGV[1]
 	,DEBUG        => $Opt{d}
-	,SEQUENCE_NAME => SEQUENCE_NAME
+	,SEQUENCE_NAME => $root_table->get_sequence_name
 	,ROOT_TABLE   => $root_table
-	,SCHEMA_NAME  => $Opt{s}
 	,PARSER       => XML::Parser->new
 	,XMLWRITER    => XML::Writer->new(DATA_INDENT => 4,DATA_MODE => 1,ENCODING => 'UTF-8',NAMESPACES => 0)
+	,SCHEMA_NAME  => $Opt{s}
+	,SCHEMA_INSTANCE => $Opt{i}
 );
 
 my $rc=$cmd->($xml,@ARGV);

@@ -4,9 +4,7 @@ use base qw(blx::xsdsql::xml::generic::sql_binding);
 use Carp;
 
 sub get_next_sequence {
-	my $self=shift;
-	my $table=shift;
-	my %params=@_;
+	my ($self,$table,%params)=@_;
 	if (defined $params{SEQUENCE_NAME}) {
 		if (defined $self->{PREPARE_SEQUENCE}) {
 			$self->{PREPARE_SEQUENCE}->finish;
@@ -23,9 +21,9 @@ sub get_next_sequence {
 }
 
 sub finish {
-	my $self=shift;
+	my ($self,%params)=@_;
 	(delete $self->{PREPARE_SEQUENCE})->finish if defined $self->{PREPARE_SEQUENCE};
-	return $self->SUPER::finish;
+	return $self->SUPER::finish(%params);
 }
 
 

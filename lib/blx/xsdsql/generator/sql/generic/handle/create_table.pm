@@ -5,15 +5,12 @@ use Carp;
 use base qw(blx::xsdsql::generator::sql::generic::handle);
 
 sub _get_create_prefix {
-	my $self=shift;
-	my %params=@_;
+	my ($self,%params)=@_;
 	return "create table";
 }
 
 sub table_header {
-	my $self=shift;
-	my $table=shift;
-	my %params=@_;
+	my ($self,$table,%params)=@_;
 	my $path=$table->get_attrs_value qw(PATH);
 	my $comm=defined  $path ? $table->comment('PATH: '.$path) : '';
 	$self->{STREAMER}->put_line($self->_get_create_prefix,' ',$table->get_sql_name,"( $comm");
@@ -21,18 +18,14 @@ sub table_header {
 }
 
 sub table_footer {
-	my $self=shift;
-	my $table=shift;
-	my %params=@_;
+	my ($self,$table,%params)=@_;
 	$self->{STREAMER}->put_line(')',$table->command_terminator);
 	$self->{STREAMER}->put_line;
 	return $self;
 }
 
 sub column {
-	my $self=shift;
-	my $col=shift;
-	my %params=@_;
+	my ($self,$col,%params)=@_;
 	my $first_column=$col->get_attrs_value qw(COLUMN_SEQUENCE) == 0 ? 1 : 0;
 	my ($col_name,$col_type,$path)=($col->get_sql_name(%params),$col->get_sql_type(%params),$col->get_attrs_value qw(PATH));
 	my $comm=defined $path ? 'PATH: '.$path : '';

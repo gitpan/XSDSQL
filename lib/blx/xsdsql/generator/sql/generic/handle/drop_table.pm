@@ -5,15 +5,14 @@ use Carp;
 use base qw(blx::xsdsql::generator::sql::generic::handle);
 
 sub _get_drop_prefix {
-	my $self=shift;
-	my %params=@_;
+	my ($self,%params)=@_;
 	return "drop table";
 }
 sub table_header {
-	my $self=shift;
-	my $table=shift;
-	my %params=@_;
-	$self->{STREAMER}->put_line($self->_get_drop_prefix.' '.$table->get_sql_name.$table->command_terminator);
+	my ($self,$table,%params)=@_;
+	my $path=$table->get_attrs_value qw(PATH);
+	my $comm=defined  $path ? $table->comment('PATH: '.$path) : '';
+	$self->{STREAMER}->put_line($self->_get_drop_prefix(%params),' ',$table->get_sql_name,' ',$comm,$table->command_terminator);
 	return $self;
 }
 

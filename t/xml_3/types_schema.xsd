@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+﻿<?xml version="1.0"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
 	<xs:element name="Types">
 		<xs:complexType>
@@ -55,7 +55,7 @@
 <!-- misc types -->
 				<xs:element name="boolean" type="xs:boolean"/>
 				<xs:element name="anyURI" type="xs:anyURI"/>
-
+		        <xs:element name="without_type" />
 			</xs:sequence>
 		</xs:complexType>
 	</xs:element>
