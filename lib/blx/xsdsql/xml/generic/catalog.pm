@@ -56,6 +56,12 @@ sub get_attrs_value {
 }
 
 
+sub shallow_clone {
+	my ($self,%params)=@_;
+	my %newtable=%$self;	
+	return bless \%newtable,ref($self);
+}
+
 1;
 
 __END__
@@ -112,13 +118,13 @@ set_attrs_value   - set a value of attributes
 	the method return a self object
 
 
-sub get_attrs_value  - return a list  of attributes values
+get_attrs_value  - return a list  of attributes values
 
 	the arguments are a list of attributes name
 
-	
-	
 
+shallow_clone  - return a shallow copy of the object	
+	
 
 =head1 EXPORT
 
@@ -137,7 +143,7 @@ for parse a xsd file (schema file)
 
 =head1 AUTHOR
 
-lorenzo.bellotti, E<lt>bellzerozerouno@tiscali.itE<gt>
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
 
 =head1 COPYRIG 
 

@@ -10,10 +10,16 @@ sub _get_drop_prefix {
 }
 sub table_header {
 	my ($self,$table,%params)=@_;
+#	return $self if $table->is_type;
 	my $path=$table->get_attrs_value qw(PATH);
 	my $comm=defined $path ? $table->comment('PATH: '.$path) : '';
 	my $name=$table->get_view_sql_name;
 	$self->{STREAMER}->put_line($self->_get_drop_prefix,' ',$name,' ',$comm,$table->command_terminator);
+	return $self;
+}
+
+sub table_footer {
+	my ($self,$table,%params)=@_;
 	return $self;
 }
 
@@ -23,7 +29,7 @@ __END__
 
 =head1 NAME
 
-blx::xsdsql::generator::sql::generic::handle::drop_view  - generic handle for drop views
+blx::xsdsql::generator::sql::generic::handle::drop_view  - generic handle for drop view
 
 
 =head1 SYNOPSIS
@@ -60,7 +66,7 @@ See  blx::xsdsql::generator::sql::generic::handle - this class inherit from this
 
 =head1 AUTHOR
 
-lorenzo.bellotti, E<lt>bellzerozerouno@tiscali.itE<gt>
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 

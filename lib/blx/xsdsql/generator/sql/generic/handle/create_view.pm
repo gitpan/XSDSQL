@@ -8,94 +8,100 @@ use base qw(blx::xsdsql::generator::sql::generic::handle);
 
 sub _get_create_prefix {
 	my ($self,%params)=@_;
-	return "create view";
+	return "create or replace view";
 }
 
-#sub _generate_column {
-#	my ($self,$table,%params)=@_;
-#	my %h=();
-#	for my $col($table->get_columns) {
-#		my $path=$col->get_attrs_value qw(PATH_REFERENCE);
-#		next unless defined $path;
-#		$h{$path}=[$table,$col];  
-#	}
-#	return %h;
-#}
-#
-#sub _get_ref_columns_path { #return an hash path => [ table,column ]
-#	my ($self,$table,%params)=@_;
-#	$params{COLUMNS_LIST}={ PATH_REFERENCE => {} }  if nvl($table->{PATH}) eq '/';
-#	my %h=$self->_generate_column($table,%params);
-#	for my $t($table->get_child_tables) {
-#		my %h1=$self->_get_ref_columns_path($t,%params);
-#		$h{$_}=$h1{$_} foreach keys %h1;
-#	}
-#	if (nvl($table->{PATH}) eq '/') {
-#		for my $t(@{$table->{TYPES}}) {
-#			$self->_get_columns_($t,%params);
-#		}
-#	}
-#	return nvl($table->{PATH}) eq '/' ? delete $params{COLUMNS_LIST} : undef; 
-#}
-#
 
-sub _get_view_columns {
-	my ($self,$table,%params)=@_;
-	my @cols=map { $_  
-#		my $col=$_;
-#		if ($col->get_attrs_value(qw(PATH_REFERENCE)) 
-	
-	
-	
-	} $table->get_columns;
-	for my $t($table->get_child_tables) {
-		push @cols,map { $_  } $self->_get_view_columns($t,%params);
+{
+	my $filter=undef;
+	$filter=sub { #recursive function
+		my ($col,$table,%params)=@_;
+		my $newcol=$col->shallow_clone;  #clone the column for add ALIAS_NAME attr
+		my $table_ref=$newcol->get_table_reference;
+		confess $newcol->get_path_reference.': not a table ref' if $newcol->get_path_reference && !$table_ref;
+		my $viewable= $newcol->get_path_reference && $table_ref->get_max_occurs <= 1   || $newcol->is_pk && !$params{START_TABLE} ? 0 : 1;
+		my $join_table=defined $table_ref && $table_ref->get_max_occurs <= 1 ? $table_ref->shallow_clone : undef; #clone the table for add ALIAS_NAME attr
+		$newcol->set_attrs_value(
+			VIEWABLE 		=> $viewable
+			,TABLE			=> $table
+		);
+		if ($viewable) { #set the alias for view
+			my $sql_name=delete $newcol->{SQL_NAME};
+			my $alias_name=$newcol->get_sql_name(%params); #create a unique alias name
+			$newcol->set_attrs_value(SQL_NAME	=> $sql_name,ALIAS_NAME	=> $alias_name);
+		}		
+		my @ret=($newcol);
+		if (defined $join_table) {
+			++${$params{ALIAS_COUNT}};
+			$join_table->set_attrs_value(ALIAS_COUNT => ${$params{ALIAS_COUNT}});
+			$newcol->set_attrs_value(JOIN_TABLE => $join_table);
+			push @ret,map { $filter->($_,$join_table,%params,START_TABLE => 0) } $join_table->get_columns;
+		}
+		return @ret;
+	};
+	sub _get_columns {
+		my ($self,$table,%params)=@_;
+		my $t=$table->shallow_clone;
+		my $alias_count=0;
+		$t->set_attrs_value(ALIAS_COUNT => $alias_count);
+		my $colname_list={};
+		my @cols=map { $filter->($_,$t,COLUMNNAME_LIST => $colname_list,ALIAS_COUNT => \$alias_count,START_TABLE => 1)} $t->get_columns;
+		return @cols;
 	}
-	return @cols;
+
 }
+
 
 sub table_header {
 	my ($self,$table,%params)=@_;
+#	return $self if $table->is_type;
 	my $path=$table->get_attrs_value qw(PATH);
 	my $comm=defined  $path ? $table->comment('PATH: '.$path) : '';
-	$self->{STREAMER}->put_line($self->_get_create_prefix,' ',$table->get_sql_name," as select  $comm");
-
-	my @cols=$self->_get_view_columns($table,%params);
+	$self->{STREAMER}->put_line($self->_get_create_prefix,' ',$table->get_view_sql_name," as select  $comm");
+	my @cols=$self->_get_columns($table,%params);
+	my $colseq=0;
 	for my $col(@cols) {
-		my $first_column=$col->get_attrs_value qw(COLUMN_SEQUENCE) == 0 ? 1 : 0;
-		my ($col_name,$col_type,$path)=($col->get_sql_name(%params),$col->get_sql_type(%params),$col->get_attrs_value qw(PATH));
-		my $comm=defined $path ? 'PATH: '.$path : '';
-		my $ref=$col->get_attrs_value qw(PATH_REFERENCE);
-		$comm.=defined $ref ? ' REF: '.$ref : '';
-		$comm=~s/^(\s+|\s+)$//;
-		my $sqlcomm=length($comm) ?  $col->comment($comm) : '';
-		$self->{STREAMER}->put_line("\t".($first_column ? '' : ',').$col_name."\t".$col_type."\t".$sqlcomm);
+		next unless $col->get_attrs_value qw(VIEWABLE);
+		my $t=$col->get_attrs_value qw(TABLE);
+		my $sqlcomm=sub {
+			my $path=$col->get_attrs_value qw(PATH);
+			my $comm=defined $path ? 'PATH: '.$path : '';
+			my $ref=$col->get_attrs_value qw(PATH_REFERENCE);
+			$comm.=defined $ref ? ' REF: '.$ref : '';
+			$comm=~s/^(\s+|\s+)$//;
+			return length($comm) ?  $col->comment($comm) : '';
+		}->();
+		my $table_alias=sprintf("A_%0".length(scalar(@cols))."d",$t->get_attrs_value(qw(ALIAS_COUNT)));
+		my $column_alias=$col->get_attrs_value qw(ALIAS_NAME);
+		$self->{STREAMER}->put_line("\t".($colseq == 0 ? '' : ',').$table_alias,'.',$col->get_sql_name,' as ',$column_alias,' ',$sqlcomm);
+		++$colseq;
 	}
+	$self->{STREAMER}->put_line(' from ');
+	for my $col(@cols) {
+		my $t=$col->get_attrs_value qw(TABLE);
+		my $alias=sprintf("A_%0".length(scalar(@cols))."d",$col->get_attrs_value(qw(TABLE))->get_attrs_value(qw(ALIAS_COUNT)));
+
+		if ($t->get_sql_name eq $table->get_sql_name) { #the start table
+			$self->{STREAMER}->put_line("\t",$t->get_sql_name,' as ',$alias) if $col->is_pk && $col->get_pk_seq == 0;
+		}
+		my $table_ref=$col->get_attrs_value qw(JOIN_TABLE);
+		next unless defined $table_ref;
+#		next if $table_ref->get_max_occurs > 1;
+		my $alias_ref=sprintf("A_%0".length(scalar(@cols))."d",$table_ref->get_attrs_value(qw(ALIAS_COUNT)));
+		$self->{STREAMER}->put_chars("\t","left join ",$table_ref->get_sql_name,' as ',$alias_ref,' on ');
+		my @pk=$table_ref->get_pk_columns;
+		$self->{STREAMER}->put_chars("\t",$alias,'.',$col->get_sql_name,'=',$alias_ref,'.',$pk[0]->get_sql_name);
+		$self->{STREAMER}->put_chars("\t\tand ",$alias_ref,'.',$pk[1]->get_sql_name,'=0') if scalar(@pk) > 1;
+		$self->{STREAMER}->put_line;
+	}
+	$self->{STREAMER}->put_line($table->command_terminator);
 	return $self;
 }
 
 sub table_footer {
 	my ($self,$table,%params)=@_;
-	$self->{STREAMER}->put_line(' from ',$table->get_sql_name,$table->command_terminator);
-	$self->{STREAMER}->put_line;
 	return $self;
 }
-
-#sub column {
-#	my ($self,$col,%params)=@_;
-#=pod
-#	my $first_column=$col->get_attrs_value qw(COLUMN_SEQUENCE) == 0 ? 1 : 0;
-#
-#	my ($col_name,$col_type,$path)=($col->get_sql_name(%params),$col->get_sql_type(%params),$col->get_attrs_value qw(PATH));
-#	my $comm=defined $path ? 'PATH: '.$path : '';
-#	my $ref=$col->get_attrs_value qw(PATH_REFERENCE);
-#	$comm.=defined $ref ? ' REF: '.$ref : '';
-#	$comm=~s/^(\s+|\s+)$//;
-#	my $sqlcomm=length($comm) ?  $col->comment($comm) : '';
-#	$self->{STREAMER}->put_line("\t".($first_column ? '' : ',').$col_name."\t".$col_type."\t".$sqlcomm);
-#=cut
-#	return $self;
-#}
 
 
 1;
@@ -142,7 +148,7 @@ See  blx::xsdsql::generator::sql::generic::handle - this class inherit from this
 
 =head1 AUTHOR
 
-lorenzo.bellotti, E<lt>bellzerozerouno@tiscali.itE<gt>
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 

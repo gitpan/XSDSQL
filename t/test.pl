@@ -1,4 +1,3 @@
-
 eval 'exec /usr/bin/perl  -S $0 ${1+"$@"}'
     if 0; # not running under some shell
 use strict;
@@ -22,12 +21,14 @@ use constant {
 
 my @STEPS_DESCRIPTION=(
 	"create sql files ..."
+	,"drop view objects ..."
 	,"drop table objects ..."
 	,"create table objects ..."
 	,"create table constraints  ..."
 	,"drop sequence objects ..."
 	,"create sequence objects ..."
 	,"load & unload & compare  ..."
+	,"create view objects ..."
 	,"test  OK"
 );
 
@@ -60,7 +61,7 @@ my @STEPS=(
 					." -p '".$params{PREFIX_TABLES}."'"
 					." -w '".$params{PREFIX_VIEWS}."'"
 					." -s '".$params{PREFIX_SEQUENCE}."'"; 
-				for my $c qw(drop_table create_table addpk drop_sequence create_sequence) {
+				for my $c qw(drop_table create_table addpk drop_sequence create_sequence drop_view create_view) {
 					$ret{$c}="${c}.sql";
 					my $cmd=$pcmd." '${c}' '".$params{SCHEMA_FILE}."' > ".$ret{$c};
 					print STDERR "(D) ",$cmd,"\n" if $params{DEBUG};
@@ -68,6 +69,10 @@ my @STEPS=(
 					return (%ret,ERR_MSG => "$cmd: execution error") if $?;
 				}				
 				return %ret;
+			}
+			,sub { #drop views
+				my %params=@_;
+				return isql(%params,FILE => $params{drop_view},DROP => 1);				
 			}
 			,sub { #drop tables
 				my %params=@_;
@@ -149,6 +154,10 @@ my @STEPS=(
 					return (ERR_MSG => "$cmd: execution error") if $rc != 0;
 				}
 				return ();
+			}
+			,sub { #create views
+				my %params=@_;
+				return isql(%params,FILE => $params{create_view});							
 			}
 			,sub { #final step
 				my %params=@_;

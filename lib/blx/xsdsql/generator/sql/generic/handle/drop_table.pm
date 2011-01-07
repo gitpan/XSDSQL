@@ -22,7 +22,7 @@ __END__
 
 =head1 NAME
 
-blx::xsdsql::generator::sql::generic::handle::drop_table  - generic handle for drop tables
+blx::xsdsql::generator::sql::generic::handle::drop_table  - generic handle for drop table
 
 
 =head1 SYNOPSIS
@@ -59,7 +59,7 @@ See  blx::xsdsql::generator::sql::generic::handle - this class inherit from this
 
 =head1 AUTHOR
 
-lorenzo.bellotti, E<lt>bellzerozerouno@tiscali.itE<gt>
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 

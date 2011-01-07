@@ -48,6 +48,8 @@ if ($Opt{h}) {
 			addpk - generate primary keys on stdout
 			drop_sequence - generate a drop sequence on stdout
 			create_sequence - generate a create sequence on stdout
+			drop_view       - generate a drop view on stdout
+			create_view     - generate a create view on stdout
 	"; 
     exit 0;
 }
@@ -96,7 +98,7 @@ $Opt{r}=DEFAULT_ROOT_TABLE_NAME unless defined $Opt{r};
 $Opt{s}=DEFAULT_SEQUENCE_PREFIX unless defined $Opt{s};
 
 my $cmd=shift @ARGV;
-unless (grep($_ eq $cmd,qw( drop_table create_table addpk drop_sequence create_sequence))) {
+unless (grep($_ eq $cmd,qw( drop_table create_table addpk drop_sequence create_sequence drop_view create_view))) {
 	print STDERR "$cmd: invalid command\n";
 	exit 1;
 }

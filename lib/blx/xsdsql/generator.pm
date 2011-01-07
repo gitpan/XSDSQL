@@ -133,7 +133,8 @@ __END__
 
 =head1 NAME
 
-blx::xsdsql::generator  -  generate the files for create table ,drop table ,add primary key 
+blx::xsdsql::generator  -  generate the files for create table ,drop table ,add primary key,drop sequence,create sequence,drop view,create view 
+
 
 =head1 SYNOPSIS
 
@@ -196,7 +197,7 @@ See blx::xsdsql::parser  for parse a xsd file (schema file) and blx::xsdsql::xml
 
 =head1 AUTHOR
 
-lorenzo.bellotti, E<lt>bellzerozerouno@tiscali.itE<gt>
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 

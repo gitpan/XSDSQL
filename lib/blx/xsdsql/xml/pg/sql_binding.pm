@@ -73,7 +73,7 @@ See blx:.xsdsql::generator for generate the schema of the database and blx::xsds
 
 =head1 AUTHOR
 
-lorenzo.bellotti, E<lt>bellzerozerouno@tiscali.itE<gt>
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
 
 =head1 COPYRIG 
 

@@ -23,6 +23,26 @@ our %_ATTRS_R=(
 							my $t=nvl($self->{TYPES},[]); 
 							return wantarray ? @{$t} : $t;
 			}
+			,MINOCCURS	=> sub {
+							my $self=shift;
+							return nvl($self->{MINOCCORS},0);
+			}
+			,MAXOCCURS  => sub {
+							my $self=shift;
+							return nvl($self->{MAXOCCURS},1);
+			}
+			,XSD_SEQ	=> sub {
+							my $self=shift;
+							return nvl($self->{XSD_SEQ},0);
+			}
+			,TABLE_IS_TYPE	=> sub {
+							my $self=shift;
+							return $self->{TABLE_IS_TYPE} ? 1 : 0;
+			}
+			,SIMPLE_TYPE	=> sub {
+							my $self=shift;
+							return $self->{SIMPLE_TYPE} ? 1 : 0;
+			}
 );
 
 our %_ATTRS_W=();
@@ -164,12 +184,38 @@ sub _reduce_sql_name {
 	my @s=split('_',$name);
 	for my $i(0..scalar(@s) - 1) {
 		next if $i == 0 && $params{TABLE_PREFIX}; #not reduce the table prefix
-		next if $i == 1 && $params{VIEW_PREFIX}; #not reduce  the view prefix
+		next if $i == 0 && $params{VIEW_PREFIX}; #not reduce  the view prefix
 		$s[$i]=~s/([A-Z])[a-z0-9]+/$1/g;
 		my $t=join('_',@s);
 		return $t if  length($t) <= $maxsize;
 	}
 	return substr(join('_',@s),0,$maxsize);
+}
+
+sub is_type {
+	my ($self,%params)=@_;
+	return $self->{TABLE_IS_TYPE} ? 1 : 0	
+}
+
+sub is_simple_type {
+	my ($self,%params)=@_;
+	return $self->{SIMPLE_TYPE} ? 1 : 0	
+	
+}
+
+sub get_min_occurs { 
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(MINOCCURS);
+}
+
+sub get_max_occurs { 
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(MAXOCCURS);
+}
+
+sub get_xsd_seq {
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(XSD_SEQ);
 }
 
 sub get_sql_name {
@@ -194,7 +240,7 @@ sub get_view_sql_name {
 	return $self->{VIEW_SQL_NAME} if defined $self->{VIEW_SQL_NAME};
 	my $l=$params{TABLENAME_LIST};
 	croak "param TABLENAME_LIST not defined" unless defined $l;
-	$params{TABLE_PREFIX}=delete $params{VIEW_PREFIX} if $params{VIEW_PREFIX} && !$params{TABLE_PREFIX};
+	delete $params{TABLE_PREFIX};
 	my $name= $self->_translate_path(%params);
 	$name=$self->_reduce_sql_name($name,%params) if length($name) > $self->get_name_maxsize();
 	if (exists $l->{$name}) {
@@ -251,6 +297,35 @@ sub get_sequence_name {
 	return $name;
 }
 
+sub get_table_from_path_reference {
+	my ($self,$path,%params)=@_;
+	return undef unless defined $path;
+	my $attr=$path=~/^\// ? 'PATH' : 'SQL_NAME'; 
+	for my $t($self->get_child_tables ) {
+		my $p=$t->get_attrs_value($attr);
+		next unless defined $p;
+		return $t if $p eq $path; 
+	}
+	return undef unless defined $params{ROOT_TABLE}; 
+#	my $types=$params{ROOT_TABLE}->get_attrs_value qw(TYPES);
+#	return  undef unless defined $types;
+	for my $t($params{ROOT_TABLE}->get_attrs_value qw(TYPES)) {
+		my $p=$t->get_attrs_value qw(PATH);
+		next unless defined $p;
+		return $t if $p eq $path; 		
+	}	
+	return undef;
+}
+
+sub get_pk_columns {
+	my ($self,%params)=@_;
+	my @cols=();
+	for my $c($self->find_columns(PK => sub { $_[0]->is_pk; })) {
+		$cols[$c->get_pk_seq]=$c;
+	}
+	return wantarray ? @cols : \@cols;
+} 
+
 1;
 
 
@@ -296,7 +371,6 @@ new  - contructor
 		TYPE - a internal node type (default not defined)
 		NAME - a node name (default not defined)
 
-
 add_columns - add columns to a table
 		
 	the method return a self object
@@ -312,7 +386,8 @@ add_child_tables - add child tables to a table
 resolve_path_for_table_type - if the table is associated with a type use this  method to return the real path associated
 
 	the method return a string
-  
+ 
+ 
 find_columns  - find columns that  match the pairs attributes => value
 
 	the method return an array of columns object
@@ -345,6 +420,23 @@ get_constraint_name  - return a constraint name
 get_path_resolved  - return a resolved path name associated 
 
 
+get_table_from_path_reference - return a table associated to a path - the path must be a child path
+
+	the first argument is a path reference 
+	params -
+		ROOT_TABLE - if is specified search the tables also into the types;
+
+get_pk_columns - return the primary key columns
+
+is_type	- return true if the table is associated to a xsd type
+
+is_simple_type - return true if the table is associated to a simple type
+
+get_xsd_seq - return the  start xsd sequence 
+
+get_min_occurs - return the min occurs of the table
+
+get_max_occurs - return the max occurs of the table
 
 =head1 EXPORT
 
@@ -365,7 +457,7 @@ for parse a xsd file (schema file)
 
 =head1 AUTHOR
 
-lorenzo.bellotti, E<lt>bellzerozerouno@tiscali.itE<gt>
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
 
 =head1 COPYRIG 
 

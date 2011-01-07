@@ -27,7 +27,8 @@ __END__
 
 =head1  NAME
 
-blx::xsdsql::xml::generic::view -  a view is a class with include the common methods from table class  and column class (for example the   max length of  a dictionary database name)
+blx::xsdsql::xml::generic::view -  a generic view class
+
 
 =cut
 
@@ -67,7 +68,7 @@ for parse a xsd file (schema file)
 
 =head1 AUTHOR
 
-lorenzo.bellotti, E<lt>bellzerozerouno@tiscali.itE<gt>
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
 
 =head1 COPYRIG 
 

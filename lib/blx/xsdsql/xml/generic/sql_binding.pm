@@ -256,14 +256,14 @@ __END__
 
 =head1  NAME
 
-blx::xsdsql::sql_binding -  binding generator for blx::xsdsql::xml
+ blx::xsdsql::xml::generic::sql_binding -  binding generator for blx::xsdsql::xml
  
 
 =cut
 
 =head1 SYNOPSIS
 
-use blx::xsdsql::sql_binding
+use  blx::xsdsql::xml::generic::sql_binding
 
 =cut
 
@@ -379,7 +379,7 @@ None by default.
 
 =head1 AUTHOR
 
-lorenzo.bellotti, E<lt>bellzerozerouno@tiscali.itE<gt>
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 

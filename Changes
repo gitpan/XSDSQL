@@ -4,14 +4,22 @@ Revision history for Perl extension blx::xsdsql
 	- original version; created by h2xs 1.23 with options
 		-XA -b 5.8.0 -n blx::xsdsql::ut
 
-0.02 
+0.02 December 09  18:48 2010
 	- add TABLE_PREFIX param to blx::xsdsql::parser::parsefile
 	- exclude dirs if name begin with a point into blx::xsdsql::parser::parsefile::get_db_namespaces
 	- exclude dirs if name begin with a point into blx::xsdsql::parser::generator::get_namespaces
-	- new commands display_namespaces,drop_view,create_view in xsd2sql.pl
+	- new commands display_namespaces,drop_sequence,create_sequence in xsd2sql.pl
 	- correct the crash if the command is unknow in xsd2sql.pl
 	- new options t,l,p,w in xsd2sql.pl
 	- generic internal params restyle ( Es: my ($self,%params)=@_)	 in subs
 	- add LEVEL_FILTER and TABLES_FILTER  params to blx::xsdsql::generator
 	- add params SCHEMA_NAME and SCHEMA_INSTANCE to blx::xsdsql::xml::new and blx::xsdsql::xml::write
+	- implement a new test suite
+	- implement a xsd groups
 	
+0.03 
+	- correct bugs in  documentation
+	- implement drop view and create view
+	- change email address of the author 
+	- minor bugs corretted  
+

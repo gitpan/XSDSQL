@@ -7,10 +7,6 @@ ENTITY
 NOTATION
 ENTITIES
 
+the xsd union are non implemented
 
 
-new in version 0.2
-	implement a new test suite 
-	implement xsd groups 
-	minor bugs corretted 
- 

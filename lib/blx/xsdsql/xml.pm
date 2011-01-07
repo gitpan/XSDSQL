@@ -273,7 +273,6 @@ my %H=(
 			if ($node_current_table->{GROUP_REF} && $column->get_attrs_value(qw(GROUP_REF))) {
 				my $sth=$node_current_table->{GROUP_REF}->{PREPARED};
 				$sth->bind_column($node_current_table->{GROUP_REF}->{COLUMN},$value,TAG => __LINE__);
-				#pop @{$self->{STACK}};
 			}
 			else {
 				my $sth=$self->{PREPARED}->{$table_name}->{INSERT};
@@ -384,7 +383,6 @@ sub _write_xml {
 				{
 					my %start_params=();
 					$start_params{'xmlns:xsi'}=$self->{SCHEMA_INSTANCE} if defined $self->{SCHEMA_INSTANCE};
-#					$start_params{'xmlns:xsi'}='http://www.w3.org/2001/XMLSchema-instance';
 					$start_params{'xsi:noNamespaceSchemaLocation'}=$self->{SCHEMA_NAME} if defined $self->{SCHEMA_NAME};
 					$self->{OUTPUT_STREAM}->startTag($tag,%start_params);
 				}
@@ -636,7 +634,7 @@ for parse a xsd file (schema file)
 
 =head1 AUTHOR
 
-lorenzo.bellotti, E<lt>bellzerozerouno@tiscali.itE<gt>
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
 
 =head1 COPYRIG 
 

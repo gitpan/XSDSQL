@@ -1,23 +1,28 @@
-package blx::xsdsql::generator::sql::oracle::handle::create_table;
+package blx::xsdsql::generator::sql::pg::handle::drop_view;
 use strict;
 use warnings;
 use Carp;
-use base qw(blx::xsdsql::generator::sql::generic::handle::create_table);
+use base qw(blx::xsdsql::generator::sql::generic::handle::drop_view);
 
+sub _get_drop_prefix {
+	my ($self,%params)=@_;
+	return "drop view if exists";
+}
 
 1;
+
 
 __END__
 
 =head1 NAME
 
-blx::xsdsql::generator::sql::oracle::handle::create_table  - create table  for oracle
+blx::xsdsql::generator::sql::pg::handle::drop_view  - drop view  for postgres
 
 
 =head1 SYNOPSIS
 
 
-use blx::xsdsql::generator::sql::oracle::handle::create_table
+use blx::xsdsql::generator::sql::pg::handle::drop_view
 
 
 =head1 DESCRIPTION
@@ -43,7 +48,7 @@ None
 =head1 SEE ALSO
 
 
-See  blx::xsdsql::generator::sql::generic::handle::create_table  - this class inherit from this 
+See  blx::xsdsql::generator::sql::generic::handle::drop_view  - this class inherit from this 
 
 
 =head1 AUTHOR

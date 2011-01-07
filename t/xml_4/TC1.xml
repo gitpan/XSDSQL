@@ -12,7 +12,7 @@
 			<NumerazioneAggiuntiva>n2</NumerazioneAggiuntiva>
 			<CodiceOrdine>OPI0009128</CodiceOrdine>
 			<DataOrdine>2010-02-10</DataOrdine>
-      <CodiceSegreto>AAA</CodiceSegreto>
+			<CodiceSegreto>AAA</CodiceSegreto>
 			<RoutingNumber>C60123456</RoutingNumber>
 		</Portin>
 	</Richiesta>
@@ -27,7 +27,6 @@
 			</Correlazioni>
 			<CodiceOpRecipient>OPI</CodiceOpRecipient>
 			<DataAttesaConsegnaServizio>2010-02-24</DataAttesaConsegnaServizio>
-			<CodiceProgetto></CodiceProgetto>
 			<CodiceSegreto>AAA</CodiceSegreto>
 			<RoutingNumber>C60123456</RoutingNumber>
 		</Portin>

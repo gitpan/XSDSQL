@@ -48,7 +48,7 @@ See  blx::xsdsql::generator::sql::generic::handle::create_view  - this class inh
 
 =head1 AUTHOR
 
-lorenzo.bellotti, E<lt>bellzerozerouno@tiscali.itE<gt>
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 

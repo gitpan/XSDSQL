@@ -49,7 +49,7 @@ See  blx::xsdsql::generator::sql::generic::handle::drop_sequence  - this class i
 
 =head1 AUTHOR
 
-lorenzo.bellotti, E<lt>bellzerozerouno@tiscali.itE<gt>
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 

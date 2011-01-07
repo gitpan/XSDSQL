@@ -56,7 +56,7 @@ our %_ATTRS_R=(
 			,MINOCCURS => sub {
 							my $self=shift;
 							return 1 unless defined $self->{MINOCCURS};
-							return $self->{MINCCURS};
+							return $self->{MINOCCURS};
 			}
 			,SQL_NAME => sub {
 							my $self=shift;
@@ -126,10 +126,10 @@ sub get_sql_type {
 sub _adjdup_sql_name {
 	my ($self,$name,%params)=@_;
 	my $l=$params{COLUMNNAME_LIST};
-	confess "param COLUMNNAME_LIST not defined " unless defined $params{COLUMNNAME_LIST};
+	confess "param COLUMNNAME_LIST not defined " unless defined $l;
 	$name=substr($name,0,length($name) -1).'0' if $name!~/\d+$/;
 	while(1) {
-		last unless exists $l->{$name};
+		last unless exists $l->{uc($name)};
 		my ($suff)=$name=~/(\d+)$/;
 		$suff+=1;
 		$name=~s/\d+$/$suff/;
@@ -172,10 +172,10 @@ sub get_sql_name {
 	my $name= $self->_translate_path(%params);
 	$name=$self->_reduce_sql_name($name) if length($name) > $self->get_name_maxsize();
 	$name=$self->_resolve_invalid_name($name,%params);
-	$name=$self->_adjdup_sql_name($name,%params) if exists $l->{$name};
-	confess "duplicate column name" if exists $l->{$name};
-	push @{$self->{PARAM}->{COLUMNNAME_LIST}},$name;
-	$l->{$name}=undef;
+	$name=$self->_adjdup_sql_name($name,%params) if exists $l->{uc($name)};
+	confess "duplicate column name" if exists $l->{uc($name)};
+#	push @{$self->{PARAM}->{COLUMNNAME_LIST}},$name;
+	$l->{uc($name)}=undef;
 	$self->{SQL_NAME}=$name;
 	return $name;
 }
@@ -185,6 +185,41 @@ sub is_internal_reference {
 	return $self->{INTERNAL_REFERENCE} ? 1 : 0;
 }
 
+sub get_min_occurs {
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(MINOCCURS);
+}
+
+sub get_max_occurs {
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(MAXOCCURS);
+}
+
+sub is_pk {
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(PK) ? 1 : 0;
+}
+
+sub get_pk_seq {
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(PK_SEQ);
+}
+
+sub get_xsd_seq {
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(XSD_SEQ);
+}
+
+sub get_path_reference {
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(PATH_REFERENCE);
+}
+
+sub get_table_reference {
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(TABLE_REFERENCE);	
+}
+
 sub factory_column {
 	my $self=shift;
 	my $type=nvl(shift);
@@ -192,7 +227,6 @@ sub factory_column {
 	return Storable::dclone(bless(DEFAULT_SEQ_SQL_COLUMN,ref($self))) if $type eq 'SEQ';
 	return Storable::dclone(bless(DEFAULT_VALUE_SQL_COLUMN,ref($self))) if $type eq 'VALUE';
 	croak "$type: invalid type";
-
 }
 
 
@@ -247,13 +281,16 @@ this module defined the followed functions
 new - constructor   
 
 	PARAMS:
-		XSD_SEQ  - a sequence number into a choise or sequence of a xsd file 
+		XSD_SEQ  - a sequence number into a choise 
 		MIN_OCCURS - default 1
 		MAX_OCCURS - default 1
 		NAME  - a basename of xml node
 		PATH_NAME - a path name of xml node
+		PATH_REFERENCE - the referenced by column 
+		TABLE_REFERENCE	- the table referenced by column
 		INTERNAL_REFERENCE - true if the column is an array of simple types
-
+		PK		- if true the columns is part of the primary key
+		PK_SEQ  - sequence into the primary key 
 
 set_attrs_value   - set a value of attributes
 
@@ -273,7 +310,28 @@ get_sql_type  - return the sql type of the column
 get_sql_name  - return the  name of the column
 
 
+get_min_occurs - return the value of the minoccurs into the xsd schema
+
+
+get_max_occurs - return the value of the maxoccurs into the xsd schema
+
+
 is_internal_reference  - return true if the column is an array of simple types   
+
+
+get_path_reference - return the path referenced 
+
+
+get_table_reference - return the table referenced 
+
+
+is_pk  - return true if the column is part of the primary key
+
+
+get_pk_seq - return the sequence into the primary key
+
+
+get_xsd_seq - return a sequence number into a choise
 
 
 factory_column - factory a generic column object 
@@ -309,7 +367,7 @@ for parse a xsd file (schema file)
 
 =head1 AUTHOR
 
-lorenzo.bellotti, E<lt>bellzerozerouno@tiscali.itE<gt>
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
 
 =head1 COPYRIG 
 
