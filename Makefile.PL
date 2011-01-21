@@ -17,6 +17,9 @@ push(@prog, qw(xml.pl xsd2sql.pl ))
 
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
+
+#print STDERR  "---->",join(" ", map "bin/$_", grep /^[A-Z]+$/, @prog),"\n";
+
 WriteMakefile(
 	NAME              => 'blx::xsdsql'
 	,VERSION_FROM      => 'lib/blx/xsdsql/ut.pm'
@@ -30,9 +33,9 @@ WriteMakefile(
 	,EXE_FILES => [ map "bin/$_", @prog ]
 	,($] >= 5.005 ?     ## Add these new keywords supported since 5.005
 		(
-			ABSTRACT => 'xsd converter to sql objects and xml loader'
-			,AUTHOR         => 'lorenzo.bellotti <bellzerozerouno@tiscali.it>'
+			ABSTRACT 	=> 'xsd converter to relational database  objects; xml  load & unload from/to the database'
+			,AUTHOR         => 'lorenzo.bellotti <pauseblx@gmail.com>'
 		) : ()
 	)
-	,clean => { FILES => join(" ", map "bin/$_", grep /^[A-Z]+$/, @prog) }
+	,clean => { FILES => "  t/xml_*/*.sql   t/xml_*/*.diff t/xml_*/*.tmp  t/xml_*/.step t/.strconn " }
 );

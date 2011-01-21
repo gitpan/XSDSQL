@@ -58,7 +58,8 @@ sub _resolve_invalid_name {
 
 sub set_attrs_value {
 	my $self=shift;
-	return blx::xsdsql::ut::set_attrs_value($self,\%blx::xsdsql::xml::generic::column::_ATTRS_W,@_);
+	blx::xsdsql::ut::set_attrs_value($self,\%blx::xsdsql::xml::generic::column::_ATTRS_W,@_);
+	return $self;
 }
 
 sub get_attrs_value {

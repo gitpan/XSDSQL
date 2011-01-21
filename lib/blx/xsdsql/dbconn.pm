@@ -80,7 +80,7 @@ sub get_database_availables {
 	return keys %db;		
 }
 
-sub get_application_valiables {
+sub get_application_avaliables {
 	my %appl=();
 	for my $n(get_applications_classname) {
 		if ($n=~/::(\w+)$/) {
@@ -95,6 +95,81 @@ sub get_application_valiables {
 __END__
 
 
+=head1 NAME
+
+blx::xsdsql::dbconn  -  convert database connection string into specific application form
+
+=head1 SYNOPSIS
+
+use blx::xsdsql::dbconn
 
 
+=head1 DESCRIPTION
+
+this package is a class - instance it with the method new
+
+=cut
+
+
+=head1 FUNCTIONS
+
+
+new - constructor
 	
+	PARAMS: 
+	
+		DBTYPE - database type - the class method get_database_availables return valid values for this param
+		APPLICATION - application name - the class method get_application_avaliables return valid values for this param
+	
+
+get_application_string - return the connection string for an application
+
+	the 1^ param is a connection string into the form <user>/<pwd>@<database_name>[:<host>[:<port>]]
+	
+	PARAMS:
+		DBTYPE - database type - same as the new constructor
+		APPLICATION - application name - same as the new constructor
+			
+		
+
+get_applications_classname - return the classes associated to an application
+
+	PARAMS: none
+	
+	this method is a class method 
+	
+
+get_database_availables - return the database types avalilables 
+
+	PARAMS: none
+	
+	this method is a class method 
+
+
+
+
+=head1 EXPORT
+
+None by default.
+
+
+=head1 EXPORT_OK
+
+None
+
+=head1 AUTHOR
+
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2011 by lorenzo.bellotti
+
+This program is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
+
+See http://www.perl.com/perl/misc/Artistic.html
+
+=cut
+ 
+

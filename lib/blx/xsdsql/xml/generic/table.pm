@@ -9,6 +9,10 @@ use File::Basename;
 use base qw(blx::xsdsql::xml::generic::catalog);
 use Carp;
 
+use constant {
+		DEFAULT_ROOT_TABLE_NAME	=> 'ROOT'
+};
+
 our %_ATTRS_R=( 
 			NAME   => sub {
 							my $self=shift;
@@ -16,7 +20,7 @@ our %_ATTRS_R=(
 			}							
 			,PATH_RESOLVED => sub {
 							my $self=shift;
-							return $self->get_path_resolved;
+							return defined $self->{PATH} ? $self->{PATH} : $self->get_sql_name;
 			}
 			,TYPES => sub {
 							my $self=shift;
@@ -42,6 +46,18 @@ our %_ATTRS_R=(
 			,SIMPLE_TYPE	=> sub {
 							my $self=shift;
 							return $self->{SIMPLE_TYPE} ? 1 : 0;
+			}
+			,CHOISE			=> sub {
+							my $self=shift;
+							return $self->{CHOISE} ? 1 : 0;
+			}
+			,GROUP_TYPE		=> sub {
+							my $self=shift;
+							return $self->{GROUP_TYPE} ? 1 : 0;
+			}
+			,LEVEL			=> sub {
+							my $self=shift;
+							return $self->{LEVEL}
 			}
 );
 
@@ -144,7 +160,8 @@ sub get_child_tables {
 	
 sub set_attrs_value {
 	my $self=shift;
-	return blx::xsdsql::ut::set_attrs_value($self,\%_ATTRS_W,@_);
+	blx::xsdsql::ut::set_attrs_value($self,\%_ATTRS_W,@_);
+	return $self;
 }
 
 sub get_attrs_value {
@@ -169,7 +186,7 @@ sub _adjdup_sql_name {
 sub _translate_path  {
 	my ($self,%params)=@_;
 	my $path=defined $self->{PATH} ? $self->{PATH} : $self->{NAME};
-	$path=nvl($params{ROOT_TABLE_NAME},'ROOT') if $path eq '/';
+	$path=nvl($params{ROOT_TABLE_NAME},DEFAULT_ROOT_TABLE_NAME) if $path eq '/';
 	$path=~s/\//_/g;
 	$path=~s/^_//;
 	$path=~s/-/_/g;
@@ -194,15 +211,24 @@ sub _reduce_sql_name {
 
 sub is_type {
 	my ($self,%params)=@_;
-	return $self->{TABLE_IS_TYPE} ? 1 : 0	
+	return $self->get_attrs_value qw(TABLE_IS_TYPE);
 }
 
 sub is_simple_type {
 	my ($self,%params)=@_;
-	return $self->{SIMPLE_TYPE} ? 1 : 0	
-	
+	return $self->get_attrs_value qw(SIMPLE_TYPE);
 }
 
+sub is_group_type {
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(GROUP_TYPE);
+}
+
+sub is_choise {
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(CHOISE);	
+}	
+	
 sub get_min_occurs { 
 	my ($self,%params)=@_;
 	return $self->get_attrs_value qw(MINOCCURS);
@@ -276,7 +302,7 @@ sub get_constraint_name {
 
 sub get_path_resolved {
 	my ($self,%params)=@_;
-	return defined $self->{PATH} ? $self->{PATH} : $self->get_sql_name;
+	return $self->get_attrs_value qw(PATH_RESOLVED);
 }
 
 sub get_sequence_name {
@@ -297,6 +323,11 @@ sub get_sequence_name {
 	return $name;
 }
 
+sub get_level {
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(LEVEL);
+}
+
 sub get_table_from_path_reference {
 	my ($self,$path,%params)=@_;
 	return undef unless defined $path;
@@ -307,8 +338,6 @@ sub get_table_from_path_reference {
 		return $t if $p eq $path; 
 	}
 	return undef unless defined $params{ROOT_TABLE}; 
-#	my $types=$params{ROOT_TABLE}->get_attrs_value qw(TYPES);
-#	return  undef unless defined $types;
 	for my $t($params{ROOT_TABLE}->get_attrs_value qw(TYPES)) {
 		my $p=$t->get_attrs_value qw(PATH);
 		next unless defined $p;
@@ -320,15 +349,59 @@ sub get_table_from_path_reference {
 sub get_pk_columns {
 	my ($self,%params)=@_;
 	my @cols=();
-	for my $c($self->find_columns(PK => sub { $_[0]->is_pk; })) {
+	for my $c($self->find_columns(FILTER => sub { $_[0]->is_pk; })) {
 		$cols[$c->get_pk_seq]=$c;
 	}
 	return wantarray ? @cols : \@cols;
 } 
 
+sub is_root_table {
+	my ($self,%params)=@_;
+	return nvl($self->get_attrs_value qw(PATH)) eq '/' ? 1 : 0;
+}
+
+sub get_dictionary_data {
+	my ($self,$dictionary_type,%params)=@_;
+	croak "dictionary_type (1^ arg)  non defined" unless defined $dictionary_type;
+	if ($dictionary_type eq 'TABLE_DICTIONARY') {
+		my %data=(
+			TABLE_NAME 		=> $self->get_sql_name
+			,XSD_SEQ 		=> $self->get_xsd_seq
+			,TYPE			=> ($self->is_simple_type ? 'S' : $self->is_type ? 'C' : undef)  
+			,IS_GROUP		=> $self->is_group_type
+			,IS_CHOISE		=> $self->is_choise
+			,MIN_OCCURS		=> $self->get_min_occurs
+			,MAX_OCCURS		=> $self->get_max_occurs
+			,PATH_NAME		=> $self->get_attrs_value qw(PATH)
+			,LEVEL			=> $self->get_level
+		);
+		return wantarray ? %data : \%data if scalar %data;
+	}
+	
+	if ($dictionary_type eq 'RELATION_DICTIONARY') {
+		my $count=0;
+		my $name=$self->get_sql_name;
+		my @data=map {
+			{
+				PARENT_TABLE_NAME	=> $name
+				,CHILD_SEQUENCE		=> ${count}++
+				,CHILD_TABLE_NAME	=> $_->get_sql_name
+				
+			}
+		} $self->get_child_tables;
+		return wantarray ? @data : \@data;
+	}
+	
+	if ($dictionary_type eq 'COLUMN_DICTIONARY') {
+		my @data=map { my $data=$_->get_dictionary_data qw(COLUMN_DICTIONARY); $data->{TABLE_NAME}=$self->get_sql_name; $data } $self->get_columns;
+		return wantarray ? @data : \@data;	 
+	}
+	
+	croak "$dictionary_type: invalid value";
+}
+
+
 1;
-
-
 
 __END__
 
@@ -360,23 +433,31 @@ this module defined the followed functions
 new  - contructor
 
 	PARAMS: 
-		COLUMNS  - a pointer too an array of  column objects (default [])
-		CHILD_TABLES - pointer too an array of table objects (default [])
-		XSD_SEQ  - a XSD_SEQ start number  (default 0)
-		TABLE_IS_TYPE - the table is associated with type (simple or complex) (default false)
-		SIMPLE_TYPE - the table is associated with a simple type  (default false)
-		MINOCCURS - the table as a minoccurs  (default 0)
-		MAXOCCURS - the table as a maxoccurs (default 1)
-		PATH    - a node path name (default not defined)
-		TYPE - a internal node type (default not defined)
-		NAME - a node name (default not defined)
-
+		COLUMNS  			- a pointer too an array of  column objects (default [])
+		CHILD_TABLES 		- pointer too an array of table objects (default [])
+		XSD_SEQ  			- a XSD_SEQ start number 
+		TABLE_IS_TYPE 		- the table is associated with type (simple or complex)
+		SIMPLE_TYPE 		- the table is associated with a simple type
+		GROUP_TYPE  		- the table is associated to an xsd group
+		CHOISE 				- the table is associated to a choise
+		MINOCCURS 			- the table as a minoccurs 
+		MAXOCCURS 			- the table as a maxoccurs
+		PATH    			- a node path name 
+		TYPE 				- an internal node type
+		NAME 				- a node name 
+		LEVEL				- a node level - the root has level 0
+		TYPES  				- a pointer to an array of table types (only for root)
+		TABLE_DICTIONARY 	- a pointer to table dictionary (only for root)
+		COLUMN_DICTIONARY 	- a pointer to column dictionary (only for root)
+		RELATION_DICTIONARY - a pointer to a relation dictionary (only for root)
+		
 add_columns - add columns to a table
 		
 	the method return a self object
 
 
 get_columns - return an array of columns object
+
 
 add_child_tables - add child tables to a table
 
@@ -393,8 +474,7 @@ find_columns  - find columns that  match the pairs attributes => value
 	the method return an array of columns object
 
 
-get_child_tables  - return an array of child table
-
+get_child_tables  - return an array of child tables
 
 	
 set_attrs_value   - set a value of attributes
@@ -414,7 +494,7 @@ get_sql_name  - return the sql name
 
 get_constraint_name  - return a constraint name 
 
-	the first argument must be pk (primary key)
+	the first argument must be the constant 'pk' (primary key)
 
 
 get_path_resolved  - return a resolved path name associated 
@@ -430,13 +510,22 @@ get_pk_columns - return the primary key columns
 
 is_type	- return true if the table is associated to a xsd type
 
-is_simple_type - return true if the table is associated to a simple type
+is_simple_type - return true if the table is associated to a xsd simple type
+
+is_choise - return true if the table is associated to a xsd choise
 
 get_xsd_seq - return the  start xsd sequence 
 
 get_min_occurs - return the min occurs of the table
 
 get_max_occurs - return the max occurs of the table
+
+get_dictionary_data - return an hash of dictionary column name => value for the insert into dictionary
+	
+	the first argument must be:
+		TABLE_DICTIONARY - return data for table dictionary
+		RELATION_DICTIONARY - return data for relation dictionary
+		COLUMN_DICTIONARY - return data for column dictionary
 
 =head1 EXPORT
 

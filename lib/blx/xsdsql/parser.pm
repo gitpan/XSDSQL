@@ -9,23 +9,26 @@ use blx::xsdsql::ut qw(nvl ev);
 use File::Basename;
 
 use constant {
-			 DEFAULT_OCCURS_TABLE_PREFIX 	=> 'm_'
-			,UNBOUNDED						=> 2 ** 32
-			,XS_STRING_TYPE					=> 'string  normalizedString  token  base64Binary  hexBinary duration ID IDREF  IDREFS  NMTOKEN NMTOKENS language Name QName NCName anyURI' 
-			,XS_INTEGER_TYPE				=> 'integer integer  nonPositiveInteger  negativeInteger  long  int  short  byte  nonNegativeInteger  unsignedLong  unsignedInt  unsignedShort  unsignedByte  positiveInteger'
-			,XS_DOUBLE_TYPE					=> 'double'
-			,XS_FLOAT_TYPE				    => 'float'
-			,XS_DECIMAL_TYPE				=> 'decimal'
-			,XS_DATETIME_TYPE				=> 'dateTime'
-			,XS_DATE_TYPE					=> 'date'
-			,XS_TIME_TYPE					=> 'time'
-			,XS_GYEAR_TYPE					=> 'gYear'
-			,XS_GYEARMONTH_TYPE				=> 'gYearMonth'
-			,XS_GMONTHDAY_TYPE				=> 'gMonthDay'
-			,XS_BOOLEAN_TYPE				=> 'boolean'
-			,SIMPLE_TYPE_CLASS				=> 'blx::xsdsql::xml::simple_type'
-			,STRING_MAXSIZE					=>  2**32
-			,XML_STD_NAMESPACES			=>  'xs xsd' 
+			 DEFAULT_OCCURS_TABLE_PREFIX 		=> 'm_'
+			,UNBOUNDED							=> 2 ** 32
+			,XS_STRING_TYPE						=> 'string  normalizedString  token  base64Binary  hexBinary duration ID IDREF  IDREFS  NMTOKEN NMTOKENS language Name QName NCName anyURI' 
+			,XS_INTEGER_TYPE					=> 'integer integer  nonPositiveInteger  negativeInteger  long  int  short  byte  nonNegativeInteger  unsignedLong  unsignedInt  unsignedShort  unsignedByte  positiveInteger'
+			,XS_DOUBLE_TYPE						=> 'double'
+			,XS_FLOAT_TYPE				    	=> 'float'
+			,XS_DECIMAL_TYPE					=> 'decimal'
+			,XS_DATETIME_TYPE					=> 'dateTime'
+			,XS_DATE_TYPE						=> 'date'
+			,XS_TIME_TYPE						=> 'time'
+			,XS_GYEAR_TYPE						=> 'gYear'
+			,XS_GYEARMONTH_TYPE					=> 'gYearMonth'
+			,XS_GMONTHDAY_TYPE					=> 'gMonthDay'
+			,XS_BOOLEAN_TYPE					=> 'boolean'
+			,SIMPLE_TYPE_CLASS					=> 'blx::xsdsql::xml::simple_type'
+			,STRING_MAXSIZE						=>  2**32
+			,XML_STD_NAMESPACES					=>  'xs xsd' 
+			,DEFAULT_TABLE_DICTIONARY_NAME		=>  'table_dictionary'
+			,DEFAULT_COLUMN_DICTIONARY_NAME		=>  'column_dictionary'
+			,DEFAULT_RELATION_DICTIONARY_NAME	=>  'relation_dictionary'
 };
 
 
@@ -41,7 +44,9 @@ sub _get_type {
 				$type{BASE}=$e->base();
 			}
 			else {
-				confess  $r.": type not impemented";
+				use Data::Dumper;
+				print STDERR Dumper($e);
+				confess  $r.": type not implemented";
 			}
 			for my $f(@{$e->{_content_}}) {
 				my $r=ref($f);
@@ -186,6 +191,7 @@ sub _parse_x {
 					my $table = $params{TABLE_CLASS}->new(
 						PATH		    => $node->{complete_name}
 						,TABLE_IS_TYPE  => 1
+						,LEVEL			=> $level
 					);
 					$table->get_sql_name(%params); #force the resolve of sql name
 					$table->get_constraint_name('pk',%params); #force the resolve of pk constraint
@@ -216,6 +222,8 @@ sub _parse_x {
 			else {  				  #anonymous type - converted into a table
 				my $table = $params{TABLE_CLASS}->new(
 					 PATH		=> $node->{complete_name}
+					 ,LEVEL		=> $level
+
 				);
 				$table->get_sql_name(%params); #force the resolve of sql name
 				$table->get_constraint_name('pk',%params); #force the resolve of pk constraint
@@ -248,10 +256,11 @@ sub _parse_x {
 			if (defined $name) {
 				$node->{complete_name}=$parent->{complete_name}.'/'.$name;
 				my $table = $params{TABLE_CLASS}->new (
-					 PATH		=> $node->{complete_name}
+					 PATH			=> $node->{complete_name}
 					,TABLE_IS_TYPE	=> 1
 					,COMPLEX_TYPE	=> 1
-					,XSD_SEQ	=> 1
+					,XSD_SEQ		=> 1
+					,LEVEL			=> $level
 				);
 				$table->get_sql_name(%params); #force the resolve of sql name
 				$table->get_constraint_name('pk',%params); #force the resolve of pk constraint 
@@ -279,6 +288,7 @@ sub _parse_x {
 					,PATH		=> undef
 					,MAXOCCURS 	=> $maxoccurs
 					,CHOISE		=> 1
+					,LEVEL		=> $level
 				);
 				$table->get_sql_name(%params); #force the resolve of sql name
 				$table->get_constraint_name('pk',%params); #force the resolve of pk constraint 
@@ -320,6 +330,7 @@ sub _parse_x {
 				my $table = $params{TABLE_CLASS}->new(
 					NAME		=> DEFAULT_OCCURS_TABLE_PREFIX.$parent_table->get_attrs_value(qw(NAME))
 					,MAXOCCURS	=> $maxoccurs
+					,LEVEL		=> $level
 				);
 				$table->get_sql_name(%params); #force the resolve of sql name
 				$table->get_constraint_name('pk',%params); #force the resolve of pk constraint 
@@ -361,12 +372,13 @@ sub _parse_x {
 				);
 				$cols[-1]->set_attrs_value( TYPE => _get_simple_type_from_node($node,%params));
 				my $table = $params{TABLE_CLASS}->new(
-					 PATH		=> $node->{complete_name}
-					,MAXOCCURS	=> 1
-					,XSD_SEQ	=> 0
+					 PATH			=> $node->{complete_name}
+					,MAXOCCURS		=> 1
+					,XSD_SEQ		=> 0
 					,TABLE_IS_TYPE	=> 1
 					,SIMPLE_TYPE	=> 1
-					,TYPE       => $node  
+					,TYPE       	=> $node
+					,LEVEL			=> $level
  				);
 				$table->add_columns(@cols);
 				$table->get_sql_name(%params); #force the resolve of sql name
@@ -404,11 +416,12 @@ sub _parse_x {
 				if (defined $name) {
 					$node->{complete_name}=$parent->{complete_name}.'/'.$name;
 					my $table = $params{TABLE_CLASS}->new (
-						 PATH		=> $node->{complete_name}
+						 PATH			=> $node->{complete_name}
 						,TABLE_IS_TYPE	=> 1
-						,GROUP_TYPE	=> 1
-						,XSD_SEQ	=> 1
+						,GROUP_TYPE		=> 1
+						,XSD_SEQ		=> 1
 						,COMPLEX_TYPE	=> 1
+						,LEVEL			=> $level
 					);
 					$table->get_sql_name(%params); #force the resolve of sql name
 					$table->get_constraint_name('pk',%params); #force the resolve of pk constraint 
@@ -500,6 +513,15 @@ sub _resolve_path_ref {
 	return undef;
 }
 
+sub _factory_dictionary {
+	my ($dictionary_type,$name,%params)=@_;
+	my $t=$params{TABLE_CLASS}->new(NAME => $name);
+	$t->add_columns($params{SELF}->{ANONYMOUS_COLUMN}->factory_dictionary_columns($dictionary_type,%params));
+	$t->get_sql_name(%params);  #force the resolve of sql name
+	$t->get_constraint_name('pk',%params); #force the resolve of pk constraint
+	return $t;
+}
+
 sub _parse {
 	my ($r,%params)=@_;
 	for my $p qw( TABLENAME_LIST  CONSTRAINT_LIST) {
@@ -520,6 +542,10 @@ sub _parse {
 	_parse_user_def_types($root->{CHILD_TABLES},$root->{TYPES},%params);
 	_parse_user_def_types($root->{TYPES},$root->{TYPES},%params);
 	_resolve_path_ref($root,ROOT_TABLE => $root);
+	my $td=_factory_dictionary('TABLE_DICTIONARY',nvl($params{TABLE_DICTIONARY_NAME},DEFAULT_TABLE_DICTIONARY_NAME),%params);
+	my $cd=_factory_dictionary('COLUMN_DICTIONARY',nvl($params{COLUMN_DICTIONARY_NAME},DEFAULT_COLUMN_DICTIONARY_NAME),%params);
+	my $rd=_factory_dictionary('RELATION_DICTIONARY',nvl($params{RELATION_DICTIONARY_NAME},DEFAULT_RELATION_DICTIONARY_NAME),%params);
+	$root->set_attrs_value(TABLE_DICTIONARY	=> $td,COLUMN_DICTIONARY => $cd,RELATION_DICTIONARY => $rd);
 	return $root;
 }
 
@@ -624,11 +650,16 @@ new - constructor
 parsefile - parse a xsd file
  
 	the first param if an object compatible with the input of Rinchi::XMLSchema::parsefile, normally a file name    
-	the method return a tree of objects rapresented the  tables of database 
+	the method return a tree of objects rapresented the  tables of the database 
 	
 	PARAMS:
 		TABLE_PREFIX - prefix for tables - the default is none
 		VIEW_PREFIX  - prefix for views  - the default is none
+		SEQUENCE_PREFIX - prefix for the sequences - the default is none
+		ROOT_TABLE_NAME	- the name of the root table - the default is 'ROOT'
+		TABLE_DICTIONARY_NAME - the name of the table dictionary
+		COLUMN_DICTIONARY_NAME - the name of the colunm dictionary
+		RELATION_DICTIONARY_NAME - the name of the relation dictionary
 		SCHEMA_DUMPER - print on STDERR the dumper of the schema generated by Runchi::XMLSchema
 
 get_db_namespaces - static method 

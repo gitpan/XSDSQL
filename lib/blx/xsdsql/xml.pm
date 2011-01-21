@@ -242,6 +242,9 @@ my %H=(
 				$sth->bind_column($col,$id,TAG => __LINE__);
 				if (defined $seq) {
 					my $col=$node_current_table->{TABLE}->find_columns(PK_SEQ => 1);
+#					$col=$node_current_table->{TABLE}->get_pk_columns;
+#					use Data::Dumper; print STDERR Dumper($col),"\n";
+#					$col=$col->[1];
 					confess $node_current_table->{TABLE}->get_sql_name.NO_SUCH_COLUMN unless defined $col;
 					$sth->bind_column($col,$seq,TAG => __LINE__);
 				}

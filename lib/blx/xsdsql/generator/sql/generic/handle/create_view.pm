@@ -11,6 +11,10 @@ sub _get_create_prefix {
 	return "create or replace view";
 }
 
+sub _alias_table {
+	my ($self,%params)=@_;
+	return " as ";
+}
 
 {
 	my $filter=undef;
@@ -54,7 +58,6 @@ sub _get_create_prefix {
 
 sub table_header {
 	my ($self,$table,%params)=@_;
-#	return $self if $table->is_type;
 	my $path=$table->get_attrs_value qw(PATH);
 	my $comm=defined  $path ? $table->comment('PATH: '.$path) : '';
 	$self->{STREAMER}->put_line($self->_get_create_prefix,' ',$table->get_view_sql_name," as select  $comm");
@@ -82,13 +85,12 @@ sub table_header {
 		my $alias=sprintf("A_%0".length(scalar(@cols))."d",$col->get_attrs_value(qw(TABLE))->get_attrs_value(qw(ALIAS_COUNT)));
 
 		if ($t->get_sql_name eq $table->get_sql_name) { #the start table
-			$self->{STREAMER}->put_line("\t",$t->get_sql_name,' as ',$alias) if $col->is_pk && $col->get_pk_seq == 0;
+			$self->{STREAMER}->put_line("\t",$t->get_sql_name,$self->_alias_table,$alias) if $col->is_pk && $col->get_pk_seq == 0;
 		}
 		my $table_ref=$col->get_attrs_value qw(JOIN_TABLE);
 		next unless defined $table_ref;
-#		next if $table_ref->get_max_occurs > 1;
 		my $alias_ref=sprintf("A_%0".length(scalar(@cols))."d",$table_ref->get_attrs_value(qw(ALIAS_COUNT)));
-		$self->{STREAMER}->put_chars("\t","left join ",$table_ref->get_sql_name,' as ',$alias_ref,' on ');
+		$self->{STREAMER}->put_chars("\t","left join ",$table_ref->get_sql_name,$self->_alias_table,$alias_ref,' on ');
 		my @pk=$table_ref->get_pk_columns;
 		$self->{STREAMER}->put_chars("\t",$alias,'.',$col->get_sql_name,'=',$alias_ref,'.',$pk[0]->get_sql_name);
 		$self->{STREAMER}->put_chars("\t\tand ",$alias_ref,'.',$pk[1]->get_sql_name,'=0') if scalar(@pk) > 1;

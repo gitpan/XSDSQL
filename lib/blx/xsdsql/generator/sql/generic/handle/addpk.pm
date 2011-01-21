@@ -8,7 +8,7 @@ sub table_header {
 	my ($self,$table,%params)=@_;
 	my $table_name=$table->get_sql_name(%params);
 	my $pk_name=$table->get_constraint_name('pk');
-	my @cols=map { $_->get_sql_name } $table->find_columns(PK_SEQ => sub { my $col=shift; defined $col->get_attrs_value qw(PK_SEQ) });
+	my @cols=map { $_->get_sql_name } $table->get_pk_columns;
 	$self->{STREAMER}->put_line("alter table $table_name add constraint $pk_name primary key (".join(',',@cols).')',$table->command_terminator);
 	return $self;
 }

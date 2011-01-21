@@ -42,7 +42,12 @@ sub comment {
 	return $self->get_begin_comment().' '.substr($c,0,$self->get_comment_maxsize).' '.$self->get_end_comment();
 }
 
-
+sub get_comment {
+	my ($self,%params)=@_;
+	my $c=$self->get_attrs_value qw(COMMENT);
+	return '' unless $c;
+	return $self->comment($c)
+}
 
 sub set_attrs_value {
 	my $self=shift;
@@ -91,6 +96,9 @@ this module defined the followed functions
 
 new - constructor   
 
+	PARAMS:
+		COMMENT - an associated comment
+			
 
 get_name_maxsize  - return the max_size of a database dictionary name 
 
@@ -112,6 +120,9 @@ comment  - return a text enclosed by  comment symbols
 	the arguments are a text 
 
 
+get_comment - return a text value of the COMMENT attribute enclosed by comment characters
+
+ 
 set_attrs_value   - set a value of attributes
 
 	the arguments are a pairs NAME => VALUE	

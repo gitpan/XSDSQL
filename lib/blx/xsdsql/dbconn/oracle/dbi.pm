@@ -25,7 +25,7 @@ __END__
 
 =head1 NAME
 
-blx::xsdsql::dbconn::oracle::dbi - convert database connection string into dbi for postgresql
+blx::xsdsql::dbconn::oracle::dbi - convert database connection string into dbi for oracle
 
 
 =head1 SYNOPSIS

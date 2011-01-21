@@ -28,22 +28,22 @@ sub _parser {
 	my ($self,$table,%params)=@_;
 	my $handle=$self->{HANDLE};
 	if ($self->_check_table_filter($table,$params{LEVEL})) {
-		$handle->table_header($table,%params);
+		$handle->table_header($table,%params) || return undef;
 		for my $col($table->get_columns) {
-			$handle->column($col,%params,TABLE => $table);
+			$handle->column($col,%params,TABLE => $table) || return undef;
 		}
-		$handle->table_footer($table,%params);
+		$handle->table_footer($table,%params) || return undef;
 	}
 	for my $t($table->get_child_tables) {
-		$self->_parser($t,%params,LEVEL => $params{LEVEL} + 1);
+		$self->_parser($t,%params,LEVEL => $params{LEVEL} + 1) || last;
 	}
-	if (nvl($table->get_attrs_value qw(PATH)) eq '/') {
+	if ($table->is_root_table) {
 		for my $t($table->get_attrs_value qw(TYPES)) {
-			$self->_parser($t,%params,LEVEL => $params{LEVEL} + 1);
+			$self->_parser($t,%params,LEVEL => $params{LEVEL} + 1) || last;
 		}
 		$handle->footer($table,%params);
 	}
-	return undef; 
+	return $self; 
 }
 
 
@@ -75,7 +75,7 @@ sub generate {
 	for my $p qw( LEVEL_FILTER TABLES_FILTER) {
 		$self->{$p}=delete $params{$p};
 	}
-	$self->_parser($table,%params,LEVEL => 0,TABLENAME_LIST => []);
+	$self->_parser($table,%params,LEVEL => 0,TABLENAME_LIST => [],ROOT_TABLE => $table,COMMAND => $command);
 	return $self;
 }
 

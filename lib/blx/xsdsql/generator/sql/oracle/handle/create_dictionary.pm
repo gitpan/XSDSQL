@@ -1,13 +1,9 @@
-package blx::xsdsql::generator::sql::oracle::handle::create_view;
+package blx::xsdsql::generator::sql::oracle::handle::create_dictionary;
 use strict;
 use warnings;
 use Carp;
-use base qw(blx::xsdsql::generator::sql::generic::handle::create_view);
+use base qw(blx::xsdsql::generator::sql::generic::handle::create_dictionary);
 
-sub _alias_table {
-	my ($self,%params)=@_;
-	return " ";
-}
 
 1;
 
@@ -15,13 +11,13 @@ __END__
 
 =head1 NAME
 
-blx::xsdsql::generator::sql::oracle::handle::create_view  - create view  for oracle
+blx::xsdsql::generator::sql::oracle::handle::create_dictionary  - create table dictionary  for oracle
 
 
 =head1 SYNOPSIS
 
 
-use blx::xsdsql::generator::sql::oracle::handle::create_view
+use blx::xsdsql::generator::sql::oracle::handle::create_dictionary
 
 
 =head1 DESCRIPTION
@@ -47,7 +43,7 @@ None
 =head1 SEE ALSO
 
 
-See  blx::xsdsql::generator::sql::generic::handle::create_view  - this class inherit from this 
+See  blx::xsdsql::generator::sql::generic::handle::create_dictionary  - this class inherit from this 
 
 
 =head1 AUTHOR

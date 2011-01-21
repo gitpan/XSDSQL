@@ -166,7 +166,8 @@ sub delete_rows_for_id  {
 
 sub _get_query_row_sql {
 	my ($self,$table,%params)=@_;
-	my @cols=$table->find_columns(PK_SEQ => sub { my $col=shift; defined $col->get_attrs_value qw(PK_SEQ) });
+#	my @cols=$table->find_columns(PK_SEQ => sub { my $col=shift; defined $col->get_attrs_value qw(PK_SEQ) });
+	my @cols=$table->find_columns(FILTER => sub { $_[0]->is_pk });
 	my $sql="select * from ".$table->get_sql_name." where ".$cols[0]->get_sql_name."=:".$cols[0]->get_sql_name." order by ".$cols[0]->get_sql_name;
 	$sql.=",".$cols[1]->get_sql_name if scalar(@cols) > 1;
 	return $sql;
@@ -204,7 +205,7 @@ sub get_binding_columns {
 	if (!defined $self->{BINDING_VALUES}) {
 		return wantarray ? () : [];
 	}
-	my @binding=grep (!$params{PK_ONLY} || defined $_->{COL}->get_attrs_value qw(PK_SEQ),@{$self->{BINDING_VALUES}});
+	my @binding=grep (!$params{PK_ONLY} || $_->{COL}->is_pk,@{$self->{BINDING_VALUES}});
 	return wantarray ? @binding : \@binding;
 }
 

@@ -29,13 +29,21 @@ my @STEPS_DESCRIPTION=(
 	,"create sequence objects ..."
 	,"load & unload & compare  ..."
 	,"create view objects ..."
+	,"drop dictionary objects ..."
+	,"create dictionary objects ..."
+	,"insert dictionary objects ..."
 	,"test  OK"
 );
 
 sub isql {
 	my %params=@_;
 	my $x=$params{DROP} ? ' -I -R ' : '';
-	my $cmd="perl ../isql.pl -c '".$params{DB_CONNECTION_STRING}."' -t c $x ".$params{FILE};
+	my $file=$params{FILE};
+	confess "internal error: param FILE not set" unless defined $file;
+	$file=~s/^\s*//;
+	$file=~s/\s*$//;
+	confess "internal error: param FILE not set" unless $file;
+	my $cmd="perl ../isql.pl -c '".$params{DB_CONNECTION_STRING}."' -t c $x '$file'";
 	print STDERR "(D) ",$cmd,"\n" if $params{DEBUG};
 	system($cmd);
 	my $rc=$?;
@@ -61,7 +69,7 @@ my @STEPS=(
 					." -p '".$params{PREFIX_TABLES}."'"
 					." -w '".$params{PREFIX_VIEWS}."'"
 					." -s '".$params{PREFIX_SEQUENCE}."'"; 
-				for my $c qw(drop_table create_table addpk drop_sequence create_sequence drop_view create_view) {
+				for my $c qw(drop_table create_table addpk drop_sequence create_sequence drop_view create_view drop_dictionary create_dictionary insert_dictionary) {
 					$ret{$c}="${c}.sql";
 					my $cmd=$pcmd." '${c}' '".$params{SCHEMA_FILE}."' > ".$ret{$c};
 					print STDERR "(D) ",$cmd,"\n" if $params{DEBUG};
@@ -158,6 +166,18 @@ my @STEPS=(
 			,sub { #create views
 				my %params=@_;
 				return isql(%params,FILE => $params{create_view});							
+			}
+			,sub { #drop dictionary tables 
+				my %params=@_;
+				return isql(%params,FILE => $params{drop_dictionary},DROP => 1);			
+			}
+			,sub { #create dictionary tables 
+				my %params=@_;
+				return isql(%params,FILE => $params{create_dictionary});			
+			}
+			,sub { #insert dictionary
+				my %params=@_;
+				return isql(%params,FILE => $params{insert_dictionary});								
 			}
 			,sub { #final step
 				my %params=@_;

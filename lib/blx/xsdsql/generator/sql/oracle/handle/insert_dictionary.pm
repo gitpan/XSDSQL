@@ -1,13 +1,9 @@
-package blx::xsdsql::generator::sql::oracle::handle::create_view;
+package blx::xsdsql::generator::sql::oracle::handle::insert_dictionary;
 use strict;
 use warnings;
 use Carp;
-use base qw(blx::xsdsql::generator::sql::generic::handle::create_view);
+use base qw(blx::xsdsql::generator::sql::generic::handle::insert_dictionary);
 
-sub _alias_table {
-	my ($self,%params)=@_;
-	return " ";
-}
 
 1;
 
@@ -15,13 +11,13 @@ __END__
 
 =head1 NAME
 
-blx::xsdsql::generator::sql::oracle::handle::create_view  - create view  for oracle
+blx::xsdsql::generator::sql::oracle::handle::insert_dictionary  - insert dictionary  for oracle
 
 
 =head1 SYNOPSIS
 
 
-use blx::xsdsql::generator::sql::oracle::handle::create_view
+use blx::xsdsql::generator::sql::oracle::handle::insert_dictionary
 
 
 =head1 DESCRIPTION
@@ -47,7 +43,7 @@ None
 =head1 SEE ALSO
 
 
-See  blx::xsdsql::generator::sql::generic::handle::create_view  - this class inherit from this 
+See  blx::xsdsql::generator::sql::generic::handle::insert_dictionary  - this class inherit from this 
 
 
 =head1 AUTHOR
@@ -56,7 +52,7 @@ lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2010 by lorenzo.bellotti
+Copyright (C) 2011 by lorenzo.bellotti
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

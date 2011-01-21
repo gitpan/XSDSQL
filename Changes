@@ -17,9 +17,17 @@ Revision history for Perl extension blx::xsdsql
 	- implement a new test suite
 	- implement a xsd groups
 	
-0.03 
+0.03 January 04  19:04 2011  
 	- correct bugs in  documentation
-	- implement drop view and create view
+	- new commands drop_view, create_view 
+	- implement drop view and create view classes 
 	- change email address of the author 
 	- minor bugs corretted  
 
+0.04 January 20 20:08 2011
+	- correct bugs in documentation
+	- minor bugs corretted 
+	- new commands drop_dictionary,create_dictionary,insert_dictionary in xsd2sql.pl
+	- correct bug in create_view for oracle
+	- make clean delete temporary files in test directory
+    
