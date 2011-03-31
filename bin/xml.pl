@@ -89,7 +89,7 @@ my %CMD=();
 
 
 my %Opt=();
-unless (getopts ('hdt:n:s:c:r:p:w:i:q:',\%Opt)) {
+unless (getopts ('hdut:n:s:c:r:p:w:i:q:',\%Opt)) {
 	print STDERR "invalid option or option not set\n";
 	exit 1;
 }
@@ -114,7 +114,7 @@ if ($Opt{h}) {
 					WARNING - This option can influence table names
 			-q <sequence_prefix_name>  - set the prefix for sequences name (default '".DEFAULT_SEQUENCE_PREFIX."')
 					WARNING - This option can influence table names
-			
+			-u - set encondig utf8 to xmlwriter
 		<command>
 			C      - test the conmnection to the database and exit
 			r[ead] - read <xmlfile> and put into into a database 
@@ -171,7 +171,7 @@ unless (-r $ARGV[1]) {
 }
 
 
-my $p=blx::xsdsql::parser->new(DB_NAMESPACE => $Opt{n}); 
+my $p=blx::xsdsql::parser->new(DB_NAMESPACE => $Opt{n},DEBUG => $Opt{d}); 
 
 my $cmd=$CMD{$ARGV[0]};
 unless (defined $cmd)  {
@@ -182,7 +182,7 @@ unless (defined $cmd)  {
 $Opt{r}=DEFAULT_ROOT_TABLE_NAME unless defined $Opt{r};
 $Opt{w}=DEFAULT_VIEW_PREFIX unless defined $Opt{w};
 
-my $root_table=$p->parsefile(
+my $schema=$p->parsefile(
 	$ARGV[1]
 	,ROOT_TABLE_NAME 	=> $Opt{r}
 	,TABLE_PREFIX 		=> $Opt{p}
@@ -198,13 +198,14 @@ my $xml=blx::xsdsql::xml->new(
 	,DB_NAMESPACE => $Opt{n}
 	,XSD_FILE     => $ARGV[1]
 	,DEBUG        => $Opt{d}
-	,SEQUENCE_NAME => $root_table->get_sequence_name
-	,ROOT_TABLE   => $root_table
-	,PARSER       => XML::Parser->new
-	,XMLWRITER    => XML::Writer->new(DATA_INDENT => 4,DATA_MODE => 1,ENCODING => 'UTF-8',NAMESPACES => 0)
+	,SCHEMA			=> $schema
+	,PARSER			=> XML::Parser->new
+#	,XMLWRITER    => XML::Writer->new(DATA_INDENT => 4,DATA_MODE => 1,ENCODING => 'UTF-8',NAMESPACES => 0)
+	,XMLWRITER    => XML::Writer->new(DATA_INDENT => 4,DATA_MODE => 1,NAMESPACES => 0,($Opt{u} ? ('ENCODING','UTF-8') : ()))
 	,SCHEMA_NAME  => $Opt{s}
 	,SCHEMA_INSTANCE => $Opt{i}
 );
+binmode(*STDERR,':utf8');
 
 my $rc=$cmd->($xml,@ARGV);
 $xml->finish;

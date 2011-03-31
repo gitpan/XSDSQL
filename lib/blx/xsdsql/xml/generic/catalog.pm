@@ -67,6 +67,7 @@ sub shallow_clone {
 	return bless \%newtable,ref($self);
 }
 
+
 1;
 
 __END__

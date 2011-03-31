@@ -25,7 +25,7 @@ use constant {
 };
 
 my %Opt=();
-unless (getopts ('hn:r:p:l:t:w:s:b:',\%Opt)) {
+unless (getopts ('hn:r:p:l:t:w:s:b:d',\%Opt)) {
 	print STDERR "invalid option or option not set\n";
 	exit 1;
 }
@@ -35,6 +35,7 @@ if ($Opt{h}) {
 		$0  [<options>]  <command>  [<xsdfile>...] 
 		<options>: 
 			-h  - this help
+			-d  - emit debug info 
 			-n <output_namespace>::<db_namespace> - default sql::pg  (Sql for PostgreSQL)
 			-r <root_table_name> - set the root table name  (default '".DEFAULT_ROOT_TABLE_NAME."')
 			-p <table_prefix_name> - set the prefix for the tables name (default none)
@@ -105,7 +106,6 @@ $Opt{w}=DEFAULT_VIEW_PREFIX unless defined $Opt{w};
 $Opt{r}=DEFAULT_ROOT_TABLE_NAME unless defined $Opt{r};
 $Opt{s}=DEFAULT_SEQUENCE_PREFIX unless defined $Opt{s};
 $Opt{b}=DEFAULT_TABLE_DICTIONARY.':'.DEFAULT_COLUMN_DICTIONARY.':'.DEFAULT_RELATION_DICTIONARY unless defined $Opt{b};
-#$Opt{b}=DEFAULT_TABLE_DICTIONARY.$Opt{b} if $Opt{b}=~/^:/;
 my @dic=split(":",$Opt{b});
 $dic[0]=DEFAULT_TABLE_DICTIONARY unless $dic[0];
 $dic[1]=DEFAULT_COLUMN_DICTIONARY unless $dic[1];
@@ -123,7 +123,7 @@ unless (grep($_ eq $cmd,qw( drop_table create_table addpk drop_sequence create_s
 	exit 1;
 }
 
-my $p=blx::xsdsql::parser->new(DB_NAMESPACE => $db_namespace); 
+my $p=blx::xsdsql::parser->new(DB_NAMESPACE => $db_namespace,DEBUG => $Opt{d}); 
 
 unless (grep($_ eq $Opt{n},blx::xsdsql::generator::get_namespaces)) {
 	print STDERR $Opt{n},": Can't locate namespace in \@INC\n";
@@ -131,11 +131,11 @@ unless (grep($_ eq $Opt{n},blx::xsdsql::generator::get_namespaces)) {
 }
 
 
-my $g=blx::xsdsql::generator->new(OUTPUT_NAMESPACE => $output_namespace,DB_NAMESPACE => $db_namespace,FD => *STDOUT);
+my $g=blx::xsdsql::generator->new(OUTPUT_NAMESPACE => $output_namespace,DB_NAMESPACE => $db_namespace,FD => *STDOUT,DEBUG => $Opt{d});
 
 push @ARGV,'-'  if scalar(@ARGV) == 0;
 for my $f(@ARGV) {
-	my $root_table=$p->parsefile(
+	my $schema=$p->parsefile(
 		$f
 		,ROOT_TABLE_NAME 	=> $Opt{r}
 		,TABLE_PREFIX 		=> $Opt{p}
@@ -146,7 +146,7 @@ for my $f(@ARGV) {
 		,RELATION_DICTIONARY_NAME => $Opt{b}->[2]
 	) || exit 1;
 	$g->generate(
-		ROOT_TABLE 			=> $root_table
+		SCHEMA				=> $schema
 		,COMMAND 			=> $cmd
 		,LEVEL_FILTER		=> $Opt{l}
 		,TABLES_FILTER		=> $Opt{t}

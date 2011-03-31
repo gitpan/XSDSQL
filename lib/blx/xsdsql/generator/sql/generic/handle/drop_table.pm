@@ -8,11 +8,23 @@ sub _get_drop_prefix {
 	my ($self,%params)=@_;
 	return "drop table";
 }
+
+sub _get_drop_suffix {
+	my ($self,%params)=@_;
+	return "";
+}
+
+sub get_binding_objects  {
+	my ($self,$schema,%params)=@_;
+	my $root_table=$schema->get_root_table;
+	return wantarray ? ( $root_table ) : [ $root_table ];
+}
+
 sub table_header {
 	my ($self,$table,%params)=@_;
 	my $path=$table->get_attrs_value qw(PATH);
 	my $comm=defined  $path ? $table->comment('PATH: '.$path) : '';
-	$self->{STREAMER}->put_line($self->_get_drop_prefix(%params),' ',$table->get_sql_name,' ',$comm,$table->command_terminator);
+	$self->{STREAMER}->put_line($self->_get_drop_prefix(%params),' ',$table->get_sql_name,' ',$self->_get_drop_suffix(%params),' ',$comm,' ',$table->command_terminator);
 	return $self;
 }
 

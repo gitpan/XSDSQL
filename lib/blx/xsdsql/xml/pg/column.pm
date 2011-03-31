@@ -48,11 +48,12 @@ sub _translate_type {
 	return $t;
 }
 
-my @INVALID_NAMES=qw ( int  short byte column varchar date long numeric table alter create drop ); 
+
+my %INVALID_NAMES=(map { (uc($_),undef) } qw ( int  short byte column varchar date long numeric table alter create drop union)); 
 
 sub _resolve_invalid_name {
 	my ($self,$name,%params)=@_;
-	$name.='_' if  grep (uc($_) eq uc($name) ,@INVALID_NAMES);
+	$name.='_' if  exists $INVALID_NAMES{uc($name)};
 	return $name;
 }
 

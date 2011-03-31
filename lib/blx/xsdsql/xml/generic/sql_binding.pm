@@ -1,7 +1,7 @@
 package blx::xsdsql::xml::generic::sql_binding;
 
 use strict;
-use warnings;
+use warnings FATAL => 'all';
 use integer;
 use Carp;
 use blx::xsdsql::ut qw(nvl);
@@ -28,6 +28,8 @@ use constant {
 		,BINDING_TYPE_QUERY_ROW   =>  'qr'
 };
 
+our %_ATTRS_R=();
+our %_ATTRS_W=();
 
 sub new {
 	my ($class,%params)=@_;
@@ -39,6 +41,17 @@ sub new {
 sub get_connection {  return $_[0]->{DB_CONN}; }
 
 sub get_sth { return $_[0]->{STH}; }
+
+sub set_attrs_value {
+	my $self=shift;
+	blx::xsdsql::ut::set_attrs_value($self,\%_ATTRS_W,@_);
+	return $self;
+}
+
+sub get_attrs_value {
+	my $self=shift;
+	return blx::xsdsql::ut::get_attrs_value($self,\%_ATTRS_R,@_);
+}
 
 sub get_clone {
 	my ($self,%params)=@_;
@@ -55,6 +68,13 @@ sub get_next_sequence {
 }
 
 
+sub _get_id_column {  
+	my ($table,%params)=@_;
+	my $col=($table->get_columns)[0];
+	confess "not pk_seq 0" unless nvl($col->get_pk_seq,'-1') == 0;
+	return $col;
+}
+
 sub _create_prepare {
 	my ($self,$sql,%params)=@_;
 	my $tag=delete $params{TAG};
@@ -67,16 +87,19 @@ sub _create_prepare {
 
 sub bind_column {
 	my ($self,$col,$value,%params)=@_;
-	croak 'param col not defined' unless defined $col;
+	croak 'param col not set' unless defined $col;
+	croak Dumper($col).": the column is not a class"  unless ref($col) =~/::/;
 	my $name=$col->get_sql_name;
 	croak Dumper($value).'the bind value is not a scalar for column '.$name if ref($value) ne '';
 	print STDERR "(D ",nvl($params{TAG}),") bind column '".$self->{BINDING_TABLE}->get_sql_name.".$name' with value '".nvl($value,'<undef>')."'\n" if $self->{DEBUG};
+	croak $col->get_full_name." wrong binding - the bind is for table ".$self->get_binding_table->get_sql_name."\n"
+		if $self->get_binding_table->get_sql_name ne $col->get_table_name;
 	$self->{STH}->bind_param(':'.$name,$value);
 	my $pk_seq=$col->get_attrs_value qw(PK_SEQ);
-#	$self->{BINDING_VALUES}->[$pk_seq]=$value if defined $pk_seq;
 	my $col_seq=$col->get_attrs_value(qw(COLUMN_SEQUENCE));
 	croak $col->get_attrs_value(qw(PATH)).": COLUMN_SEQUENCE attr non set\n" unless defined $col_seq;
 	$self->{BINDING_VALUES}->[$col_seq]={ COL => $col,VALUE => $value };
+	$self->{EXECUTE_PENDING}=1;
 	return $self;
 }
 
@@ -114,10 +137,11 @@ sub insert_binding  {
 		croak $self->{BINDING_TABLE}.': binding already in active'
 			if $self->{BINDING_TYPE} ne BINDING_TYPE_INSERT 
 				|| $self->{BINDING_TABLE}->get_sql_name ne $table->get_sql_name;
-		print STDERR "(W) execute method pending\n" if $self->{EXECUTE_PENDING};
+		croak" execute method pending\n" if $self->{EXECUTE_PENDING} && $params{NO_PENDING_CHECK};
 	}
 	unless ($self->{EXECUTE_PENDING}) {
 		for my $col($table->get_columns) {
+			next if $params{NO_PK} && $col->is_pk;
 			my $value=$self->_get_column_value_init($table,$col,%params);
 			$self->bind_column($col,$value,%params);
 		}
@@ -128,7 +152,7 @@ sub insert_binding  {
 
 sub _get_delete_sql {
 	my ($self,$table,%params)=@_;
-	my @cols=$table->find_columns(PK_SEQ => 0);
+	my @cols=(($table->get_pk_columns)[0]);
 	return "delete from "
 			.$table->get_sql_name
 			." where "
@@ -153,7 +177,8 @@ sub delete_rows_for_id  {
 		croak "execute method pending" if $self->{EXECUTE_PENDING};
 	}
 	if (defined $id) {
-		$self->bind_column($table->find_columns(PK_SEQ => 0),$id,%params);
+		my $col=($table->get_pk_columns)[0];
+		$self->bind_column($col,$id,%params);
 		$self->{EXECUTE_PENDING}=1;
 		my $n=$self->execute(%params);
 		$n = 0 if $n eq '0E0';
@@ -166,8 +191,7 @@ sub delete_rows_for_id  {
 
 sub _get_query_row_sql {
 	my ($self,$table,%params)=@_;
-#	my @cols=$table->find_columns(PK_SEQ => sub { my $col=shift; defined $col->get_attrs_value qw(PK_SEQ) });
-	my @cols=$table->find_columns(FILTER => sub { $_[0]->is_pk });
+	my @cols=$table->get_pk_columns;
 	my $sql="select * from ".$table->get_sql_name." where ".$cols[0]->get_sql_name."=:".$cols[0]->get_sql_name." order by ".$cols[0]->get_sql_name;
 	$sql.=",".$cols[1]->get_sql_name if scalar(@cols) > 1;
 	return $sql;
@@ -190,7 +214,8 @@ sub query_rows {
 				|| $self->{BINDING_TABLE}->get_sql_name ne $table->get_sql_name;
 	}
 	if (defined $id) {
-		$self->bind_column($table->find_columns(PK_SEQ => 0),$id,%params);
+		my $col=($table->get_pk_columns)[0];
+		$self->bind_column($col,$id,%params);
 		$self->{EXECUTE_PENDING}=1;
 		$self->execute(%params);
 		return $self->{STH};
@@ -215,12 +240,29 @@ sub get_binding_values {
 	return wantarray ? @values : \@values;
 }
 
+sub get_binding_table {
+	my ($self,%prepare)=@_;
+	return $self->{BINDING_TABLE};
+}
+
 sub execute {
 	my ($self,%params)=@_;
-	croak "not prepared for execute" unless $self->{EXECUTE_PENDING};
 	my $tag=delete $params{TAG};
+	unless ($self->{EXECUTE_PENDING} || $params{NO_PENDING_CHECK}) {
+		my $t=$self->get_binding_table;
+		my $table_name=$t ? $t->get_sql_name : '<not binding table>';
+		croak '(D '.nvl($tag).") $table_name: not prepared for execute" ;
+	}
 	$self->get_sth->execute(%params);
-	print STDERR "(D ",nvl($tag),") EXECUTED:    '".$self->{SQL}."' with keys (".join(',',map { nvl($_,'<null>') } $self->get_binding_values).")\n"  if $self->{DEBUG}; 
+	print STDERR "(D ",nvl($tag),") EXECUTED:    '".$self->{SQL}."' with keys ("
+		.join(',',map { 
+						my $x=nvl($_,'<null>'); 
+						$x=~s/'/''/g; #'
+						$x="'".$x."'" unless $x=~/^\d+$/;
+						$x;
+				} $self->get_binding_values
+		)
+		.")\n"  if $self->{DEBUG}; 
 	delete $self->{EXECUTE_PENDING};
 	return $self;
 }
@@ -292,6 +334,17 @@ get_connection - return the value of DB_CONN param
 get_sth  - return the handle of the prepared statement
 
 
+set_attrs_value   - set a value of attributes
+
+	the arguments are a pairs NAME => VALUE	
+	the method return a self object
+
+
+get_attrs_value  - return a list  of attributes values
+
+	the arguments are a list of attributes name
+
+
 get_clone - return the clone of the object
 
 get_next_sequence - return the next value of SEQUENCE_NAME
@@ -311,8 +364,10 @@ insert_binding - prepare a binding for a table
 
 	the first argument is a table object generate from blx::xsdsql::parser::parse
 
-
-
+	PARAMS:
+		NO_PENDING_CHECK - not check for a pending execute
+		NO_PK			 - not init the columns of the primary key
+		 
 delete_rows_for_id - delete a row  of a table 
 
 	the first argument is a table object generate from blx::xsdsql::parser::parse
@@ -329,6 +384,7 @@ query_rows - return rows reading a table
 	in array mode  the method return an array
 
 
+get_binding_table - return the binding table object 
 
 get_binding_columns - return the columns with a value binding
 
@@ -345,6 +401,9 @@ get_binding_values -  return the values binding
 execute - execute the current statement prepared 
 	
 	the method return the self object
+
+	PARAMS:
+		NO_PENDING_CHECK - not check for a pending execute
 
 
 is_execute_pending - return true if exits a prepared statement with binds but not executed

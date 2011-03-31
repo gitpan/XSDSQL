@@ -18,6 +18,7 @@ sub header {
 	return $self;
 }
 
+
 sub table_header {
 	my ($self,$table,%params)=@_;
 	return $self;
@@ -98,6 +99,9 @@ new - constructor
 		FD  => streamer class, file descriptor  , array or string  (default *STDOUT)
 
 
+get_binding_objects - abstract method, return an array of objects binding to the command
+
+ 
 header - emit on FD the header lines 
 
 	the first argument is a table object generate from blx::xsdsql::parser::parse

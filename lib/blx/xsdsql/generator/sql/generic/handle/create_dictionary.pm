@@ -9,23 +9,25 @@ sub _get_create_prefix {
 	return "create table";
 }
 
+sub get_binding_objects  {
+	my ($self,$schema,%params)=@_;
+	my @t=map { $schema->get_dictionary_table($_,%params); } qw (TABLE_DICTIONARY COLUMN_DICTIONARY RELATION_DICTIONARY);
+	return wantarray ? @t : \@t;
+}
+
 sub table_header {
-	my ($self,$table,%params)=@_;
-	return $self unless $table->is_root_table;
-	for my $n qw(TABLE_DICTIONARY COLUMN_DICTIONARY RELATION_DICTIONARY) {
-		my $dic=$table->get_attrs_value($n);
-		$self->{STREAMER}->put_line($self->_get_create_prefix,' ',$dic->get_sql_name,"( ",$dic->get_comment);
-		for my $col($dic->get_columns) {
-			$self->_column($col);
-		}
-		$self->{STREAMER}->put_line(')',$dic->command_terminator);
-		$self->{STREAMER}->put_line;
-		my $pk_name=$dic->get_constraint_name('pk');
-		my @cols=map { $_->get_sql_name } $dic->get_pk_columns;
-		$self->{STREAMER}->put_line("alter table ",$dic->get_sql_name," add constraint $pk_name primary key (".join(',',@cols).')',$dic->command_terminator);
-		$self->{STREAMER}->put_line;
+	my ($self,$dic,%params)=@_;
+	$self->{STREAMER}->put_line($self->_get_create_prefix,' ',$dic->get_sql_name,"( ",$dic->get_comment);
+	for my $col($dic->get_columns) {
+		$self->_column($col);
 	}
-	return $self;
+	$self->{STREAMER}->put_line(')',$dic->command_terminator);
+	$self->{STREAMER}->put_line;
+	my $pk_name=$dic->get_constraint_name('pk');
+	my @cols=map { $_->get_sql_name } $dic->get_pk_columns;
+	$self->{STREAMER}->put_line("alter table ",$dic->get_sql_name," add constraint $pk_name primary key (".join(',',@cols).')',$dic->command_terminator);
+	$self->{STREAMER}->put_line;
+	return undef;
 }
 
 

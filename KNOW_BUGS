@@ -1,5 +1,51 @@
 
-the xml attributes are non implemented
+Element             - yes: implemented - no: non implemented - not rilevant: not rilevant to conversion 
+
+all                 - no
+annotation          - yes (non completely tested) (possible conversion into sql comment)
+any                 - no 
+anyAttribute        - no     
+appInfo             - not rilevant 
+attribute           - no 
+attributeGroup      - no 
+choice              - yes 
+complexContent      - no 
+complexType         - yes 
+documentation       - not rilevant 
+element             - yes 
+extension           - no 
+field               - no  
+group               - no  
+import              - no 
+include             - no 
+key                 - not rilevant  (possible conversion into sql unique constraint)
+keyref              - not rilevant  (possible conversion into sql foreign constraint)
+list                - no 
+notation            - no 
+redefine            - no 
+restriction         - yes 
+schema              - yes 
+selector            - no 
+sequence            - yes 
+simpleContent       - no 
+simpleType          - yes 
+union               - yes 
+unique              - not rilevant (possible conversion into sql unique constraint) 
+
+enumeration         - yes 
+fractionDigits      - no 
+length              - yes 
+maxExclusive        - not rilevant (possible conversion into sql check constraint) 
+maxInclusive        - not rilevant (possible conversion into sql check constraint) 
+maxLength           - yes 
+minExclusive        - not rilevant (possible conversion into sql check constraint)  
+minInclusive        - not rilevant (possible conversion into sql check constraint) 
+minLength           - not rilevant (possible conversion into sql check constraint) 
+pattern             - not rilevant (possible conversion into sql check constraint)  
+totalDigits         - yes 
+whiteSpace          - not rilevant 
+
+
 this xml types are non implemented:
 gDay
 gMonth
@@ -7,6 +53,10 @@ ENTITY
 NOTATION
 ENTITIES
 
-the xsd union are non implemented
+    
+
+
+
+
 
 

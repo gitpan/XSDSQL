@@ -12,7 +12,7 @@ sub get_next_sequence {
 		}
 		$self->{SEQUENCE_NAME}=$params{SEQUENCE_NAME};
 	}
-	croak "SEQUENCE_NAME param not defined" unless defined $self->{SEQUENCE_NAME}; 
+	croak "SEQUENCE_NAME param not set" unless defined $self->{SEQUENCE_NAME}; 
 	$self->{PREPARE_SEQUENCE}=$self->{DB_CONN}->prepare("select nextval('".$self->{SEQUENCE_NAME}."')")
 		unless defined $self->{PREPARE_SEQUENCE};
 	$self->{PREPARE_SEQUENCE}->execute;

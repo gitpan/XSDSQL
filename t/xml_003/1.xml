@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<Types>
+	<float>13.34</float>
+	<double>13.35</double>
+	<decimal>13.36</decimal>
+	<integer>-3456</integer>
+	<nonPositiveInteger>-3457</nonPositiveInteger>
+	<negativeInteger>-3458</negativeInteger>
+	<long>3458</long>
+	<int>3459</int>
+	<short>32700</short>
+	<byte>127</byte>
+	<nonNegativeInteger>3460</nonNegativeInteger>
+	<unsignedLong>7000000</unsignedLong>
+	<unsignedInt>7000001</unsignedInt>
+	<unsignedShort>65500</unsignedShort>
+	<unsignedByte>255</unsignedByte>
+	<positiveInteger>3461</positiveInteger>
+	<dateTime>1999-05-31T18:20:00.000Z</dateTime>
+	<date>-0044-03-15</date>
+	<time>14:30:00.000Z</time>
+	<gYear>-0001</gYear>
+	<gYearMonth>2010-12</gYearMonth>
+	<gMonthDay>--02-29</gMonthDay>
+	<duration>P2000Y10M31DT09H32M7.4312S</duration>
+	<ID>ID</ID>
+	<IDREF>IDREF</IDREF>
+	<IDREFS>IDREFS</IDREFS>
+	<NMTOKEN>NMTOKEN</NMTOKEN>
+	<NMTOKENS>NMTOKENS</NMTOKENS>
+	<language>it</language>
+	<Name>name</Name>
+	<QName>qname</QName>
+	<NCName>ncname</NCName>
+	<string>string</string>
+	<normalizedString>normalizedString</normalizedString>
+	<token>token</token>
+	<base64Binary>cGlwcG8K</base64Binary>
+	<hexBinary>0102FF</hexBinary>
+	<boolean>1</boolean>
+	<anyURI>anyURI</anyURI>
+	<without_type>hhhhvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv</without_type>
+	<customSimpleType>12</customSimpleType>
+</Types>

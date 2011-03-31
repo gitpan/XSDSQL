@@ -9,24 +9,33 @@ use constant {
 };
 
 
+sub _fusion_params {
+	my ($self,%params)=@_;
+	my %p=%$self;
+	for my $p(keys %params) {
+		$p{$p}=$params{$p};
+	}
+	return \%p;
+}
+
 sub _check_table_filter {
 	my ($self,$table,$level,%params)=@_;
-	if (defined $self->{LEVEL_FILTER}) {
-		return 0  if $level != $self->{LEVEL_FILTER};
+	if (defined $self->{_PARAMS}->{LEVEL_FILTER}) {
+		return 0  if $level != $self->{_PARAMS}->{LEVEL_FILTER};
 	}
-	if  (defined $self->{TABLES_FILTER}) {
-		return 1 if $self->{TABLES_FILTER}->{uc($table->get_sql_name)};
+	if  (defined $self->{_PARAMS}->{TABLES_FILTER}) {
+		return 1 if $self->{_PARAMS}->{TABLES_FILTER}->{uc($table->get_sql_name)};
 		my $path=$table->get_attrs_value qw(PATH);
 		return 0 unless defined $path;
-		return 1 if $self->{TABLES_FILTER}->{$path};
+		return 1 if $self->{_PARAMS}->{TABLES_FILTER}->{$path};
 		return 0;
 	}
 	return 1;
 }
 
-sub _parser {
+sub _cross {
 	my ($self,$table,%params)=@_;
-	my $handle=$self->{HANDLE};
+	my $handle=$self->{_PARAMS}->{HANDLE_OBJECT};
 	if ($self->_check_table_filter($table,$params{LEVEL})) {
 		$handle->table_header($table,%params) || return undef;
 		for my $col($table->get_columns) {
@@ -35,13 +44,15 @@ sub _parser {
 		$handle->table_footer($table,%params) || return undef;
 	}
 	for my $t($table->get_child_tables) {
-		$self->_parser($t,%params,LEVEL => $params{LEVEL} + 1) || last;
+		$self->_cross($t,%params,LEVEL => $params{LEVEL} + 1) || last;
 	}
 	if ($table->is_root_table) {
-		for my $t($table->get_attrs_value qw(TYPES)) {
-			$self->_parser($t,%params,LEVEL => $params{LEVEL} + 1) || last;
+		my $types=$params{SCHEMA}->get_types_name;
+		for my $k(keys %$types) {
+			my $t=$types->{$k};
+			next if $t->is_simple_type;
+			$self->_cross($t,%params,LEVEL => -1) || last;			
 		}
-		$handle->footer($table,%params);
 	}
 	return $self; 
 }
@@ -49,57 +60,50 @@ sub _parser {
 
 sub generate {
 	my ($self,%params)=@_;
-	my $table=nvl(delete $params{ROOT_TABLE},$self->{ROOT_TABLE});
-	croak "ROOT_TABLE param not set " unless defined $table;
-	my $command=nvl(delete $params{COMMAND},$self->{COMMAND});
-	croak "COMMAND param not set" unless defined $command;
-	my $handle_class='blx::xsdsql::generator::'.$self->{OUTPUT_NAMESPACE}.'::'.$self->{DB_NAMESPACE}.'::handle::'.$command;
-	croak 'LEVEL_FILTER param not valid - must \d{1,11} ' unless nvl($params{LEVEL_FILTER},0)=~/^\d{1,11}$/;  
-	if (defined $params{TABLES_FILTER}) {
-		$params{TABLES_FILTER}=[ $params{TABLES_FILTER} ] if ref($params{TABLES_FILTER}) eq '';
+	my $p=$self->_fusion_params(%params);
+	$p->{OUTPUT_NAMESPACE}='sql' unless $p->{OUTPUT_NAMESPACE};
+	croak "param DB_NAMESPACE not set" unless $p->{DB_NAMESPACE};
+	croak "param SCHEMA not set" unless $p->{SCHEMA};
+	croak "param COMMAND not set" unless $p->{COMMAND};
+	my $handle_class='blx::xsdsql::generator::'.$p->{OUTPUT_NAMESPACE}.'::'.$p->{DB_NAMESPACE}.'::handle::'.$p->{COMMAND};
+	if (defined $p->{TABLES_FILTER}) {
+		$p->{TABLES_FILTER}=[ $p->{TABLES_FILTER} ] if ref($p->{TABLES_FILTER}) eq '';
 		croak "TABLES_FILTER param type not valid  - must be an array of scalar or a scalar not null" 
-			unless ref($params{TABLES_FILTER}) eq 'ARRAY';
-		for my $e(@{$params{TABLES_FILTER}}) {
+			unless ref($p->{TABLES_FILTER}) eq 'ARRAY';
+		for my $e(@{$p->{TABLES_FILTER}}) {
 			croak "TABLES_FILTER param type not valid  - must be an array of scalar or a scalar not null" 
 				unless defined $e && ref($e) eq '';
 		}
-		$params{TABLES_FILTER}={ map { (uc($_),1); } @{$params{TABLES_FILTER}} }; #transform into hash
+		$p->{TABLES_FILTER}={ map { (uc($_),1); } @{$p->{TABLES_FILTER}} }; #transform into hash
 	}
-	unless (defined $self->{HANDLE_OBJECTS}->{$handle_class}) {
-		ev('use',$handle_class);
-		$self->{HANDLE_OBJECTS}->{$handle_class}=$handle_class->new(%params);
-	}
+	
+	my $fd=nvl($p->{FD},*STDOUT);
+	$p->{STREAMER}=ref($fd) eq STREAM_CLASS 
+		? $fd
+		: sub {
+			  ev('use ',STREAM_CLASS);
+			  return STREAM_CLASS->new(OUTPUT_STREAM => $fd)
+		}->();
 
-	$self->{HANDLE}=$self->{HANDLE_OBJECTS}->{$handle_class};
-	$self->{HANDLE}->header($table,%params) unless $params{NO_HEADER_COMMENT};
-	for my $p qw( LEVEL_FILTER TABLES_FILTER) {
-		$self->{$p}=delete $params{$p};
+	ev('use',$handle_class);
+	$p->{HANDLE_OBJECT}=$handle_class->new(%$p);
+	$self->{_PARAMS}=$p;
+
+	my $objs=$p->{HANDLE_OBJECT}->get_binding_objects($p->{SCHEMA},%$p);
+	if (defined $objs->[0]) {
+		$p->{HANDLE_OBJECT}->header($objs->[0],%params) unless $p->{NO_HEADER_COMMENT};
 	}
-	$self->_parser($table,%params,LEVEL => 0,TABLENAME_LIST => [],ROOT_TABLE => $table,COMMAND => $command);
+	my @tablename_list=();  #generate tables
+
+	for my $t(@$objs) {
+		$self->_cross($t,%$p,LEVEL => 0);
+	}
 	return $self;
 }
 
 sub new {
 	my ($class,%params)=@_;
-	$params{OUTPUT_NAMESPACE}='sql' unless defined $params{OUTPUT_NAMESPACE};
-	croak "no param DB_NAMESPACE spec" unless defined $params{DB_NAMESPACE};
-	my $fd=nvl(delete $params{FD},*STDOUT);
-	my $self=bless \%params,$class;
-
-	if (ref($fd) ne STREAM_CLASS) {
-		if (ref($self->{OUTPUT_STREAM}) eq STREAM_CLASS) {
-			$self->{OUTPUT_STREAM}->set_output_descriptor($fd);
-		}
-		else {
-		  ev('use ',STREAM_CLASS);
-			$self->{OUTPUT_STREAM}=STREAM_CLASS->new(OUTPUT_STREAM => $fd);
-		}
-	}
-	else {
-		$self->{OUTPUT_STREAM}=$fd;
-	}
-
-	return $self;
+	return bless \%params,$class;
 }
 
 sub get_namespaces {
@@ -154,7 +158,7 @@ this package is a class - instance it with the method new
 new - constructor
 
 	PARAMS:
-		ROOT_TABLE - tree of objects generated by blx::xsdsql::parser::parse
+		SCHEMA - schema object generated by blx::xsdsql::parser::parse
 		OUTPUT_NAMESPACE => default sql
 		DB_NAMESPACE     => default <none>
 		FD  => streamer class, file descriptor  , array or string  (default *STDOUT)
@@ -164,7 +168,7 @@ new - constructor
 generate - generate a file
 
 	PARAMS:
-		ROOT_TABLE   => <root_object> - tree of objects generated by blx::xsdsql::parser::parse
+		SCHEMA   	=> schema object generated by blx::xsdsql::parser::parse
 		COMMAND      => create_table|drop_table|addpk|drop_sequence|create_sequence 
 		LEVEL_FILTER  => <n> -  produce code only for tables at level <n> (n >= 0) - root has level 0  (default none)
 		TABLES_FILTER  => [<name>] - produce code only for tables in  <name> - <name> is a table_name or a xml_path 

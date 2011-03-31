@@ -81,7 +81,11 @@ our %_ATTRS_R=(
 			,GROUP_REF	=> sub {
 							my $self=shift;
 							return $self->{GROUP_REF} ? 1 : 0;
-			} 
+			}
+			,PATH		=> sub {
+							my $self=shift;
+							return $self->{PATH};
+			}
 );
 
 our %_ATTRS_W=();
@@ -157,6 +161,11 @@ sub _translate_path  {
 	return $path;
 }
 
+sub _resolve_invalid_name {
+	my ($self,$name,%params)=@_;
+	return $name;
+}
+
 sub _reduce_sql_name {
 	my ($self,$name,%params)=@_;
 	my $maxsize=$self->get_name_maxsize;
@@ -171,11 +180,6 @@ sub _reduce_sql_name {
 	return substr(join('_',@s),0,$maxsize);
 }
 
-sub _resolve_invalid_name {
-	my ($self,$name,%params)=@_;
-	return $name;
-}
-
 sub get_column_sequence {
 	my ($self,%params)=@_;
 	return $self->get_attrs_value qw(COLUMN_SEQUENCE);
@@ -188,9 +192,10 @@ sub get_sql_name {
 	confess "param COLUMNNAME_LIST not defined " unless defined $l; 
 	my $name= $self->_translate_path(%params);
 	$name=$self->_reduce_sql_name($name) if length($name) > $self->get_name_maxsize();
+	$name=$self->_adjdup_sql_name($name,%params) if exists $l->{uc($name)};
 	$name=$self->_resolve_invalid_name($name,%params);
 	$name=$self->_adjdup_sql_name($name,%params) if exists $l->{uc($name)};
-	confess "duplicate column name" if exists $l->{uc($name)};
+	confess "duplicate column name" if exists $l->{uc($name)}; 
 	$l->{uc($name)}=undef;
 	$self->{SQL_NAME}=$name;
 	return $name;
@@ -231,9 +236,24 @@ sub get_xsd_seq {
 	return $self->get_attrs_value qw(XSD_SEQ);
 }
 
+sub get_path {
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(PATH);
+}
+
 sub get_path_reference {
 	my ($self,%params)=@_;
 	return $self->get_attrs_value qw(PATH_REFERENCE);
+}
+
+sub get_table_name {
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(TABLE_NAME);
+}
+
+sub get_full_name {
+	my ($self,%params)=@_;
+	return $self->get_table_name.'.'.$self->get_sql_name;
 }
 
 sub get_table_reference {
@@ -294,7 +314,7 @@ sub factory_dictionary_columns {
 			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'min_occurs',PK_SEQ => undef)
 			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'max_occurs',PK_SEQ => undef)
 			,$c->factory_column(undef,NAME => 'path_name',SQL_TYPE	=> 'VARCHAR')
-			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'level',COMMENT => 'the root has level 0',PK_SEQ => undef)
+			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'deep_level',COMMENT => 'the root has level 0',PK_SEQ => undef)
 		)
 		: $dictionary_type eq 'COLUMN_DICTIONARY' 
 		? (
@@ -384,12 +404,13 @@ new - constructor
 		MIN_OCCURS - default 1
 		MAX_OCCURS - default 1
 		NAME  - a basename of xml node
-		PATH_NAME - a path name of xml node
+		PATH 	- a path name of xml xml node
 		PATH_REFERENCE - the referenced by column 
 		TABLE_REFERENCE	- the table referenced by column
 		INTERNAL_REFERENCE - true if the column is an array of simple types
 		PK_SEQ  - sequence into the primary key 
 		GROUP_REF - the column reference a GROUP
+		TABLE_NAME - the table name of the column
 		
 set_attrs_value   - set a value of attributes
 
@@ -424,10 +445,16 @@ is_internal_reference  - return true if the column is an array of simple types
 is_group_reference - return true if the column reference a xsd group
 
 
+get_path		   - return the node path name
+
+
 get_path_reference - return the path referenced 
 
 
 get_table_reference - return the table referenced 
+
+
+get_table_name - return the table name of the column
 
 
 is_pk  - return true if the column is part of the primary key

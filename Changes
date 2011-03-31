@@ -31,3 +31,8 @@ Revision history for Perl extension blx::xsdsql
 	- correct bug in create_view for oracle
 	- make clean delete temporary files in test directory
     
+0.05 March 31 17:07 2011 
+	- complete restyle of parsing algorithms
+	- minor bugs corretted 
+	
+ 

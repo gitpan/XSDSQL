@@ -18,10 +18,6 @@ our %_ATTRS_R=(
 							my $self=shift;
 							return defined $self->{PATH} ? basename($self->{PATH}) : $self->{NAME};
 			}							
-			,PATH_RESOLVED => sub {
-							my $self=shift;
-							return defined $self->{PATH} ? $self->{PATH} : $self->get_sql_name;
-			}
 			,TYPES => sub {
 							my $self=shift;
 							my $t=nvl($self->{TYPES},[]); 
@@ -55,9 +51,13 @@ our %_ATTRS_R=(
 							my $self=shift;
 							return $self->{GROUP_TYPE} ? 1 : 0;
 			}
-			,LEVEL			=> sub {
+			,DEEP_LEVEL			=> sub {
 							my $self=shift;
-							return $self->{LEVEL}
+							return $self->{DEEP_LEVEL}
+			}
+			,INTERNAL_REFERENCE => sub {
+							my $self=shift;
+							return $self->{INTERNAL_REFERENCE} ? 1 : 0;
 			}
 );
 
@@ -73,9 +73,10 @@ sub new {
 
 sub add_columns {
 	my $self=shift;
-	$self->{COLUMNNAME_LIST}={} unless defined $self->{COLUMNNAME_LIST}; 
+	$self->{COLUMNNAME_LIST}={} unless defined $self->{COLUMNNAME_LIST};
+	my $table_name=$self->get_sql_name;
 	for my $col(@_) {
-		$col->set_attrs_value(COLUMN_SEQUENCE => scalar(@{$self->{COLUMNS}}));
+		$col->set_attrs_value(COLUMN_SEQUENCE => scalar(@{$self->{COLUMNS}}),TABLE_NAME => $table_name);
 		$col->get_sql_name(COLUMNNAME_LIST => $self->{COLUMNNAME_LIST}); #resolve sql_name
 		push @{$self->{COLUMNS}},$col;
 	}
@@ -94,16 +95,6 @@ sub add_child_tables {
 	return $self;
 }
 
-sub resolve_path_for_table_type {
-	my ($self,$orig_path_name,$path,%params)=@_;
-#	croak $self->get_sql_name.': table is not a type ' unless $self->get_attrs_value qw(TABLE_IS_TYPE);
-	my $table_path=$self->get_attrs_value qw(PATH);
-	croak "$path\n$orig_path_name\nnot omogemus path " if substr($path,0,length($orig_path_name)) ne $orig_path_name;
-	my $p=$table_path.substr($path,length($orig_path_name));
-	return $p;
-}
-
-
 sub _is_column_group_ref {
 	my ($self,$col,$path_orig,%params)=@_;
 	my $v=$col->get_attrs_value qw(PATH);
@@ -119,7 +110,7 @@ sub _is_column_group_ref {
 	}	
 	return 0;
 }
-			
+
 sub find_columns {
 	my ($self,%params)=@_;
 	my $cols=$self->get_columns;
@@ -128,22 +119,17 @@ sub find_columns {
 		my $col=$_;
 		(grep {
 			my $r=undef;
-			if ($col->{GROUP_REF} && $_ eq 'PATH') {  #the column is a reference to table group
-				$r=1 if $self->_is_column_group_ref($col,$params{$_});
+			my $param_value=$params{$_};
+			my $v=$col->get_attrs_value($_);
+			if (ref($param_value) eq '') {
+				$r=defined $v && defined $param_value && $v eq $param_value
+					|| !defined $v && !defined $param_value ? 1 : 0;
+			}
+			elsif (ref($param_value) eq 'CODE') {
+				$r=$param_value->($col,$cols);
 			}
 			else {
-				my $param_value=$params{$_};
-				my $v=$col->get_attrs_value($_);
-				if (ref($param_value) eq '') {
-					$r=defined $v && defined $param_value && $v eq $param_value
-						|| !defined $v && !defined $param_value ? 1 : 0;
-				}
-				elsif (ref($param_value) eq 'CODE') {
-					$r=$param_value->($col,$cols);
-				}
-				else {
-					croak "param value must e scalar or a CODE";
-				}
+				croak "param value must e scalar or a CODE";
 			}
 			$r;
 		}  keys %params) ? ($col) : (); 
@@ -171,14 +157,17 @@ sub get_attrs_value {
 
 sub _adjdup_sql_name {
 	my ($self,$name,%params)=@_;
-	$name=substr($name,0,length($name) -1).'0' if $name!~/\d+$/;
+	my $suff_digits=nvl($params{SUFF_DIGITS},1);
+	confess "$name: length <= $suff_digits\n" if length($name) <= $suff_digits;  
+	$name=substr($name,0,length($name) - $suff_digits).('0'x$suff_digits);
 	confess "param TABLENAME_LIST not defined" unless defined $params{TABLENAME_LIST}; 
 	my $l=$params{TABLENAME_LIST};
 	while(1) {
-		last unless exists $l->{$name};
-		my ($suff)=$name=~/(\d+)$/;
+		last unless exists $l->{uc($name)};
+		my ($suff)=$name=~/(\d{$suff_digits})$/;
 		++$suff;
-		$name=~s/\d+$/$suff/;
+		return $self->_adjdup_sql_name($name,%params,SUFF_DIGITS => $suff_digits + 1) if $suff >= 10 ** $suff_digits;
+		$name=~s/\d{$suff_digits}$/$suff/;
 	}
 	return $name;
 }
@@ -193,6 +182,11 @@ sub _translate_path  {
 	$path=$params{VIEW_PREFIX}.'_'.$path if $params{VIEW_PREFIX};
 	$path=$params{TABLE_PREFIX}.'_'.$path if $params{TABLE_PREFIX};
 	return $path;
+}
+
+sub _resolve_invalid_name {
+	my ($self,$name,%params)=@_;
+	return $name;
 }
 
 sub _reduce_sql_name {
@@ -228,7 +222,12 @@ sub is_choise {
 	my ($self,%params)=@_;
 	return $self->get_attrs_value qw(CHOISE);	
 }	
-	
+
+sub get_path {
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(PATH);
+}
+
 sub get_min_occurs { 
 	my ($self,%params)=@_;
 	return $self->get_attrs_value qw(MINOCCURS);
@@ -252,11 +251,12 @@ sub get_sql_name {
 	delete $params{VIEW_PREFIX}; #only for views
 	my $name= $self->_translate_path(%params);
 	$name=$self->_reduce_sql_name($name,%params) if length($name) > $self->get_name_maxsize();
-	if (exists $l->{$name}) {
+	$name=$self->_resolve_invalid_name($name,%params);
+	if (exists $l->{uc($name)}) {
 		$name=$self->_adjdup_sql_name($name,%params);
-		confess "'$name' duplicate" if exists $l->{$name};
+		confess "'$name' duplicate" if exists $l->{uc($name)};
 	}
-	$l->{$name}=undef;
+	$l->{uc($name)}=undef;
 	$self->{SQL_NAME}=$name;
 	return $name;
 }
@@ -269,11 +269,11 @@ sub get_view_sql_name {
 	delete $params{TABLE_PREFIX};
 	my $name= $self->_translate_path(%params);
 	$name=$self->_reduce_sql_name($name,%params) if length($name) > $self->get_name_maxsize();
-	if (exists $l->{$name}) {
+	if (exists $l->{uc($name)}) {
 		$name=$self->_adjdup_sql_name($name,%params);
-		confess "'$name' duplicate" if exists $l->{$name};
+		confess "'$name' duplicate" if exists $l->{uc($name)};
 	}
-	$l->{$name}=undef;
+	$l->{uc($name)}=undef;
 	$self->{VIEW_SQL_NAME}=$name;
 	return $name;
 }
@@ -292,18 +292,14 @@ sub get_constraint_name {
 	my $pk_suffix=$self->_get_constraint_suffix($type,%params);
 	my $table_name=$self->get_sql_name(%params,TABLENAME_LIST => undef);
 	my $pt=substr($table_name,0,$self->get_name_maxsize - length($pk_suffix));
-	if (exists $l->{$type}->{$pt}) {
+	if (exists $l->{$type}->{uc($pt)}) {
 		$pt=$self->_adjdup_sql_name($pt,%params,TABLENAME_LIST => $l->{$type});
-		confess "'$pt' duplicate" if exists $l->{$type}->{$pt};
+		confess "'$pt' duplicate" if exists $l->{$type}->{uc($pt)};
 	}
-	$l->{$type}->{$pt}=undef;
+	$l->{$type}->{uc($pt)}=undef;
 	return $self->{SQL_CONSTRAINT}->{$type}=$pt.$pk_suffix;
 }
 
-sub get_path_resolved {
-	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(PATH_RESOLVED);
-}
 
 sub get_sequence_name {
 	my ($self,%params)=@_;
@@ -314,50 +310,47 @@ sub get_sequence_name {
 	$params{TABLE_PREFIX}=$params{SEQUENCE_PREFIX};
 	my $name= $self->_translate_path(%params);
 	$name=$self->_reduce_sql_name($name,%params) if length($name) > $self->get_name_maxsize();
-	if (exists $l->{$name}) {
+	if (exists $l->{uc($name)}) {
 		$name=$self->_adjdup_sql_name($name,%params);
 		confess "'$name' duplicate" if exists $l->{$name};
 	}
-	$l->{$name}=undef;
+	$l->{uc($name)}=undef;
 	$self->{SEQ_SQL_NAME}=$name;
 	return $name;
 }
 
-sub get_level {
+
+sub get_deep_level {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(LEVEL);
+	return $self->get_attrs_value qw(DEEP_LEVEL);
 }
 
-sub get_table_from_path_reference {
-	my ($self,$path,%params)=@_;
-	return undef unless defined $path;
-	my $attr=$path=~/^\// ? 'PATH' : 'SQL_NAME'; 
-	for my $t($self->get_child_tables ) {
-		my $p=$t->get_attrs_value($attr);
-		next unless defined $p;
-		return $t if $p eq $path; 
-	}
-	return undef unless defined $params{ROOT_TABLE}; 
-	for my $t($params{ROOT_TABLE}->get_attrs_value qw(TYPES)) {
-		my $p=$t->get_attrs_value qw(PATH);
-		next unless defined $p;
-		return $t if $p eq $path; 		
-	}	
-	return undef;
+sub is_internal_reference {
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(INTERNAL_REFERENCE);
 }
+
 
 sub get_pk_columns {
 	my ($self,%params)=@_;
-	my @cols=();
-	for my $c($self->find_columns(FILTER => sub { $_[0]->is_pk; })) {
-		$cols[$c->get_pk_seq]=$c;
-	}
+	my $cols=$self->get_columns;
+	my @cols=($cols->[0]);
+	push @cols,$cols->[1] if $cols->[1]->is_pk;
+	confess "col not seq 0" unless  nvl($cols[0]->get_pk_seq,'-1') == 0;
+	confess "col not seq 1"  unless  !defined $cols[1] || nvl($cols[1]->get_pk_seq,'-1') == 1;
 	return wantarray ? @cols : \@cols;
 } 
 
 sub is_root_table {
 	my ($self,%params)=@_;
 	return nvl($self->get_attrs_value qw(PATH)) eq '/' ? 1 : 0;
+}
+
+sub is_unpath_sequence {
+	my ($self,%params)=@_;
+	return 0 if $self->get_attrs_value qw(PATH);
+	return 1 if $self->get_max_occurs > 1;
+	return 0;
 }
 
 sub get_dictionary_data {
@@ -373,7 +366,7 @@ sub get_dictionary_data {
 			,MIN_OCCURS		=> $self->get_min_occurs
 			,MAX_OCCURS		=> $self->get_max_occurs
 			,PATH_NAME		=> $self->get_attrs_value qw(PATH)
-			,LEVEL			=> $self->get_level
+			,DEEP_LEVEL		=> $self->get_deep_level
 		);
 		return wantarray ? %data : \%data if scalar %data;
 	}
@@ -445,7 +438,8 @@ new  - contructor
 		PATH    			- a node path name 
 		TYPE 				- an internal node type
 		NAME 				- a node name 
-		LEVEL				- a node level - the root has level 0
+		DEEP_LEVEL			- a deep level - the root has level 0
+		INTERNAL_REFERENCE  - if true the the table is an occurs of simple types
 		TYPES  				- a pointer to an array of table types (only for root)
 		TABLE_DICTIONARY 	- a pointer to table dictionary (only for root)
 		COLUMN_DICTIONARY 	- a pointer to column dictionary (only for root)
@@ -520,12 +514,18 @@ get_min_occurs - return the min occurs of the table
 
 get_max_occurs - return the max occurs of the table
 
+get_path	- return the xml path associated with table
+
 get_dictionary_data - return an hash of dictionary column name => value for the insert into dictionary
 	
 	the first argument must be:
 		TABLE_DICTIONARY - return data for table dictionary
 		RELATION_DICTIONARY - return data for relation dictionary
 		COLUMN_DICTIONARY - return data for column dictionary
+
+get_deep_level - return the deep level - the root has level 0
+
+is_internal_reference - return  true if the the table is an occurs of simple types
 
 =head1 EXPORT
 

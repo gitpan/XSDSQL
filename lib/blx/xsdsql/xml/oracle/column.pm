@@ -13,13 +13,14 @@ my  %_DEFAULT_SIZE =(
 
 my %_TRANSLATE_TYPE= (
 		number    => 'number'
-		,double      => 'binary_double'
+		,double      => 'varchar(50)'
 		,datetime   => 'varchar(50)'
 		,date          => 'varchar(50)'
 		,time         =>  'varchar(50)'
 		,gyear        =>  'varchar(50)'
 		,gyearmonth   => 'varchar(50)'
 		,gmonthday  => 'varchar(50)'
+		,decimal    => 'varchar(50)'
 		,oth         => sub {
 							my $type=shift;
 							return $type;
@@ -37,13 +38,15 @@ sub _translate_type {
 	return $t;
 }
 
-my @INVALID_NAMES=qw ( int  short byte column varchar date time long number float table alter create drop decimal integer); 
+
+my %INVALID_NAMES=(map { (uc($_),undef) } qw ( int  double short byte column varchar date time long number float table alter create drop decimal integer level duration language string union)); 
 
 sub _resolve_invalid_name {
 	my ($self,$name,%params)=@_;
-	$name.='_' if  grep (uc($_) eq uc($name) ,@INVALID_NAMES);
+	$name.='_' if  exists $INVALID_NAMES{uc($name)};
 	return $name;
 }
+
 
 sub _get_hash_sql_types {
 	my  ($self,%params)=@_;

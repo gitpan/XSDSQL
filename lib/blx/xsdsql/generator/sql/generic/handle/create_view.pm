@@ -11,18 +11,42 @@ sub _get_create_prefix {
 	return "create or replace view";
 }
 
+sub get_binding_objects  {
+	my ($self,$schema,%params)=@_;
+	my $table=$schema->get_root_table;
+	return wantarray ? ( $table ) : [ $table ];
+}
+
 sub _alias_table {
 	my ($self,%params)=@_;
 	return " as ";
 }
+
 
 {
 	my $filter=undef;
 	$filter=sub { #recursive function
 		my ($col,$table,%params)=@_;
 		my $newcol=$col->shallow_clone;  #clone the column for add ALIAS_NAME attr
+=pod		
+		my $path_ref=$newcol->get_path_reference;
+		
+		my $o=$params{SCHEMA}->resolve_table_from_path($path_ref);
+			use Data::Dumper;
+			print STDERR Dumper($o),"\n";
+		}
+=cut
+
 		my $table_ref=$newcol->get_table_reference;
-		confess $newcol->get_path_reference.': not a table ref' if $newcol->get_path_reference && !$table_ref;
+		if ($newcol->get_path_reference && !$table_ref) {  #confess the error 
+			my $path_reference=$newcol->get_path_reference;
+			if (ref($path_reference) =~/::table$/) {
+				my $t=$path_reference;
+				$path_reference=$t->get_attrs_value qw(PATH);
+				$path_reference=$t->get_sql_name unless $path_reference;
+			}
+			confess $path_reference.": not a table ref\n";
+		}
 		my $viewable= $newcol->get_path_reference && $table_ref->get_max_occurs <= 1   || $newcol->is_pk && !$params{START_TABLE} ? 0 : 1;
 		my $join_table=defined $table_ref && $table_ref->get_max_occurs <= 1 ? $table_ref->shallow_clone : undef; #clone the table for add ALIAS_NAME attr
 		$newcol->set_attrs_value(
@@ -49,7 +73,7 @@ sub _alias_table {
 		my $alias_count=0;
 		$t->set_attrs_value(ALIAS_COUNT => $alias_count);
 		my $colname_list={};
-		my @cols=map { $filter->($_,$t,COLUMNNAME_LIST => $colname_list,ALIAS_COUNT => \$alias_count,START_TABLE => 1)} $t->get_columns;
+		my @cols=map { $filter->($_,$t,COLUMNNAME_LIST => $colname_list,ALIAS_COUNT => \$alias_count,START_TABLE => 1,SCHEMA => $params{SCHEMA})} $t->get_columns;
 		return @cols;
 	}
 

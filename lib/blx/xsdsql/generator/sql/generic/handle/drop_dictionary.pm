@@ -8,14 +8,22 @@ sub _get_drop_prefix {
 	my ($self,%params)=@_;
 	return "drop table";
 }
+
+sub _get_drop_suffix {
+	my ($self,%params)=@_;
+	return "";
+}
+
+sub get_binding_objects  {
+	my ($self,$schema,%params)=@_;
+	my @t=map { $schema->get_dictionary_table($_,%params); } qw (TABLE_DICTIONARY COLUMN_DICTIONARY RELATION_DICTIONARY);
+	return wantarray ? @t : \@t;
+}
+
 sub table_header {
 	my ($self,$table,%params)=@_;
-	return $self unless $table->is_root_table;
-	for my $n qw(RELATION_DICTIONARY COLUMN_DICTIONARY TABLE_DICTIONARY) {
-		my $dic=$table->get_attrs_value($n);
-		$self->{STREAMER}->put_line($self->_get_drop_prefix,' ',$dic->get_sql_name,' ',$dic->get_comment,$table->command_terminator);
-	}
-	return $self;
+	$self->{STREAMER}->put_line($self->_get_drop_prefix,' ',$table->get_sql_name,' ',$self->_get_drop_suffix,' ',$table->get_comment,$table->command_terminator);
+	return undef;
 }
 
 

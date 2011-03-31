@@ -9,6 +9,13 @@ sub _get_drop_prefix {
 	return "drop table ";
 }
 
+
+sub _get_drop_suffix {
+	my ($self,%params)=@_;
+	return "cascade constraints purge";
+}
+
+
 1;
 
 

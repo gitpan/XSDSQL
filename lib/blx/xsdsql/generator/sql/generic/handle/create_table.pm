@@ -9,6 +9,12 @@ sub _get_create_prefix {
 	return "create table";
 }
 
+sub get_binding_objects  {
+	my ($self,$schema,%params)=@_;
+	my $root_table=$schema->get_root_table;
+	return wantarray ? ( $root_table ) : [ $root_table ];
+}
+
 sub table_header {
 	my ($self,$table,%params)=@_;
 	my $path=$table->get_attrs_value qw(PATH);
@@ -30,6 +36,7 @@ sub column {
 	my ($col_name,$col_type,$path)=($col->get_sql_name(%params),$col->get_sql_type(%params),$col->get_attrs_value qw(PATH));
 	my $comm=defined $path ? 'PATH: '.$path : '';
 	my $ref=$col->get_attrs_value qw(PATH_REFERENCE);
+	$ref=$ref->get_sql_name if ref($ref) =~/::table/;
 	$comm.=defined $ref ? ' REF: '.$ref : '';
 	$comm=~s/^(\s+|\s+)$//;
 	my $sqlcomm=length($comm) ?  $col->comment($comm) : '';

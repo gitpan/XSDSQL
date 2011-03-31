@@ -8,6 +8,13 @@ sub _get_drop_prefix {
 	my ($self,%params)=@_;
 	return "drop view";
 }
+
+sub get_binding_objects  {
+	my ($self,$schema,%params)=@_;
+	my $table=$schema->get_root_table;
+	return wantarray ? ( $table ) : [ $table ];
+}
+
 sub table_header {
 	my ($self,$table,%params)=@_;
 	my $path=$table->get_attrs_value qw(PATH);

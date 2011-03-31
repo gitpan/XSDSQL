@@ -5,12 +5,17 @@ use Carp;
 use base qw(blx::xsdsql::generator::sql::generic::handle);
 use blx::xsdsql::ut qw(nvl);
 
+sub get_binding_objects  {
+	my ($self,$schema,%params)=@_;
+	my $table=$schema->get_root_table;
+	return wantarray ? ( $table ) : [ $table ];
+}
+
 sub table_header {
 	my ($self,$table,%params)=@_;
-	return $self if nvl($table->get_attrs_value qw(PATH)) ne '/';  #bypass if is not the root table
 	my $name=$table->get_sequence_name(%params);
 	$self->{STREAMER}->put_line("create sequence $name ",$table->command_terminator);
-	return $self;
+	return undef;
 }
 
 1;

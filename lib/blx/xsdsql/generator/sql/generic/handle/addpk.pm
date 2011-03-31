@@ -4,6 +4,12 @@ use warnings;
 use Carp;
 use base qw(blx::xsdsql::generator::sql::generic::handle);
 
+sub get_binding_objects  {
+	my ($self,$schema,%params)=@_;
+	my $root_table=$schema->get_root_table;
+	return wantarray ? ( $root_table ) : [ $root_table ];
+}
+
 sub table_header {
 	my ($self,$table,%params)=@_;
 	my $table_name=$table->get_sql_name(%params);

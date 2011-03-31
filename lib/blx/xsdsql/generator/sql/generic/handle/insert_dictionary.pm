@@ -28,7 +28,7 @@ sub _get_value_data {
 							confess "$name: column non defined in data " if !exists $data->{$name}; 
 							my $d=$data->{$name};
 							if (defined $d) {
-								$d=~s/'/''/g;
+								$d=~s/'/''/g;	#'
 								$d="'".$d."'" unless $d=~/^\d+$/; 
 							}
 							else {
@@ -44,11 +44,18 @@ sub _get_end_value_constant {
 	return ")";	
 }
 
+sub get_binding_objects  {
+	my ($self,$schema,%params)=@_;
+	my @t=map { $schema->get_dictionary_table($_,%params); } qw (TABLE_DICTIONARY COLUMN_DICTIONARY RELATION_DICTIONARY);
+	return wantarray ? @t : \@t;
+}
+
+
 sub table_header {
 	my ($self,$table,%params)=@_;
-	my $root_table=$params{ROOT_TABLE};
-	croak "param ROOT_TABLE not defined " unless defined $root_table;
-	my $dic=$root_table->get_attrs_value qw(TABLE_DICTIONARY);
+	my $schema=$params{SCHEMA};
+	croak "param SCHEMA not defined " unless defined $schema;
+	my $dic=$schema->get_dictionary_table qw(TABLE_DICTIONARY);
 	my $data=$table->get_dictionary_data qw(TABLE_DICTIONARY);
 	my $dic_columns=$dic->get_columns;
 	$self->{STREAMER}->put_line(
@@ -61,7 +68,7 @@ sub table_header {
 			,$table->command_terminator
 	);
 
-	$dic=$root_table->get_attrs_value qw(COLUMN_DICTIONARY);
+	$dic=$schema->get_dictionary_table qw(COLUMN_DICTIONARY);
 	$dic_columns=$dic->get_columns;
 	
 	for my $data($table->get_dictionary_data qw(COLUMN_DICTIONARY)) {
@@ -76,7 +83,7 @@ sub table_header {
 		);
 	}
 
-	$dic=$root_table->get_attrs_value qw(RELATION_DICTIONARY);
+	$dic=$schema->get_dictionary_table qw(RELATION_DICTIONARY);
 	$dic_columns=$dic->get_columns;
 	for my $data($table->get_dictionary_data qw(RELATION_DICTIONARY)) {
 		$self->{STREAMER}->put_line(
@@ -92,23 +99,6 @@ sub table_header {
 	return $self;
 }
 
-=pod
-sub column {
-	my ($self,$col,%params)=@_;
-	my $dic=$root_table->get_attrs_value qw(COLUMN_DICTIONARY);
-	my $columns=$dic->get_columns;
-	
-	my $first_column=$col->get_attrs_value qw(COLUMN_SEQUENCE) == 0 ? 1 : 0;
-	my ($col_name,$col_type,$path)=($col->get_sql_name(%params),$col->get_sql_type(%params),$col->get_attrs_value qw(PATH));
-	my $comm=defined $path ? 'PATH: '.$path : '';
-	my $ref=$col->get_attrs_value qw(PATH_REFERENCE);
-	$comm.=defined $ref ? ' REF: '.$ref : '';
-	$comm=~s/^(\s+|\s+)$//;
-	my $sqlcomm=length($comm) ?  $col->comment($comm) : '';
-	$self->{STREAMER}->put_line("\t".($first_column ? '' : ',').$col_name."\t".$col_type."\t".$sqlcomm);
-	return $self;
-}
-=cut
 
 1;
 
