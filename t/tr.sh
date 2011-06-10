@@ -10,7 +10,7 @@ perl -Mstrict -Mwarnings -e '
 	while(<STDIN>) {
 		print STDOUT ($c++ == 0 ? $l : $_);
 	}  
-	exit 0;
+	exit ($c == 0 ? 1 : 0);
 '
 
 

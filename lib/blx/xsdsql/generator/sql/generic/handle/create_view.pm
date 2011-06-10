@@ -22,64 +22,6 @@ sub _alias_table {
 	return " as ";
 }
 
-
-{
-	my $filter=undef;
-	$filter=sub { #recursive function
-		my ($col,$table,%params)=@_;
-		my $newcol=$col->shallow_clone;  #clone the column for add ALIAS_NAME attr
-=pod		
-		my $path_ref=$newcol->get_path_reference;
-		
-		my $o=$params{SCHEMA}->resolve_table_from_path($path_ref);
-			use Data::Dumper;
-			print STDERR Dumper($o),"\n";
-		}
-=cut
-
-		my $table_ref=$newcol->get_table_reference;
-		if ($newcol->get_path_reference && !$table_ref) {  #confess the error 
-			my $path_reference=$newcol->get_path_reference;
-			if (ref($path_reference) =~/::table$/) {
-				my $t=$path_reference;
-				$path_reference=$t->get_attrs_value qw(PATH);
-				$path_reference=$t->get_sql_name unless $path_reference;
-			}
-			confess $path_reference.": not a table ref\n";
-		}
-		my $viewable= $newcol->get_path_reference && $table_ref->get_max_occurs <= 1   || $newcol->is_pk && !$params{START_TABLE} ? 0 : 1;
-		my $join_table=defined $table_ref && $table_ref->get_max_occurs <= 1 ? $table_ref->shallow_clone : undef; #clone the table for add ALIAS_NAME attr
-		$newcol->set_attrs_value(
-			VIEWABLE 		=> $viewable
-			,TABLE			=> $table
-		);
-		if ($viewable) { #set the alias for view
-			my $sql_name=delete $newcol->{SQL_NAME};
-			my $alias_name=$newcol->get_sql_name(%params); #create a unique alias name
-			$newcol->set_attrs_value(SQL_NAME	=> $sql_name,ALIAS_NAME	=> $alias_name);
-		}		
-		my @ret=($newcol);
-		if (defined $join_table) {
-			++${$params{ALIAS_COUNT}};
-			$join_table->set_attrs_value(ALIAS_COUNT => ${$params{ALIAS_COUNT}});
-			$newcol->set_attrs_value(JOIN_TABLE => $join_table);
-			push @ret,map { $filter->($_,$join_table,%params,START_TABLE => 0) } $join_table->get_columns;
-		}
-		return @ret;
-	};
-	sub _get_columns {
-		my ($self,$table,%params)=@_;
-		my $t=$table->shallow_clone;
-		my $alias_count=0;
-		$t->set_attrs_value(ALIAS_COUNT => $alias_count);
-		my $colname_list={};
-		my @cols=map { $filter->($_,$t,COLUMNNAME_LIST => $colname_list,ALIAS_COUNT => \$alias_count,START_TABLE => 1,SCHEMA => $params{SCHEMA})} $t->get_columns;
-		return @cols;
-	}
-
-}
-
-
 sub table_header {
 	my ($self,$table,%params)=@_;
 	my $path=$table->get_attrs_value qw(PATH);
@@ -157,6 +99,12 @@ this package is a class - instance it with the method new
 
 see the methods of blx::xsdsql::generator::sql::generic::handle 
 
+get_view_columns - return an array of the view columns
+
+
+get_join_columns - return an array of the join columns
+
+  
 =head1 EXPORT
 
 None by default.

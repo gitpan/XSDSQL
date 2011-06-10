@@ -9,6 +9,11 @@ sub _get_drop_prefix {
 	return "drop table if exists";
 }
 
+sub _get_drop_suffix {
+	my ($self,%params)=@_;
+	return "cascade";
+}
+
 1;
 
 

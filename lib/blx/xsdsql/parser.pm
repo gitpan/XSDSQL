@@ -11,6 +11,7 @@ use Rinchi::XMLSchema;
 
 use blx::xsdsql::ut qw(nvl ev);
 use blx::xsdsql::schema;
+use blx::xsdsql::IStream;
 
 use constant {
 			 DEFAULT_OCCURS_TABLE_PREFIX 		=> 'm_'
@@ -35,6 +36,64 @@ use constant {
 			,DEFAULT_RELATION_DICTIONARY_NAME	=>  'relation_dictionary'
 };
 
+sub _autodetect_xml_namespaces { #is a brutal autodetect namespaces from a xml schema
+	my ($file_name,%params)=@_;
+	croak "$file_name: file not found\n" unless -e $file_name;
+	croak "$file_name: not regular file\n" unless -f $file_name;
+	open(my $fd,'<',$file_name) || croak "$file_name: cannot open: $!";
+	my $is=blx::xsdsql::IStream->new(INPUT_STREAM => $fd,MAX_PUSHBACK_SIZE => 10);
+
+	my ($encoding,$ns);
+	while(my $line=$is->get_line) {
+		last if length($line) == 0;
+		next if $line=~/^\s*$/;
+
+		if ($line=~/^.*<\?xml\s+version="[^"]+"\s+encoding="([^"]+)"\s*\?>/) {
+			$encoding=$1;
+			last;
+		}
+		
+		if ($line=~/^.*<\?xml\s+version="[^"]+".*\?>/) {
+			$encoding='utf-8';
+			last;
+		}
+
+		close $fd;
+		croak "$file_name: is not an xml file (no such header)\n";
+	}
+	
+	unless (defined $encoding) {
+		close $fd;
+		croak "$file_name: is not an xml file (no such header after a EOF)\n";
+	}
+	
+	while(my $line=$is->get_line) {
+		last if length($line) == 0;
+		next if $line=~/^\s*$/;
+		next if $line=~/^\s*<!--/;  #one line comment
+		if ($line=~/^\s*<xs:schema\s(.*)>/) {
+			my $attrs=$1;
+			my @ns=$attrs=~/xmlns:(\w+)/g;
+			$ns=\@ns if scalar(@ns);
+			last;
+		}
+		close $fd;
+		croak "$file_name: is not an xml schema file (no such xs:schema node)\n";
+	}
+	close $fd;
+	
+	croak "$file_name: is not an xml schema file (no such xs:schema node after a EOF)\n"
+		unless defined $ns;
+
+	return $ns;
+}
+
+sub _debug {
+	my ($n,@l)=@_;
+	$n='<undef>' unless defined $n; 
+	print STDERR 'parser (D ',$n,'): ',join(' ',grep(defined $_,@l)),"\n"; 
+	return  undef;
+}
 
 sub _get_type {
 	my $parent=shift;
@@ -51,7 +110,7 @@ sub _get_type {
 				$type{BASE}='xs:string';
 			}
 			else {
-				print STDERR Dumper($e),"\n";
+				_debug(__LINE__,Dumper($e));
 				confess  $r.": type not implemented";
 			}
 			for my $f(@{$e->{_content_}}) {
@@ -147,9 +206,8 @@ sub _get_simple_type_x {
 		$h->{BASE}=$ty->{BASE};   #change the type
 		return _get_simple_type_x($h,%params);		
 	}
-	else {	
-		print STDERR $h->{BASE},": user defined type - resolved next time\n"
-			if $params{DEBUG};		
+	else {
+		_debug(__LINE__,$h->{BASE}.": user defined type - resolved next time") if $params{DEBUG};		
 	}
 	return bless $h,SIMPLE_TYPE_CLASS;
 }
@@ -412,7 +470,8 @@ sub _parse_x {
  				$maxoccurs=UNBOUNDED if $maxoccurs eq 'unbounded';
 				my $name=nvl($node->name,$ref);
 				my $column = $params{COLUMN_CLASS}->new(
-					PATH		=> $parent->{complete_name}.'/'.$name
+					PATH		=> $parent->{complete_name}
+					,NAME		=> $name
 					,TYPE		=> $ref
 					,MINOCCURS	=> $minoccurs
 					,MAXOCCURS	=> $maxoccurs
@@ -422,15 +481,15 @@ sub _parse_x {
 					$column->{XSD_SEQ}=$parent_table->{XSD_SEQ}; 
 					++$parent_table->{XSD_SEQ} unless $parent_table->{CHOISE}; #the columns of a choise have the same xsd_seq
 				}
-				print STDERR "add this group ref ",$column->{PATH}," with type ",$ref," to table ",$parent_table->{PATH},"\n";
 				$parent_table->add_columns($column);
 			}
 			else {
 				my $name=$node->name();
 				if (defined $name) {
-					$node->{complete_name}=$parent->{complete_name}.'/'.$name;
+					$node->{complete_name}='/'.$name;
 					my $table = $params{TABLE_CLASS}->new (
 						 PATH			=> $node->{complete_name}
+						,NAME			=> $name
 						,TABLE_IS_TYPE	=> 1
 						,GROUP_TYPE		=> 1
 						,XSD_SEQ		=> 1
@@ -459,6 +518,18 @@ sub _parse_x {
 	}
 }
 
+sub _resolve_simple_type {
+	my ($t,$types,%params)=@_;
+	my $ty=(grep($t eq $_->get_attrs_value(qw(NAME)),@$types))[0];
+	return $ty if defined $ty;
+	for my $ns(@{$params{XML_NAMESPACES}}) {
+		next if $ns eq 'xs';  
+		$ty=(grep($t eq $ns.':'.$_->get_attrs_value(qw(NAME)),@$types))[0];
+		last if defined $ty;		
+	}
+	return $ty;
+}
+
 sub _parse_user_def_types {
 	my ($tables,$types,%params)=@_;
 	confess "param ID_SQL_TYPE not set" unless defined $params{ID_SQL_TYPE};
@@ -470,7 +541,9 @@ sub _parse_user_def_types {
 		for my $c($t->get_columns) {
 			next if $c->is_pk;
 			if (ref($c->{TYPE}) eq '') {
-				my $ty=(grep($c->{TYPE} eq $_->get_attrs_value(qw(NAME)),@$types))[0] || confess $c->{TYPE}.": type not found ";
+				my $ty=_resolve_simple_type($c->{TYPE},$types,%params);
+#				my $ty=(grep($c->{TYPE} eq $_->get_attrs_value(qw(NAME)),@$types))[0];
+				confess $c->{TYPE}.": type not found\n" unless defined $ty;
 				if ($ty->{SIMPLE_TYPE}) {
 					my $type=_get_simple_type_from_node($ty->{TYPE},%params);
 					if ($c->get_max_occurs > 1) {						
@@ -493,7 +566,6 @@ sub _parse_user_def_types {
 
 						$c->set_attrs_value(PATH_REFERENCE => $table,INTERNAL_REFERENCE => 1,TYPE => Storable::dclone($params{ID_SQL_TYPE}));
 						$t->add_child_tables($table);						
-#						confess Dumper($c).": not implemented\n";
 					}
 					else {
 						$c->set_attrs_value(TYPE => $type);
@@ -509,20 +581,10 @@ sub _parse_user_def_types {
 					else {
 						$c->{PATH_REFERENCE}=$ty->{PATH};
 					}
-					if ($c->{GROUP_REF}) {
-						confess $c->get_full_name.": GROUP_REF not implemented\n";
-						$c->{PATH}=dirname($c->{PATH});
-						my @t=grep($_->{PATH} eq $c->{PATH_REFERENCE},@$types);
-						confess $c->{PATH_REFERENCE}.": not table reference for group "
-							if scalar(@t) == 0;
-						confess $c->{PATH_REFERENCE}.": too many  reference for group "
-							if scalar(@t) > 1;
-						$c->{TABLE_REFERENCE}=$t[0];
-					}
 					$c->{TYPE}=$h; 
 				}
 				else {
-					print STDERR Dumper($ty),"\n";
+					_debug(__LINE__,Dumper($ty)) if $params{DEBUG};
 					confess " not simple or complex type\n";
 				}
 			}
@@ -531,7 +593,7 @@ sub _parse_user_def_types {
 				next unless scalar(%{$c->{TYPE}}); #skip if an empty hash
 				my $base= $c->{TYPE}->{BASE};
 				unless (defined $base) {
-					print STDERR Dumper($c->{TYPE}),"\n";
+					_debug(__LINE__,Dumper($c->{TYPE})) if $params{DEBUG};
 					confess " type without base\n";
 				}
 				my @base=ref($base) eq 'ARRAY' ? @$base : ($base);
@@ -539,13 +601,14 @@ sub _parse_user_def_types {
 				for my $base(@base) {
 					my $t=$type_names{$base};
 					unless (defined $t) {
-						confess Dumper($base).": base not found into types for column";
+						_debug(__LINE__,Dumper($base)) if $params{DEBUG};
+						confess "base not found into types for column\n";
 					}
 					if ($t->{SIMPLE_TYPE}) {
 						my $st=_get_simple_type_from_node($t->{TYPE},%params);
 						unless (defined $st->{SQL_TYPE}) {
-							print STDERR "base --> ",$base,"\n";
-							print STDERR Dumper($t->{TYPE}),"\n";
+							_debug(__LINE__,"base --> ".$base."\n".Dumper($t->{TYPE}))
+								if $params{DEBUG};
 							confess "not SQL_TYPE"; 
 						}
 						push @outtype,$st;
@@ -588,7 +651,7 @@ sub _parse {
 	_parse_user_def_types($types,$types,%params);
 	_parse_user_def_types($root->{CHILD_TABLES},$types,%params);
 	
-	my $schema=blx::xsdsql::schema->new(TYPES => $types,ROOT => $root);
+	my $schema=blx::xsdsql::schema->new(%params,TYPES => $types,ROOT => $root);
 	$schema->mapping_paths(DEBUG => $params{DEBUG}); 
 
 	my $td=_factory_dictionary('TABLE_DICTIONARY',nvl($params{TABLE_DICTIONARY_NAME},DEFAULT_TABLE_DICTIONARY_NAME),%params);
@@ -622,6 +685,7 @@ sub parsefile {
 	for my $k qw(TABLE_PREFIX VIEW_PREFIX SEQUENCE_PREFIX) {
 		$p->{$k}='' unless defined $p->{$k};
 	}
+	$p->{XML_NAMESPACES}=_autodetect_xml_namespaces($file_name);
 	return _parse($r,%$p);
 }
 
@@ -659,7 +723,7 @@ sub get_db_namespaces {
 }
 
 
-if ($0 eq __FILE__) {
+if ($0 eq __FILE__) { #for local test
 	use strict;
 	use warnings;
 	use Data::Dumper;
@@ -703,23 +767,24 @@ this module defined the followed functions
 new - constructor 
 
 	PARAMS:
-		DB_NAMESPACE -   database namespace  (default not set) 
-
+		DB_NAMESPACE 	=>   database namespace  (default not set) 
+		DEBUG		 	=> 	 set debug mode
 
 parsefile - parse a xsd file
  
-	the first param if an object compatible with the input of Rinchi::XMLSchema::parsefile, normally a file name    
+	the first param must be an object compatible with the input of Rinchi::XMLSchema::parsefile, normally a file name    
 	the method return a blx::xsdsql::schema object
 	
 	PARAMS:
-		TABLE_PREFIX - prefix for tables - the default is none
-		VIEW_PREFIX  - prefix for views  - the default is none
-		SEQUENCE_PREFIX - prefix for the sequences - the default is none
-		ROOT_TABLE_NAME	- the name of the root table - the default is 'ROOT'
-		TABLE_DICTIONARY_NAME - the name of the table dictionary
-		COLUMN_DICTIONARY_NAME - the name of the colunm dictionary
-		RELATION_DICTIONARY_NAME - the name of the relation dictionary
-		SCHEMA_DUMPER - print on STDERR the dumper of the schema generated by Runchi::XMLSchema
+		TABLE_PREFIX 				=>  prefix for tables - the default is none
+		VIEW_PREFIX  				=>  prefix for views  - the default is none
+		SEQUENCE_PREFIX 			=>  prefix for the sequences - the default is none
+		ROOT_TABLE_NAME				=>  the name of the root table - the default is 'ROOT'
+		TABLE_DICTIONARY_NAME 		=>  the name of the table dictionary
+		COLUMN_DICTIONARY_NAME 		=>  the name of the colunm dictionary
+		RELATION_DICTIONARY_NAME 	=>  the name of the relation dictionary
+		SCHEMA_DUMPER 				=>  print on STDERR the dumper of the schema generated by Runchi::XMLSchema
+		DEBUG		 				=>  set debug mode
 
 get_db_namespaces - static method 
 

@@ -71,6 +71,10 @@ sub resolve_path {
 	return $self->{MAPPING_PATH}->resolve_path($path,%params);
 }
 
+sub resolve_column_link {
+	my ($self,$t1,$t2,%params)=@_;
+	return $self->{MAPPING_PATH}->resolve_column_link($t1,$t2,%params);
+}
 
 sub get_root_table { 
 	my ($self,%params)=@_;
@@ -96,7 +100,7 @@ sub mapping_paths {
 	my ($self,%params)=@_;
 	croak "map already set" if $self->get_attrs_value qw(MAPPING_PATH);
 	my $pr=$self->_fusion_params(%params);
-	my $m=blx::xsdsql::path_map->new;
+	my $m=blx::xsdsql::path_map->new(%$pr);
 	my $root=$self->get_root_table;
 	my $p=$self->get_types_path;
 	$self->{MAPPING_PATH}=$m->mapping_paths($root,$p,%$pr);
@@ -169,6 +173,12 @@ resolve_path - return the table and the column associated  to the the pathnode
 		DEBUG - emit debug info 
  
 
+resolve_column_link - return the column link a tables 
+
+	arguments
+		parent table
+		child table
+		
 get_root_table - return the root table objects
 
 

@@ -346,7 +346,7 @@ sub is_root_table {
 	return nvl($self->get_attrs_value qw(PATH)) eq '/' ? 1 : 0;
 }
 
-sub is_unpath_sequence {
+sub is_unpath {
 	my ($self,%params)=@_;
 	return 0 if $self->get_attrs_value qw(PATH);
 	return 1 if $self->get_max_occurs > 1;
@@ -526,6 +526,8 @@ get_dictionary_data - return an hash of dictionary column name => value for the 
 get_deep_level - return the deep level - the root has level 0
 
 is_internal_reference - return  true if the the table is an occurs of simple types
+
+is_unpath - return true if the table is not associated to a path
 
 =head1 EXPORT
 

@@ -20,6 +20,13 @@ use constant {
 	,STEP_FILE		=> '.step'
 };
 
+sub debug {
+	my ($n,@l)=@_;
+	$n='<undef>' unless defined $n; 
+	print STDERR 'test (D ',$n,'): ',join(' ',grep(defined $_,@l)),"\n"; 
+	return  undef;
+}
+
 sub xsd2sql { 
 	my %params=@_;
 	$params{DB_CONNECTION_STRING}=~/^(\w+):/;
@@ -34,11 +41,13 @@ sub xsd2sql {
 		." -n '".$ret{NAMESPACE}."'"
 		." -p '".$params{PREFIX_TABLES}."'"
 		." -w '".$params{PREFIX_VIEWS}."'"
-		." -s '".$params{PREFIX_SEQUENCE}."'"; 
+		." -s '".$params{PREFIX_SEQUENCE}."'"
+		.($params{EXTRA_PARAMS} ? " -o '".$params{EXTRA_PARAMS}."'" : "")
+		." '".$params{SCHEMA_FILE}."'";
 	for my $c qw(drop_table create_table addpk drop_sequence create_sequence drop_view create_view drop_dictionary create_dictionary insert_dictionary) {
 		$ret{$c}="${c}.sql";
-		my $cmd=$pcmd." '${c}' '".$params{SCHEMA_FILE}."' > ".$ret{$c};
-		print STDERR "(D) ",$cmd,"\n" if $params{DEBUG};
+		my $cmd=$pcmd." '${c}'  > ".$ret{$c};
+		debug(__LINE__,$cmd) if $params{DEBUG};
 		system($cmd);
 		return (%ret,ERR_MSG => "$cmd: execution error") if $?;
 	}				
@@ -53,7 +62,7 @@ sub isql {
 	$file=~s/\s*$//;
 	confess "internal error: param FILE not set" unless $file;
 	my $cmd="perl ../isql.pl -c '".$params{DB_CONNECTION_STRING}."' -t c $x '$file'";
-	print STDERR "(D) ",$cmd,"\n" if $params{DEBUG};
+	debug(__LINE__,$cmd) if $params{DEBUG};
 	system($cmd);
 	my $rc=$?;
 	return (ERR_MSG => "$cmd: execution error") if $rc == -1 || ($rc & 127);											
@@ -67,25 +76,33 @@ sub xml_load { #xml load & write & compare
 	my %params=@_;
 	my ($typedb,$conn)=$params{DB_CONNECTION_STRING}=~/^(\w+):(.*)$/;
 	croak $params{DB_CONNECTION_STRING}.": internal error" unless defined $typedb;
+	my $db_command="c";
 	my $pcmd="perl -MCarp=verbose ../xml.pl -c '$conn' "
 							." -p '".$params{PREFIX_TABLES}."' "
 							." -w '".$params{PREFIX_VIEWS}."' "
 							." -q '".$params{PREFIX_SEQUENCE}."' "
 							." -n '$typedb' "
-							." -t r "
+							." -t '".$params{TRANSACTION_MODE}."' "
 							.($params{DEBUG} ? " -d " : "")
 							.($params{WRITER_UTF8} ? " -u " : "")
-							." c  '".$params{SCHEMA_FILE}."' "
+							.($params{EXECUTE_OBJECTS_PREFIX} ? " -b '".$params{EXECUTE_OBJECTS_PREFIX}."'" : '')
+							.($params{EXECUTE_OBJECTS_SUFFIX} ? " -a '".$params{EXECUTE_OBJECTS_SUFFIX}."'" : '')
+							." $db_command  '".$params{SCHEMA_FILE}."' "
 							;
 	my @files=();
-	my $validator="xmllint --schema '".$params{SCHEMA_FILE}."' --noout '\%f'";
-
+	my $validator=$params{XML_VALIDATOR};
+	$validator=~s/\%s/$params{SCHEMA_FILE}/g;
+		
+	my @onlyfiles=defined $params{ONLY_FILES} ? split(',',$params{ONLY_FILES}) : ();
 	if (opendir(my $dd,".")) {
 		while(my $f=readdir($dd)) {
 			next if  $f=~/^\./;
-			next unless $f=~/\.xml$/;
+			next unless $f=~/\.xml$/i;
 			next unless -f $f;
 			next unless -r $f;
+			if (scalar(@onlyfiles)) {
+				next unless grep($f eq $_,@onlyfiles);
+			}
 			push @files,$f
 		}
 		closedir($dd);
@@ -96,7 +113,7 @@ sub xml_load { #xml load & write & compare
 	for my $f(sort @files) {
 		my $cmd=$validator;
 		$cmd=~s/\%f/$f/;
-		print STDERR "(D) ",$cmd,"\n" if $params{DEBUG};
+		debug(__LINE__,$cmd) if $params{DEBUG};
 		system($cmd);
 		if ($?) {
 			return (ERR_MSG => "$f: is not a valid xml file") unless $params{EXCLUDE_NOT_VALID_XML_FILES};
@@ -104,27 +121,27 @@ sub xml_load { #xml load & write & compare
 		}
 		my $tmp=$f.'.tmp';
 		my $cmd=$pcmd."'$f' | ../tr.sh '$f' > '$tmp'";
-		print STDERR "(D) ",$cmd,"\n" if $params{DEBUG};
+		debug(__LINE__,$cmd) if $params{DEBUG};
 		system($cmd);
 		return (ERR_MSG => "$cmd: execution error") if $?;
 		$cmd=$validator;
 		$cmd=~s/\%f/$tmp/;
-		print STDERR "(D) ",$cmd,"\n" if $params{DEBUG};
+		debug(__LINE__,$cmd) if $params{DEBUG};
 		system($cmd);
 		return (ERR_MSG => "$f: is not a valid xml file") if $?;
 		my $diff=$f.'.diff';
 		$cmd="diff -E -b -a '$f' '$tmp' > '$diff'";
-		print STDERR "(D) ",$cmd,"\n" if $params{DEBUG};
+		debug(__LINE__,$cmd) if $params{DEBUG};
 		system($cmd);
 		my $rc=$?;
-		return (ERR_MSG => "$cmd: execution error") if $rc == -1 || ($rc & 127);											
+		return (ERR_MSG => "$cmd: execution error") if $rc == -1 || ($rc & 127);
 		my $fd=xopen('<',$diff);
 		while(<$fd>) { xprint(*STDOUT,$_); }
 		close $fd;
 		$rc>>=8;
 		if ($rc == 1) {
-			print STDERR "(W) the files diff\n" if $params{IGNORE_DIFF};
-			return (ERR_MSG => "the files diff") if !$params{IGNORE_DIFF};
+			return (ERR_MSG => "the files diff") unless $params{IGNORE_DIFF};
+			print STDERR "(W) the files diff\n"; 
 		}
 		else {
 			return (ERR_MSG => "$cmd: execution error") if $rc != 0;
@@ -233,30 +250,57 @@ sub get_operations {
 }
 
 my %Opt=();
-unless (getopts ('hdrRcCTeiuo:',\%Opt)) {
+unless (getopts ('hdrRcCTeiuo:f:t:b:a:p:v:',\%Opt)) {
 	 print STDERR "invalid option or option not set\n";
 	 exit 1;
 }
 
 if ($Opt{h}) {
 	print STDOUT "
-		$0  [-hdrRcCTei] [-o <op>[:<op>...]]  [<testnumber>|<testnumber>-<testnumber>...]
-			exec battery test - if <testnumber> is not spec all tests must be executed
-		<options>: 
-			-h  - this help
-			-d  - debug mode
-			-r  - reset steps and execute the tests
-			-R  - reset steps and not execute the tests
-			-c  - reset connection string and execute the tests
-			-C  - reset connection string and not execute the tests
-			-T  - clean temporary files in test + step file  and not execute the test
-			-e  - exclude the not valid xml files
-			-i  - continue after xml difference
-			-u  - set encondig utf8 to xmlwriter
-			-o  - execute only the target operation
-				<op> must be ".join("|",map { ($_->{NAME},$_->{SH_NAME}) } @STEPS)." 
-	"; 
+$0  [<options>] [<args>].. 
+    exec battery test 
+<options>: 
+    -h  - this help
+    -d  - debug mode
+    -r  - reset steps and execute the tests
+    -R  - reset steps and not execute the tests
+    -c  - reset connection string and execute the tests
+    -C  - reset connection string and not execute the tests
+    -T  - clean temporary files in test + step file  and not execute the test
+    -e  - exclude the not valid xml files
+    -i  - continue after xml difference
+    -u  - set encondig utf8 to xmlwriter
+    -f   <filename>[,<filename>...] - include in test only file match <filename>
+    -t  <c|r> - transaction database mode ((c)ommit or (r)ollback) - default r
+    -b  - set the execute prefix for db objects (Ex.   'scott.' in oracle)
+    -a  - set the execute suffix for db objects (Ex: '\@dblink' in oracle)
+    -v  <command> - use <command> for xml validation
+		    use \%f for xml file tag and \%s for schema (xsd) file tag
+		    the default is 'xmllint -schema \%s \%f' 
+	-p <name>=<value>[,<name>=<value>...]
+		set extra params - valid names are:
+				MAX_VIEW_COLUMNS 	=>  produce view code only for views with columns number <= MAX_VIEW_COLUMNS - 
+					-1 is a system limit (database depend)
+					false is no limit (the default)
+				MAX_VIEW_JOINS 		=>  produce view code only for views with join number <= MAX_VIEW_JOINS - 
+					-1 is a system limit (database depend)
+					false is no limit (the default)						
+    -o  - execute only the target operation
+        <op> must be ".join("|",map { ($_->{NAME},$_->{SH_NAME}) } @STEPS)." 
+
+<arguments>:
+	<testnumber>|<testnumber>-<testnumber>...
+	if <testnumber> is not spec all tests can be executed
+
+"; 
     exit 0;
+}
+
+
+$Opt{t}='r' unless $Opt{t};
+unless ($Opt{t}=~/^(c|r)$/) {
+	print STDERR $Opt{t},": bad value for option t\n";
+	exit 1;
 }
 
 sub xopen {
@@ -290,7 +334,7 @@ sub store_step {
 	my %params=@_;
 	my $fd=xopen('>',STEP_FILE);
 	for my $k(keys %params) {
-		xprint($fd,$k,' ',$params{$k},"\n") if defined $params{$k};
+		xprint($fd,$k,' ',$params{$k},"\n") if defined $params{$k} && ref($params{$k}) eq '';
 	}
 	xclose($fd);
 	return 1;		
@@ -320,8 +364,8 @@ sub do_test {
 		if (opendir(my $d,'.')) {
 			while(my $f=readdir($d)) {
 				next if -d $f;
-				if ($f=~/\.(diff|tmp|sql)$/ || $f eq STEP_FILE) {
-					print STDERR "remove file $f\n" if $not_store_params->{DEBUG};
+				if ($f=~/\.(diff|tmp|sql)$/i || $f eq STEP_FILE) {
+					debug(__LINE__,"remove file $f") if $not_store_params->{DEBUG};
 					unless (unlink $f) {
 						print STDERR "$f: cannot remove: $!\n";
 					}
@@ -337,8 +381,9 @@ sub do_test {
 	unlink(STEP_FILE) if $not_store_params->{RESET};
 	return 1 if $not_store_params->{NOT_EXECUTE};
 	my %params=get_last_step(%p);
-	for my $i(0..scalar(@{$p{OPERATIONS}}) - 1) {
-		my $step=$p{OPERATIONS}->[$i];
+	my @operations=split(',',nvl($p{OPERATIONS},''));
+	for my $i(0..scalar(@operations) - 1) {
+		my $step=$operations[$i];
 		if ($step < $params{LAST_STEP}) {
 			print STDERR " bypassed step $step\n";
 			next;
@@ -523,9 +568,16 @@ my @operations=sub {
 		push @op,$index;
 	}
 	return get_operations(@op);
-}->(defined $Opt{o} ? split(':',$Opt{o}) : ());
+}->(defined $Opt{o} ? split(',',$Opt{o}) : ());
 exit 1 unless scalar(@operations);
 
+my $only_files=sub {
+	return join(',',map {  my $f=$_; $f.='.xml' unless $f=~/\.xml$/i; $f; } @_);
+}->(defined $Opt{f} ? split(',',$Opt{f}) : ());
+
+$Opt{v}='xmllint --schema \'%s\' --noout \'%f\''
+	unless defined $Opt{v};
+	
 for my $n(@testdirs) { 
 	my $testdir=DIR_PREFIX.$n;
 	print STDERR "test number $n - ";
@@ -544,15 +596,21 @@ for my $n(@testdirs) {
 		,PREFIX_TABLES 				=> 'T'.$n.'_'
 		,PREFIX_SEQUENCE			=> 'S'.$n.'_'
 		,NOT_STORE_PARAMS			=> {
-											DEBUG 	=> $Opt{d}
-											,RESET	=> $Opt{r} || $Opt{R}
-											,CLEAN	=> $Opt{T}
-											,NOT_EXECUTE	=> $Opt{NOT_EXECUTE}
-											,EXCLUDE_NOT_VALID_XML_FILES => $Opt{e}
-											,IGNORE_DIFF => $Opt{i}
-											,WRITER_UTF8	=> $Opt{u}
-										}
-		,OPERATIONS					=> \@operations
+											DEBUG 							=> $Opt{d}
+											,RESET							=> $Opt{r} || $Opt{R}
+											,CLEAN							=> $Opt{T}
+											,NOT_EXECUTE					=> $Opt{NOT_EXECUTE}
+											,EXCLUDE_NOT_VALID_XML_FILES 	=> $Opt{e}
+											,IGNORE_DIFF 					=> $Opt{i}
+											,WRITER_UTF8					=> $Opt{u}
+											,TRANSACTION_MODE				=> $Opt{t} 
+											,EXECUTE_OBJECTS_PREFIX			=> $Opt{b}
+											,EXECUTE_OBJECTS_SUFFIX 		=> $Opt{a}
+											,ONLY_FILES						=> $only_files
+											,EXTRA_PARAMS					=> $Opt{p}
+											,XML_VALIDATOR  				=> $Opt{v}
+		}
+		,OPERATIONS					=> join(',',@operations)
 	);
 	unless (chdir $startdir) {
 		print STDERR "(W) $startdir: $!\n";

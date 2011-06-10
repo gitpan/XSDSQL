@@ -21,57 +21,93 @@ sub _fusion_params {
 	return \%p;
 }
 
+sub _debug {
+	return $_[0] unless $_[0]->{DEBUG};
+	my ($self,$n,@l)=@_;
+	$n='<undef>' unless defined $n; 
+	print STDERR 'path_map (D ',$n,'): ',join(' ',grep(defined $_,@l)),"\n"; 
+	return $self;
+}
+
+
+sub _link_tables {  # link column $t1.$c1 => $t2.id 
+	my ($self,$t1,$c1,$t2,%params)=@_;
+	$self->{LINK_TABLES}->{$t1->get_sql_name}->{$t2->get_sql_name}=$c1;
+	return $self;
+}
+
 sub _register_path {
-	my %params=@_;
+	my ($self,%params)=@_;
 	my $tag=$params{TAG};
 	my $path=defined $params{C}  
 		? $params{C}->get_attrs_value(qw(PATH))
 		: $params{T}->get_attrs_value(qw(PATH));
 		
 	if ($params{ORIG_PATH_NAME}) {
-		$path=_resolve_relative_path($params{ORIG_PATH_NAME},$params{T},$path,%params);
+		$path=$self->_resolve_relative_path($params{ORIG_PATH_NAME},$params{T},$path,%params);
 	}
 	else {
 		confess "(E $tag) ORIG_PATH_NAME not def for type table " if $params{T}->is_type;
 	}
+	confess "(E $tag) path not set\n" unless $path;
 
-	if (defined $path) {
-		if (defined $params{PATH}->{$path}) {
-			confess "(E $tag) $path: path altready register\n";
+	my $ret=sub {
+		if (defined $params{C}) { #map path into a column
+			my $h={ T => $params{T},C => $params{C}};
+			my @stack=@{$params{STACK}};
+			$h->{STACK}=\@stack if $params{T}->is_unpath || $params{T}->is_group_type; 
+			$self->_debug($tag,'register column path',$path,'with (',$params{T}->get_sql_name
+				,(defined $params{C} ? ','.$params{C}->get_sql_name : '')
+				,')');
+			return $h;
 		}
-		else {
-			if (defined $params{C}) {
-				my $h={ T => $params{T},C => $params{C}};
-				if ($params{T}->is_unpath_sequence) {
-					$h->{TABLE_REF_FROM}=$params{STACK}->[-1];
-				}
-				$params{PATH}->{$path}=$h; #map path into a column
-				print STDERR "(D $tag) register column path '$path' with (".$params{T}->get_sql_name
-					.(defined $params{C} ? ','.$params{C}->get_sql_name : '')
-					.")\n"
-						if $params{DEBUG};
+		else { #map path into a tables stack 
+			$params{STACK}=[] unless defined $params{STACK};
+			push @{$params{STACK}},{ T => $params{T} };
+			$self->_debug($tag,'register table path',$path,'with ('.
+				join(',',map { $_->{T}->get_sql_name.(defined $_->{C} ? '.'.$_->{C}->get_sql_name : '') } @{$params{STACK}})
+				.')');
+			return $params{STACK};
+		}
+		confess "dead code\n";
+	}->();
+
+	if (my $tc=$params{PATH}->{$path}) {  #path is already register
+		if ($self->{DEBUG}) {  #check the consistenze $tc and $ret
+			$self->_debug($tag,"$path: path already register");
+			confess "check consistence 1 failed " if ref($tc) eq 'ARRAY' && ref($ret) ne 'ARRAY';
+			confess "check consistence 2 failed " if ref($tc) eq 'HASH' && ref($ret) ne 'HASH';
+			confess "check consistence 3 failed " if ref($tc) eq 'ARRAY' && $tc->[-1]->{T}->get_sql_name ne $ret->[-1]->{T}->get_sql_name;
+=pod
+			if (ref($tc) eq 'HASH' && $tc->{C}->get_full_name ne $ret->{C}->get_full_name) {
+				$self->_debug(__LINE__,$tc->{C}->get_full_name,$ret->{C}->get_full_name);
+				$self->_debug(__LINE__,$ret->{T}->get_sql_name,$ret->{T}->is_group_type);
+				$self->_debug(__LINE__,$tc->{T}->get_sql_name,$tc->{T}->is_group_type);
+				$self->_debug(__LINE__," consistence 4 failed");
 			}
-			else { #map path into a tables stack 
-				$params{STACK}=[] unless defined $params{STACK};
-				push @{$params{STACK}},{ T => $params{T} };
-				$params{PATH}->{$path}=$params{STACK}; 
-				print STDERR "(D $tag) register table path '$path' with ("
-					.join(',',map { $_->{T}->get_sql_name.(defined $_->{C} ? '.'.$_->{C}->get_sql_name : '') } @{$params{PATH}->{$path}})
-					.")\n"
-					if $params{DEBUG};
-			}
+=cut
+			confess "check consistence 4 failed " if ref($tc) eq 'HASH' && $tc->{C}->get_full_name ne $ret->{C}->get_full_name;
 		}
 	}
 	else {
-		confess "(E $tag) path not defined\n";
+		my $p=$params{PATH};
+		$p->{$path}=$ret;
+		if (my $ns=$params{XML_NAMESPACES}) {
+			for my $n(@$ns) {
+				next if $n eq 'xs';
+				my $newpath=join('/',map {  length($_) ? $n.':'.$_ : $_;    } split('/',$path));
+				$p->{$newpath}=$ret;
+			}
+		}
 	}
+
 	return $path;	
 }
 
+
 sub _resolve_path_ref {
-	my ($table,$col,$path_ref,%params)=@_;
-	print STDERR "(D ",$params{TAG},") col '",$col->get_full_name,"' ref path  '$path_ref'\n"
-		if $params{DEBUG};
+	my ($self,$table,$col,$path_ref,%params)=@_;
+	$self->_debug($params{TAG},'col',"'".$col->get_full_name."'","ref path  '$path_ref'");
 	return $path_ref if ref($path_ref) =~/::table/;
 	my $tab_ref=$params{TYPE_PATHS}->{$path_ref};
 	return $tab_ref if defined $tab_ref;
@@ -82,7 +118,7 @@ sub _resolve_path_ref {
 }
 
 sub _resolve_relative_path {
-	my ($startpath,$table,$relative_path,%params)=@_;
+	my ($self,$startpath,$table,$relative_path,%params)=@_;
 	my $tag=$params{TAG};
 	confess "(E $tag) null relative path\n" unless $relative_path;
 	my ($path,$x,$t)=($relative_path,-1,$table);
@@ -94,25 +130,26 @@ sub _resolve_relative_path {
 }
 
 sub _mapping_path {
-	my ($table,%params)=@_;
+	my ($self,$table,%params)=@_;
 	my $tag=$params{TAG};
-	if ($table->get_path) {
-		_register_path(%params,T => $table,C => undef,TAG => __LINE__);
+	if ($table->get_path && !$table->is_group_type) {
+		$self->_register_path(%params,T => $table,C => undef,TAG => __LINE__);
 		$params{STACK}=[];
 	}
 	for my $col($table->get_columns) {
 		next if $col->is_pk;	
 		if (my $path_ref=$col->get_path_reference) {
-			if (ref($path_ref) =~/::table/) {  #the column ref a table (unpathed ?)
+			if (ref($path_ref) =~/::table/) {  #the column ref a table
 				if ($col->is_internal_reference) {
 					$col->set_attrs_value(TABLE_REFERENCE => $path_ref);
-					_register_path(%params,T => $table,C => $col,TAG => __LINE__)
+					$self->_register_path(%params,T => $table,C => $col,TAG => __LINE__)
 				}
 				else {
+					$self->_link_tables($table,$col,$path_ref);;
 					$col->set_attrs_value(TABLE_REFERENCE => $path_ref);
 					my $orig_path_name=$params{ORIG_PATH_NAME};
 					if (my $path=$col->get_path) {
-						$orig_path_name=_resolve_relative_path(
+						$orig_path_name=$self->_resolve_relative_path(
 							nvl($params{ORIG_PATH_NAME},$table->get_path)
 							,$table
 							,$path
@@ -123,19 +160,20 @@ sub _mapping_path {
 					}
 					my @stack=({ T =>  $table,C => $col });
 					@stack=(@{$params{STACK}},@stack) unless $table->get_path; 
-					_mapping_path($path_ref,%params,STACK => \@stack,ORIG_PATH_NAME => $orig_path_name);
+					$self->_mapping_path($path_ref,%params,STACK => \@stack,ORIG_PATH_NAME => $orig_path_name);
 				}
 			}
 			else {
 				confess "(E $tag) $path_ref: the column has internal reference and path_ref is not a table: ".$table->get_sql_name.'.'.$col->get_sql_name."\n"
 					 if $col->is_internal_reference;
-				my $t=_resolve_path_ref($table,$col,$path_ref,%params,TAG => __LINE__);
+				my $t=$self->_resolve_path_ref($table,$col,$path_ref,%params,TAG => __LINE__);
 				croak "$path_ref: path not resolved from ".$table->get_sql_name.'.'.$col->get_sql_name."\n" 
 					unless defined $t;
+				$self->_link_tables($table,$col,$t);
 				$col->set_attrs_value(TABLE_REFERENCE => $t);
 				my $orig_path_name=$params{ORIG_PATH_NAME};
 				if (my $path=$col->get_path) {
-					$orig_path_name=_resolve_relative_path(
+					$orig_path_name=$self->_resolve_relative_path(
 						nvl($params{ORIG_PATH_NAME},$table->get_attrs_value qw(PATH))
 						,$table
 						,$path
@@ -144,12 +182,12 @@ sub _mapping_path {
 					); 
 				}
 				my @stack=({ T =>  $table,C => $col });
-				@stack=(@{$params{STACK}},@stack) unless $table->get_path;				
-				_mapping_path($t,%params,STACK => \@stack,ORIG_PATH_NAME => $orig_path_name);
+				@stack=(@{$params{STACK}},@stack) if ! $table->get_path || $table->is_group_type;				
+				$self->_mapping_path($t,%params,STACK => \@stack,ORIG_PATH_NAME => $orig_path_name);
 			}
 		}
 		else {
-			_register_path(%params,T => $table,C => $col,TAG => __LINE__)
+			$self->_register_path(%params,T => $table,C => $col,TAG => __LINE__)
 		}
 	}
 	return undef;
@@ -159,8 +197,11 @@ sub mapping_paths {
 	my ($self,$root_table,$type_paths,%params)=@_;
 	my %path_translate=();
 	my $p=$self->_fusion_params(%params);
-	_mapping_path($root_table,%$p,PATH => \%path_translate,TYPE_PATHS => $type_paths,STACK => []);
+	my %savekey=%$self;
+	$self->{DEBUG}=$params{DEBUG} if exists $params{DEBUG};
+	$self->_mapping_path($root_table,%$p,PATH => \%path_translate,TYPE_PATHS => $type_paths,STACK => []);
 	$self->set_attrs_value(TC => \%path_translate);
+	$self->{DEBUG}=$savekey{DEBUG};
 	return $self;
 }
 
@@ -170,6 +211,14 @@ sub resolve_path { #return an array if resolve into tables otherwise an hash
 	my $a=$self->{TC}->{$path};
 	croak "$path: path not resolved ".nvl($params{TAG}) unless defined $a;
 	return $a;
+}
+
+sub resolve_column_link {
+	my ($self,$t1,$t2,%params)=@_;
+	my ($n1,$n2)=($t1->get_sql_name,$t2->get_sql_name);
+	my $col=$self->{LINK_TABLES}->{$n1}->{$n2};
+	croak $n1.' => '.$n2.": link not resolved \n" unless defined $col;
+	return $col;
 }
 
 sub new {
@@ -245,6 +294,12 @@ resolve_path - return the table and the column associated  to the the pathnode
 		DEBUG - emit debug info 
 
 
+resolve_column_link - return a column that link 2 tables
+
+	the arguments are  a parent table and a child tables
+	
+
+
 set_attrs_value   - set a value of attributes
 
 	the arguments are a pairs NAME => VALUE	
@@ -255,6 +310,7 @@ set_attrs_value   - set a value of attributes
 get_attrs_value  - return a list  of attributes values
 
 	the arguments are a list of attributes name
+
 
 =head1 EXPORT
 

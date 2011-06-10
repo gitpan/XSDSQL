@@ -63,6 +63,66 @@ sub new {
 }
 
 
+
+{
+	my $filter=undef;
+	$filter=sub { #recursive function
+		my ($col,$table,%params)=@_;
+		my $newcol=$col->shallow_clone;  #clone the column for add ALIAS_NAME attr
+		my $table_ref=$newcol->get_table_reference;
+		if ($newcol->get_path_reference && !$table_ref) {  #confess the error 
+			my $path_reference=$newcol->get_path_reference;
+			if (ref($path_reference) =~/::table$/) {
+				my $t=$path_reference;
+				$path_reference=$t->get_attrs_value qw(PATH);
+				$path_reference=$t->get_sql_name unless $path_reference;
+			}
+			confess $path_reference.": not a table ref\n";
+		}
+		my $viewable= $newcol->get_path_reference && $table_ref->get_max_occurs <= 1   || $newcol->is_pk && !$params{START_TABLE} ? 0 : 1;
+		my $join_table=defined $table_ref && $table_ref->get_max_occurs <= 1 ? $table_ref->shallow_clone : undef; #clone the table for add ALIAS_NAME attr
+		$newcol->set_attrs_value(
+			VIEWABLE 		=> $viewable
+			,TABLE			=> $table
+		);
+		if ($viewable) { #set the alias for view
+			my $sql_name=delete $newcol->{SQL_NAME};
+			my $alias_name=$newcol->get_sql_name(%params); #create a unique alias name
+			$newcol->set_attrs_value(SQL_NAME	=> $sql_name,ALIAS_NAME	=> $alias_name);
+		}		
+		my @ret=($newcol);
+		if (defined $join_table) {
+			++${$params{ALIAS_COUNT}};
+			$join_table->set_attrs_value(ALIAS_COUNT => ${$params{ALIAS_COUNT}});
+			$newcol->set_attrs_value(JOIN_TABLE => $join_table);
+			push @ret,map { $filter->($_,$join_table,%params,START_TABLE => 0) } $join_table->get_columns;
+		}
+		return @ret;
+	};
+	sub _get_columns {
+		my ($self,$table,%params)=@_;
+		my $t=$table->shallow_clone;
+		my $alias_count=0;
+		$t->set_attrs_value(ALIAS_COUNT => $alias_count);
+		my $colname_list={};
+		my @cols=map { $filter->($_,$t,COLUMNNAME_LIST => $colname_list,ALIAS_COUNT => \$alias_count,START_TABLE => 1,SCHEMA => $params{SCHEMA})} $t->get_columns;
+		return @cols;
+	}
+
+}
+
+sub get_view_columns {
+	my ($self,$table,%params)=@_;
+	my @cols=grep($_->{VIEWABLE},$self->_get_columns($table,%params));
+	return wantarray ? @cols : \@cols;
+}
+
+sub get_join_columns {
+	my ($self,$table,%params)=@_;
+	my @cols=grep(defined $_->get_attrs_value qw(JOIN_TABLE),$self->_get_columns($table,%params));
+	return wantarray ? @cols : \@cols;
+}
+
 1;
 
 

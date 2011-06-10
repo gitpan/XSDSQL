@@ -13,7 +13,7 @@ sub get_next_sequence {
 		$self->{SEQUENCE_NAME}=$params{SEQUENCE_NAME};
 	}
 	croak "SEQUENCE_NAME param not set" unless defined $self->{SEQUENCE_NAME}; 
-	$self->{PREPARE_SEQUENCE}=$self->{DB_CONN}->prepare("select nextval('".$self->{SEQUENCE_NAME}."')")
+	$self->{PREPARE_SEQUENCE}=$self->{DB_CONN}->prepare("select nextval('".$self->{EXECUTE_OBJECTS_PREFIX}.$self->{SEQUENCE_NAME}.$self->{EXECUTE_OBJECTS_SUFFIX}."')")
 		unless defined $self->{PREPARE_SEQUENCE};
 	$self->{PREPARE_SEQUENCE}->execute;
 	my $r=$self->{PREPARE_SEQUENCE}->fetchrow_arrayref;

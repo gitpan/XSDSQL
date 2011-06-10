@@ -97,7 +97,7 @@ sub line_comment  {  # --
 sub quote_string {
 	my ($self,$p)=@_;
 	my $c=$$p;
-	return '' unless  $c =~/^['"]$/;
+	return '' unless  $c =~/^['"]$/;	#'
 	my $fd=$self->{FD};
 	my $b=$c;
 	while(length(my $c1=$fd->get_char)) {

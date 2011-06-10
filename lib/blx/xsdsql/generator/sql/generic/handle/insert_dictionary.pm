@@ -44,16 +44,18 @@ sub _get_end_value_constant {
 	return ")";	
 }
 
+
 sub get_binding_objects  {
 	my ($self,$schema,%params)=@_;
-	my @t=map { $schema->get_dictionary_table($_,%params); } qw (TABLE_DICTIONARY COLUMN_DICTIONARY RELATION_DICTIONARY);
-	return wantarray ? @t : \@t;
+	my $root_table=$schema->get_root_table;
+	return wantarray ? ( $root_table ) : [ $root_table ];
 }
 
 
 sub table_header {
 	my ($self,$table,%params)=@_;
 	my $schema=$params{SCHEMA};
+
 	croak "param SCHEMA not defined " unless defined $schema;
 	my $dic=$schema->get_dictionary_table qw(TABLE_DICTIONARY);
 	my $data=$table->get_dictionary_data qw(TABLE_DICTIONARY);

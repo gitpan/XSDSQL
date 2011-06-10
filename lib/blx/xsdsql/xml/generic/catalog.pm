@@ -12,6 +12,8 @@ use constant {
 				,BEGIN_COMMENT				=> '/*'
 				,END_COMMENT				=> '*/'
 				,COMMAND_TERMINATOR			=> ';'
+				,MAX_COLUMNS_VIEW			=> -1  #unlimited
+				,MAX_JOINS_VIEW				=> -1  #unlimited
 };
 
 
@@ -20,8 +22,7 @@ our %_ATTRS_W=();
 
 
 sub new {
-	my $classname=shift;
-	my %params=@_;
+	my ($classname,%params)=@_;
 	return bless(\%params,$classname);
 }
 
@@ -34,6 +35,10 @@ sub get_begin_comment { return 	BEGIN_COMMENT; }
 sub get_end_comment {	return END_COMMENT; }
 
 sub command_terminator { return COMMAND_TERMINATOR; }
+
+sub get_max_columns_view { return MAX_COLUMNS_VIEW; }
+
+sub get_max_joins_view { return MAX_JOINS_VIEW; }
 
 sub comment {
 	my $self=shift;
@@ -114,6 +119,12 @@ get_end_comment - return the characters that it's interpreted as  a end comment
 
 
 command_terminator  - return the characters that it's interpreted as a command terminator
+
+
+get_max_columns_view - return the max number of columns into a view
+
+
+get_max_joins_view  - return the max number of joins into a view
 
 
 comment  - return a text enclosed by  comment symbols

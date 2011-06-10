@@ -31,10 +31,28 @@ use constant {
 our %_ATTRS_R=();
 our %_ATTRS_W=();
 
+sub _debug {
+	return $_[0] unless $_[0]->{DEBUG};
+	my ($self,$n,@l)=@_;
+	$n='<undef>' unless defined $n; 
+	print STDERR $self->{DEBUG_NAME},' (D ',$n,'): ',join(' ',grep(defined $_,@l)),"\n"; 
+	return $self;
+}
+
+sub _error {
+	my ($self,$n,@l)=@_;
+	$n='<undef>' unless defined $n; 
+	croak $self->{DEBUG_NAME}.' (E ',$n,'): '.join(' ',grep(defined $_,@l))."\n"; 
+}
+
 sub new {
 	my ($class,%params)=@_;
-	my %p=map {  ($_,$params{$_}) }  qw (DB_CONN SEQUENCE_NAME DEBUG); 
+	my %p=map {  ($_,$params{$_}) }  qw (DB_CONN SEQUENCE_NAME DEBUG DEBUG_NAME EXECUTE_OBJECTS_PREFIX EXECUTE_OBJECTS_SUFFIX); 
 	croak "no DB_CONN " unless defined $p{DB_CONN};
+	$p{DEBUG_NAME}='undef_caller' unless defined $p{DEBUG_NAME}; 
+	for my $i qw(EXECUTE_OBJECTS_PREFIX EXECUTE_OBJECTS_SUFFIX) {
+		$p{$i}='' unless defined $p{$i};
+	}
 	return bless \%p,$class;
 }
 
@@ -79,9 +97,10 @@ sub _create_prepare {
 	my ($self,$sql,%params)=@_;
 	my $tag=delete $params{TAG};
 	croak "$sql: already prepared" if defined $self->{STH};
-	print STDERR "(D ",nvl($tag),") $sql: prepare\n" if $self->{DEBUG};
+	$self->_debug($tag,'PREPARE',$sql);
 	$self->{STH}=$self->get_connection()->prepare($sql,%params);
 	$self->{SQL}=$sql;
+	$self->_error($tag,'PREPARE',$sql) unless $self->{STH};
 	return $self;
 }
 
@@ -91,13 +110,16 @@ sub bind_column {
 	croak Dumper($col).": the column is not a class"  unless ref($col) =~/::/;
 	my $name=$col->get_sql_name;
 	croak Dumper($value).'the bind value is not a scalar for column '.$name if ref($value) ne '';
-	print STDERR "(D ",nvl($params{TAG}),") bind column '".$self->{BINDING_TABLE}->get_sql_name.".$name' with value '".nvl($value,'<undef>')."'\n" if $self->{DEBUG};
+	$self->_debug($params{TAG},'BIND',$col->get_full_name,"with value '".nvl($value,'<undef>')."'"); 
 	croak $col->get_full_name." wrong binding - the bind is for table ".$self->get_binding_table->get_sql_name."\n"
 		if $self->get_binding_table->get_sql_name ne $col->get_table_name;
-	$self->{STH}->bind_param(':'.$name,$value);
-	my $pk_seq=$col->get_attrs_value qw(PK_SEQ);
-	my $col_seq=$col->get_attrs_value(qw(COLUMN_SEQUENCE));
-	croak $col->get_attrs_value(qw(PATH)).": COLUMN_SEQUENCE attr non set\n" unless defined $col_seq;
+	$self->{STH}->bind_param($col->get_column_sequence + 1,$value);
+#	my $pk_seq=$col->get_attrs_value qw(PK_SEQ);
+#	my $col_seq=$col->get_attrs_value(qw(COLUMN_SEQUENCE));
+	my ($pk_seq,$col_seq)=($col->get_pk_seq,$col->get_column_sequence);
+#	croak $col->get_attrs_value(qw(PATH)).": COLUMN_SEQUENCE attr non set\n" unless defined $col_seq;
+	croak $col->get_full_name.": COLUMN_SEQUENCE attr non set\n" unless defined $col_seq;
+	$self->{STH}->bind_param($col_seq + 1,$value);
 	$self->{BINDING_VALUES}->[$col_seq]={ COL => $col,VALUE => $value };
 	$self->{EXECUTE_PENDING}=1;
 	return $self;
@@ -116,16 +138,17 @@ sub _get_column_value_init {
 
 sub _get_insert_sql {
 	my ($self,$table,%params)=@_;
-	return "insert into ".$table->get_sql_name
+	return "insert into ".$self->{EXECUTE_OBJECTS_PREFIX}.$table->get_sql_name.$self->{EXECUTE_OBJECTS_SUFFIX}
 			." ( ".join(',',map { $_->get_sql_name } $table->get_columns)
-			. ") values ( ".join(',',map { ':'.$_->get_sql_name } $table->get_columns)
+			. ") values ( ".join(',',map { '?' } $table->get_columns)
 			. ")"
 }
 
 sub insert_binding  {
 	my ($self,$table,%params)=@_;
 	unless (defined $self->{BINDING_TYPE}) {
-		croak "table not defined " unless defined $table;
+		croak "execute pending\n" if $self->{EXECUTE_PENDING};
+		croak "table not defined\n" unless defined $table;
 		my $sql=$self->_get_insert_sql($table,%params);
 		$self->_create_prepare($sql,%params);
 		$self->{BINDING_TYPE}=BINDING_TYPE_INSERT;
@@ -154,9 +177,11 @@ sub _get_delete_sql {
 	my ($self,$table,%params)=@_;
 	my @cols=(($table->get_pk_columns)[0]);
 	return "delete from "
+			.$self->{EXECUTE_OBJECTS_PREFIX}
 			.$table->get_sql_name
+			.$self->{EXECUTE_OBJECTS_SUFFIX}
 			." where "
-			.join(' and ',map { $_->get_sql_name.'=:'.$_->get_sql_name } @cols);
+			.join(' and ',map { $_->get_sql_name.'=?'} @cols);
 }
 
 sub delete_rows_for_id  {
@@ -192,7 +217,14 @@ sub delete_rows_for_id  {
 sub _get_query_row_sql {
 	my ($self,$table,%params)=@_;
 	my @cols=$table->get_pk_columns;
-	my $sql="select * from ".$table->get_sql_name." where ".$cols[0]->get_sql_name."=:".$cols[0]->get_sql_name." order by ".$cols[0]->get_sql_name;
+	my $sql="select * from "
+		.$self->{EXECUTE_OBJECTS_PREFIX}
+		.$table->get_sql_name
+		.$self->{EXECUTE_OBJECTS_SUFFIX}
+		." where "
+		.$cols[0]->get_sql_name
+		."=? order by "
+		.$cols[0]->get_sql_name;
 	$sql.=",".$cols[1]->get_sql_name if scalar(@cols) > 1;
 	return $sql;
 }
@@ -241,8 +273,13 @@ sub get_binding_values {
 }
 
 sub get_binding_table {
-	my ($self,%prepare)=@_;
-	return $self->{BINDING_TABLE};
+	my ($self,%params)=@_;
+	my $t=$self->{BINDING_TABLE};
+	if ($self->{DEBUG} && defined $params{TAG}) {
+		my $name=$t ? $t->get_sql_name : '<undef>';
+		$self->_debug($params{TAG},' get binding table:',$name);
+	}
+	return $t;
 }
 
 sub execute {
@@ -251,20 +288,30 @@ sub execute {
 	unless ($self->{EXECUTE_PENDING} || $params{NO_PENDING_CHECK}) {
 		my $t=$self->get_binding_table;
 		my $table_name=$t ? $t->get_sql_name : '<not binding table>';
-		croak '(D '.nvl($tag).") $table_name: not prepared for execute" ;
+		$self->_debug($tag,"$table_name: not prepared for execute");
+		croak "$table_name: not prepared for execute" ;
 	}
-	$self->get_sth->execute(%params);
-	print STDERR "(D ",nvl($tag),") EXECUTED:    '".$self->{SQL}."' with keys ("
-		.join(',',map { 
-						my $x=nvl($_,'<null>'); 
-						$x=~s/'/''/g; #'
-						$x="'".$x."'" unless $x=~/^\d+$/;
-						$x;
-				} $self->get_binding_values
-		)
-		.")\n"  if $self->{DEBUG}; 
+	my $r=$self->get_sth->execute;
+
+	if ($self->{DEBUG} || !$r) {
+		my @data=(
+			$tag
+			,'EXECUTED'
+			,$self->{SQL},' with data ('
+			,join(',',map { 
+							my $x=nvl($_,'<null>'); 
+							$x=~s/'/''/g; #'
+							$x="'".$x."'" unless $x=~/^\d+$/;
+							$x;
+					} $self->get_binding_values
+			)
+			,')'
+		);
+		$self->_debug(@data);
+		$self->_error(@data) unless $r;		
+	}
 	delete $self->{EXECUTE_PENDING};
-	return $self;
+	return $r;
 }
 
 
@@ -324,9 +371,12 @@ this module defined the followed functions
 new - constructor 
 
 	PARAMS: 
-		SEQUENCE_NAME => sequence name for generate ID for insert  
-		DB_CONN       => DBI instance
-
+		SEQUENCE_NAME 	=> sequence name for generate ID for insert  
+		DB_CONN       	=> DBI instance
+		DEBUG_NAME 		=> display name for debug - default 'undef_caller'
+		DEBUG			=> enable debug
+		EXECUTE_OBJECTS_PREFIX =>  prefix for objects in execution
+		EXECUTE_OBJECTS_SUFFIX =>  suffix for objects in execution
 
 get_connection - return the value of DB_CONN param
 

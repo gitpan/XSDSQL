@@ -35,4 +35,10 @@ Revision history for Perl extension blx::xsdsql
 	- complete restyle of parsing algorithms
 	- minor bugs corretted 
 	
- 
+0.06 June 11 12:00 2011
+	- xsd group implemented 
+	- a first implementation of namespace 
+	- new options in test.pl/xsd2sql/xml.pl
+	- bugs corrected 
+	 
+	
