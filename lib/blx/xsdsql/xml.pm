@@ -679,6 +679,15 @@ sub _decode {
 }
 
 
+sub _tag_with_ns {
+	my $ns=shift;
+	$ns=$ns->[0] if ref($ns) eq 'ARRAY';
+	$ns='' unless defined $ns;
+	$ns=$ns.':' if length($ns) && $ns!~/:$/;
+	return $ns;
+}
+	
+
 sub _write_xml {
 	my ($self,%params)=@_;
 	my $p=$self->{_PARAMS};
@@ -696,14 +705,16 @@ sub _write_xml {
 			if (my $table=$col->get_table_reference) {
 				my $tag=basename($table->get_attrs_value qw(PATH));
 				my @root_tag_params=@{$p->{ROOT_TAG_PARAMS}};
-				croak "param ROOT_TAG_PARAMS is not an array of pairs key=value\n" 
+				croak join(",",@root_tag_params).": param ROOT_TAG_PARAMS is not an array of pairs key,value\n" 
 					if scalar(@root_tag_params) % 2;
-				$ostr->startTag($tag,@root_tag_params);
 				my %root_tag_params=@root_tag_params;
-				my @namespace_prefix=grep(!/^xmlns:xs/,keys(%root_tag_params));
-				croak "multiple namespaces are not suppported\n" if scalar(@namespace_prefix) > 1;
+				my @namespace_prefix=map {  my @out=(/^xmlns:(\w+)/ && $1 ne 'xsi' ? ($1) : ()); @out; } keys(%root_tag_params); 				
+				croak join(",",@namespace_prefix).": multiple xml namespaces are not suppported\n" if scalar(@namespace_prefix) > 1;
+				$tag=_tag_with_ns(\@namespace_prefix).$tag;
+				$ostr->startTag($tag,@root_tag_params);
 				$self->_write_xml(ID => $row->[$i],TABLE	=> $table,LEVEL	=> 1,NAMESPACE_PREFIX => \@namespace_prefix);
-				$ostr->endTag($tag) if defined $tag;
+				$ostr->endTag($tag);
+
 			}
 			else { 
 				$self->_write_xml(ROW_FOR_ID => $row,TABLE	=> $root,LEVEL	=> 1);
@@ -719,14 +730,8 @@ sub _write_xml {
 	$r=$self->_prepared_query($table,ID => $params{ID},TAG => __LINE__)->fetchrow_arrayref unless defined $r;
 	confess nvl($params{ID}).": no such id\n" unless defined $r;
 	$self->_prepared_delete($table,ID => $r->[0],TAG => __LINE__) if $p->{DELETE_ROWS};
-	my $ns=sub {
-		my $ns=shift;
-		$ns=$ns->[0] if ref($ns) eq 'ARRAY';
-		$ns='' unless defined $ns;
-		$ns=$ns.':' if length($ns) && $ns!~/:$/;
-		return $ns;
-	}->($params{NAMESPACE_PREFIX});
-	
+	my $ns=_tag_with_ns($params{NAMESPACE_PREFIX});
+
 	for my $i(1..scalar(@$r) - 1) {
 		my $col=($table->get_columns)[$i];
 		next unless defined  $col->get_xsd_seq;

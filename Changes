@@ -41,4 +41,6 @@ Revision history for Perl extension blx::xsdsql
 	- new options in test.pl/xsd2sql/xml.pl
 	- bugs corrected 
 	 
+0.06.1 June 16 16:13 2011
+	- corretted algo bugs on param ROOT_TAG_PARAMS  for method blx::xsdsql::xml::write
 	
