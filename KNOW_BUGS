@@ -68,7 +68,9 @@ in this xsd code:
 	</xs:choice>
 
 the element e1 ed e1-e2.e1 has the same xpath
-the result is impredictable 
-but ma in debug mode the conflict is signaled 
+the parser takes the element of the group
+
+
+
 
 

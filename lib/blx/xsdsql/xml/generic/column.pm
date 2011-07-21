@@ -187,7 +187,7 @@ sub get_column_sequence {
 
 sub get_sql_name {
 	my ($self,%params)=@_;
-	return $self->{SQL_NAME} if defined $self->{SQL_NAME};
+	return $self->{SQL_NAME} if defined $self->{SQL_NAME} && !$params{FORCE};
 	my $l=$params{COLUMNNAME_LIST};
 	confess "param COLUMNNAME_LIST not defined " unless defined $l; 
 	my $name= $self->_translate_path(%params);
@@ -196,7 +196,7 @@ sub get_sql_name {
 	$name=$self->_resolve_invalid_name($name,%params);
 	$name=$self->_adjdup_sql_name($name,%params) if exists $l->{uc($name)};
 	confess "duplicate column name" if exists $l->{uc($name)}; 
-	$l->{uc($name)}=undef;
+	$l->{uc($name)}=1;
 	$self->{SQL_NAME}=$name;
 	return $name;
 }
@@ -209,6 +209,12 @@ sub is_internal_reference {
 sub is_group_reference {
 	my ($self,%params)=@_;
 	return $self->get_attrs_value qw(GROUP_REF);	
+}
+
+
+sub is_choice {
+	my ($self,%params)=@_;
+	return  $self->get_attrs_value qw(CHOICE);
 }
 
 sub get_min_occurs {
@@ -310,11 +316,16 @@ sub factory_dictionary_columns {
 			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'xsd_seq',COMMENT => 'xsd sequence start',PK_SEQ => undef)
 			,$c->factory_column(undef,NAME => 'type',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { C => 'complex type',S => 'simple_type' },COMMENT => 'values: C - the table is a simple_type - S - the table is a complex_type')
 			,$c->factory_column(undef,NAME => 'is_group',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => 'is a group' },COMMENT => 'values: Y - the table is a group type')
-			,$c->factory_column(undef,NAME => 'is_choise',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => 'is a choise' },COMMENT => 'values: Y - the table is a choise')
+			,$c->factory_column(undef,NAME => 'is_choice',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => 'is a choice' },COMMENT => 'values: Y - the table is a choice')
 			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'min_occurs',PK_SEQ => undef)
 			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'max_occurs',PK_SEQ => undef)
 			,$c->factory_column(undef,NAME => 'path_name',SQL_TYPE	=> 'VARCHAR')
 			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'deep_level',COMMENT => 'the root has level 0',PK_SEQ => undef)
+			,$c->factory_column(undef,NAME => 'parent_path',SQL_TYPE	=> 'VARCHAR',COMMENT => 'path of the parent table if the table is unpathed')
+			,$c->factory_column(undef,NAME => 'is_root_table',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => 'is the root table' },COMMENT => 'values: Y - the table is the root table')
+			,$c->factory_column(undef,NAME => 'is_unpath',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => 'is an unpath table' },COMMENT => 'values: Y - the table has not an associated path')
+			,$c->factory_column(undef,NAME => 'is_internal_ref',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => 'is an occurs of simple type' },COMMENT => 'values: Y - the table is an occurs of simple type')
+			,$c->factory_column(undef,NAME => 'view_name',SQL_TYPE	=> 'VARCHAR',SQL_SIZE => $c->get_name_maxsize,PK_SEQ => 0,COMMENT => 'the view name associated to the table')
 		)
 		: $dictionary_type eq 'COLUMN_DICTIONARY' 
 		? (
@@ -322,7 +333,7 @@ sub factory_dictionary_columns {
 			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'column_seq',COMMENT => 'a column sequence into the table',PK_SEQ => 1)
 			,$c->factory_column(undef,NAME => 'column_name',SQL_TYPE	=> 'VARCHAR',SQL_SIZE => $c->get_name_maxsize) 
 			,$c->factory_column(undef,NAME => 'path_name',SQL_TYPE	=> 'VARCHAR') 
-			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'xsd_seq',COMMENT => 'xsd sequence into a choise',PK_SEQ => undef)
+			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'xsd_seq',COMMENT => 'xsd sequence into a choice',PK_SEQ => undef)
 			,$c->factory_column(undef,NAME => 'path_name_ref',SQL_TYPE	=> 'VARCHAR',COMMENT => 'the column reference a table') 
 			,$c->factory_column(undef,NAME => 'table_name_ref',SQL_TYPE	=> 'VARCHAR',SQL_SIZE => $c->get_name_maxsize,COMMENT => 'the column reference a table') 
 			,$c->factory_column(undef,NAME => 'is_internal_ref',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => 'has internal_reference' },COMMENT => 'values: Y - the column is an array of simple_type')
@@ -330,6 +341,7 @@ sub factory_dictionary_columns {
 			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'min_occurs',COMMENT => 'the ref table has this min_occurs or the column has internal reference',PK_SEQ => undef)
 			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'max_occurs',COMMENT => 'the ref table has this max_occurs or the column has internal reference',PK_SEQ => undef )
 			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'pk_seq',COMMENT => 'the column is part of the primary key - this is the sequence number',PK_SEQ => undef )
+			,$c->factory_column(undef,NAME => 'is_choice',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => ' is part of a choice' },COMMENT => 'values: Y - the column is part of a choice')
 		)
 		: $dictionary_type eq 'RELATION_DICTIONARY' 
 		? (
@@ -350,18 +362,21 @@ sub get_dictionary_data {
 	croak "dictionary type not defined" unless defined $dictionary_type;
 	if ($dictionary_type eq 'COLUMN_DICTIONARY') {
 		my $table_ref=$self->get_table_reference;
+		my $path_ref=$self->get_path_reference;
+		$path_ref=$path_ref->get_sql_name if ref($path_ref) ne '';
 		my %data=(
 			COLUMN_SEQ  		=> $self->get_column_sequence
 			,COLUMN_NAME		=> $self->get_sql_name
 			,PATH_NAME			=> $self->get_attrs_value qw(PATH)
 			,XSD_SEQ			=> $self->get_xsd_seq
-			,PATH_NAME_REF		=> $self->get_path_reference
+			,PATH_NAME_REF		=> $path_ref
 			,TABLE_NAME_REF		=> ($table_ref ? $table_ref->get_sql_name : undef)
 			,IS_INTERNAL_REF	=> ($self->is_internal_reference ? 'Y' : undef)
 			,IS_GROUP_REF		=> ($self->is_group_reference ? 'Y' : undef)
 			,MIN_OCCURS			=> $self->get_min_occurs
 			,MAX_OCCURS			=> $self->get_max_occurs
-			,PK_SEQ				=> $self->get_pk_seq 
+			,PK_SEQ				=> $self->get_pk_seq
+			,IS_CHOICE			=> $self->is_choice
 		);	
 		return wantarray ? %data : \%data;
 	}
@@ -400,8 +415,8 @@ new - constructor
 
 	PARAMS:
 		COLUMN_SEQUENCE - a sequence number into the table - the first column has sequence 0
-		XSD_SEQ  - a sequence number into a choise 
-		MIN_OCCURS - default 1
+		XSD_SEQ  - a sequence number into xsd 
+		MIN_OCCURS - default 1 
 		MAX_OCCURS - default 1
 		NAME  - a basename of xml node
 		PATH 	- a path name of xml xml node
@@ -409,14 +424,15 @@ new - constructor
 		TABLE_REFERENCE	- the table referenced by column
 		INTERNAL_REFERENCE - true if the column is an array of simple types
 		PK_SEQ  - sequence into the primary key 
-		GROUP_REF - the column reference a GROUP
+		GROUP_REF - true if the column reference a group
 		TABLE_NAME - the table name of the column
-		
+		CHOICE	- if true the column is part of a choice
+
+
 set_attrs_value   - set a value of attributes
 
 	the arguments are a pairs NAME => VALUE
 	the method return a self object
-
 
 
 get_attrs_value  - return a list  of attributes values
@@ -430,7 +446,12 @@ get_column_sequence - return the sequence into the table - the first column has 
 get_sql_type  - return the sql type of the column
 
 
-get_sql_name  - return the  name of the column
+get_sql_name  - return the  sql name of the column
+
+	PARAMS: 
+		COLUMNNAME_LIST - hash of sql columns name 
+			this param is mandatory if the column sql name must be set
+		FORCE - force the set of column	sql name
 
 
 get_min_occurs - return the value of the minoccurs into the xsd schema
@@ -443,6 +464,9 @@ is_internal_reference  - return true if the column is an array of simple types
 
 
 is_group_reference - return true if the column reference a xsd group
+
+
+is_choice  - return true if the column is a part of a choice 
 
 
 get_path		   - return the node path name
@@ -463,7 +487,7 @@ is_pk  - return true if the column is part of the primary key
 get_pk_seq - return the sequence into the primary key
 
 
-get_xsd_seq - return a sequence number into a choise
+get_xsd_seq - return a sequence number into a choice
 
 
 factory_column - factory a generic column object 

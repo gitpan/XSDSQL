@@ -70,17 +70,23 @@ sub new {
 		my ($col,$table,%params)=@_;
 		my $newcol=$col->shallow_clone;  #clone the column for add ALIAS_NAME attr
 		my $table_ref=$newcol->get_table_reference;
-		if ($newcol->get_path_reference && !$table_ref) {  #confess the error 
-			my $path_reference=$newcol->get_path_reference;
-			if (ref($path_reference) =~/::table$/) {
-				my $t=$path_reference;
-				$path_reference=$t->get_attrs_value qw(PATH);
-				$path_reference=$t->get_sql_name unless $path_reference;
-			}
-			confess $path_reference.": not a table ref\n";
-		}
-		my $viewable= $newcol->get_path_reference && $table_ref->get_max_occurs <= 1   || $newcol->is_pk && !$params{START_TABLE} ? 0 : 1;
-		my $join_table=defined $table_ref && $table_ref->get_max_occurs <= 1 ? $table_ref->shallow_clone : undef; #clone the table for add ALIAS_NAME attr
+
+#		if ((my $path_reference=$newcol->get_path_reference) && !$table_ref) {  #confess the error 
+#			if (ref($path_reference) =~/::table$/) {
+#				my $t=$path_reference;
+#				$path_reference=$t->get_attrs_value qw(PATH);
+#				$path_reference=$t->get_sql_name unless $path_reference;
+#			}
+#			confess $path_reference.": not a table ref\n";
+#		}
+#
+#		my $viewable= $newcol->get_path_reference && $table_ref->get_max_occurs <= 1   || $newcol->is_pk && !$params{START_TABLE} ? 0 : 1;
+#		my $join_table=defined $table_ref && $table_ref->get_max_occurs <= 1 ? $table_ref->shallow_clone : undef; #clone the table for add ALIAS_NAME attr
+		
+		my $viewable=$newcol->is_pk && !$params{START_TABLE} ? 0 : 1;
+		my $join_table=defined $table_ref && $table_ref->get_max_occurs <= 1 && $newcol->get_max_occurs <=1 ? $table_ref->shallow_clone : undef; #clone the table for add ALIAS_NAME attr
+
+
 		$newcol->set_attrs_value(
 			VIEWABLE 		=> $viewable
 			,TABLE			=> $table

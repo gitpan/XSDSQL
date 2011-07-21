@@ -35,7 +35,7 @@ sub column {
 	my $first_column=$col->get_attrs_value qw(COLUMN_SEQUENCE) == 0 ? 1 : 0;
 	my ($col_name,$col_type,$path)=($col->get_sql_name(%params),$col->get_sql_type(%params),$col->get_attrs_value qw(PATH));
 	my $comm=defined $path ? 'PATH: '.$path : '';
-	my $ref=$col->get_attrs_value qw(PATH_REFERENCE);
+	my $ref=$col->get_attrs_value qw(TABLE_REFERENCE);
 	$ref=$ref->get_sql_name if ref($ref) =~/::table/;
 	$comm.=defined $ref ? ' REF: '.$ref : '';
 	$comm=~s/^(\s+|\s+)$//;

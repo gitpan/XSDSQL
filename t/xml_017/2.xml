@@ -1,8 +1,6 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 
 <group_test>
-  <c>
-    <el2>el2_0</el2>
-    <el2>el2_1</el2>
-  </c>
+	<el0>el0</el0>
+	<el1>el1</el1>
 </group_test>

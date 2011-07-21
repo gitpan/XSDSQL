@@ -43,9 +43,9 @@ our %_ATTRS_R=(
 							my $self=shift;
 							return $self->{SIMPLE_TYPE} ? 1 : 0;
 			}
-			,CHOISE			=> sub {
+			,CHOICE			=> sub {
 							my $self=shift;
-							return $self->{CHOISE} ? 1 : 0;
+							return $self->{CHOICE} ? 1 : 0;
 			}
 			,GROUP_TYPE		=> sub {
 							my $self=shift;
@@ -73,14 +73,25 @@ sub new {
 
 sub add_columns {
 	my $self=shift;
-	$self->{COLUMNNAME_LIST}={} unless defined $self->{COLUMNNAME_LIST};
 	my $table_name=$self->get_sql_name;
+	my $cols=$self->get_attrs_value qw(COLUMNS);
+	my %cl=map {  (uc($_->get_sql_name),1); } @$cols;
+	my @newcols=();
 	for my $col(@_) {
-		$col->set_attrs_value(COLUMN_SEQUENCE => scalar(@{$self->{COLUMNS}}),TABLE_NAME => $table_name);
-		$col->get_sql_name(COLUMNNAME_LIST => $self->{COLUMNNAME_LIST}); #resolve sql_name
-		push @{$self->{COLUMNS}},$col;
+		$col->set_attrs_value(COLUMN_SEQUENCE => scalar(@$cols) + scalar(@newcols),TABLE_NAME => $table_name);
+		$col->get_sql_name(COLUMNNAME_LIST => \%cl,FORCE => 1); #resolve sql_name
+		push @newcols,$col;
 	}
-	return $self->get_columns;
+	push @$cols,@newcols;
+	return $self;
+}
+
+sub reset_columns {
+	my ($self,%params)=@_;
+	my $cols=[];
+	my $oldcols=defined wantarray ? $self->get_attrs_value('COLUMNS') : undef;
+	$self->set_attrs_value(COLUMNS => $cols);
+	return wantarray ? @$oldcols : $oldcols;
 }
 
 sub get_columns {
@@ -203,6 +214,12 @@ sub _reduce_sql_name {
 	return substr(join('_',@s),0,$maxsize);
 }
 
+sub _inc_xsd_seq {
+	my ($self,%params)=@_;
+	++$self->{XSD_SEQ};
+	return $self;
+}
+
 sub is_type {
 	my ($self,%params)=@_;
 	return $self->get_attrs_value qw(TABLE_IS_TYPE);
@@ -218,9 +235,9 @@ sub is_group_type {
 	return $self->get_attrs_value qw(GROUP_TYPE);
 }
 
-sub is_choise {
+sub is_choice {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(CHOISE);	
+	return $self->get_attrs_value qw(CHOICE);	
 }	
 
 sub get_path {
@@ -353,20 +370,32 @@ sub is_unpath {
 	return 0;
 }
 
+
+sub get_parent_path {
+	my ($self,%params)=@_;
+	return $self->is_unpath ? $self->get_attrs_value qw(PARENT_PATH) : undef;
+}
+
+
 sub get_dictionary_data {
 	my ($self,$dictionary_type,%params)=@_;
 	croak "dictionary_type (1^ arg)  non defined" unless defined $dictionary_type;
 	if ($dictionary_type eq 'TABLE_DICTIONARY') {
 		my %data=(
-			TABLE_NAME 		=> $self->get_sql_name
-			,XSD_SEQ 		=> $self->get_xsd_seq
-			,TYPE			=> ($self->is_simple_type ? 'S' : $self->is_type ? 'C' : undef)  
-			,IS_GROUP		=> $self->is_group_type
-			,IS_CHOISE		=> $self->is_choise
-			,MIN_OCCURS		=> $self->get_min_occurs
-			,MAX_OCCURS		=> $self->get_max_occurs
-			,PATH_NAME		=> $self->get_attrs_value qw(PATH)
-			,DEEP_LEVEL		=> $self->get_deep_level
+			TABLE_NAME 					=> $self->get_sql_name
+			,XSD_SEQ 					=> $self->get_xsd_seq
+			,TYPE						=> ($self->is_simple_type ? 'S' : $self->is_type ? 'C' : undef)  
+			,IS_GROUP					=> $self->is_group_type
+			,IS_CHOICE					=> $self->is_choice
+			,MIN_OCCURS					=> $self->get_min_occurs
+			,MAX_OCCURS					=> $self->get_max_occurs
+			,PATH_NAME					=> $self->get_attrs_value qw(PATH)
+			,DEEP_LEVEL					=> $self->get_deep_level
+			,PARENT_PATH				=> $self->get_parent_path
+			,IS_ROOT_TABLE				=> $self->is_root_table
+			,IS_UNPATH					=> $self->is_unpath
+			,IS_INTERNAL_REF			=> $self->is_internal_reference
+			,VIEW_NAME					=> $self->get_view_sql_name
 		);
 		return wantarray ? %data : \%data if scalar %data;
 	}
@@ -392,6 +421,8 @@ sub get_dictionary_data {
 	
 	croak "$dictionary_type: invalid value";
 }
+
+
 
 
 1;
@@ -432,7 +463,7 @@ new  - contructor
 		TABLE_IS_TYPE 		- the table is associated with type (simple or complex)
 		SIMPLE_TYPE 		- the table is associated with a simple type
 		GROUP_TYPE  		- the table is associated to an xsd group
-		CHOISE 				- the table is associated to a choise
+		CHOICE 				- the table is associated to a choice
 		MINOCCURS 			- the table as a minoccurs 
 		MAXOCCURS 			- the table as a maxoccurs
 		PATH    			- a node path name 
@@ -441,13 +472,21 @@ new  - contructor
 		DEEP_LEVEL			- a deep level - the root has level 0
 		INTERNAL_REFERENCE  - if true the the table is an occurs of simple types
 		TYPES  				- a pointer to an array of table types (only for root)
+		PARENT_PATH			- a path of parent table if table path is not set
 		TABLE_DICTIONARY 	- a pointer to table dictionary (only for root)
 		COLUMN_DICTIONARY 	- a pointer to column dictionary (only for root)
 		RELATION_DICTIONARY - a pointer to a relation dictionary (only for root)
+
 		
 add_columns - add columns to a table
-		
+ 		
+	the params are a list of columns
 	the method return a self object
+
+
+reset_columns - reset the columns of the table
+
+	the method return  the columns
 
 
 get_columns - return an array of columns object
@@ -455,13 +494,9 @@ get_columns - return an array of columns object
 
 add_child_tables - add child tables to a table
 
+	the params are a list of tables
 	the method return a self object
 
-
-resolve_path_for_table_type - if the table is associated with a type use this  method to return the real path associated
-
-	the method return a string
- 
  
 find_columns  - find columns that  match the pairs attributes => value
 
@@ -491,30 +526,29 @@ get_constraint_name  - return a constraint name
 	the first argument must be the constant 'pk' (primary key)
 
 
-get_path_resolved  - return a resolved path name associated 
-
-
-get_table_from_path_reference - return a table associated to a path - the path must be a child path
-
-	the first argument is a path reference 
-	params -
-		ROOT_TABLE - if is specified search the tables also into the types;
-
 get_pk_columns - return the primary key columns
+
 
 is_type	- return true if the table is associated to a xsd type
 
+
 is_simple_type - return true if the table is associated to a xsd simple type
 
-is_choise - return true if the table is associated to a xsd choise
+
+is_choice - return true if the table is associated to a xsd choice
+
 
 get_xsd_seq - return the  start xsd sequence 
 
+
 get_min_occurs - return the min occurs of the table
+
 
 get_max_occurs - return the max occurs of the table
 
+
 get_path	- return the xml path associated with table
+
 
 get_dictionary_data - return an hash of dictionary column name => value for the insert into dictionary
 	
@@ -523,11 +557,19 @@ get_dictionary_data - return an hash of dictionary column name => value for the 
 		RELATION_DICTIONARY - return data for relation dictionary
 		COLUMN_DICTIONARY - return data for column dictionary
 
+
 get_deep_level - return the deep level - the root has level 0
+
 
 is_internal_reference - return  true if the the table is an occurs of simple types
 
+
 is_unpath - return true if the table is not associated to a path
+
+
+get_parent_path - return the parent path if is_unpath is true
+
+
 
 =head1 EXPORT
 

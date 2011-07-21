@@ -489,7 +489,7 @@ my %H=(
 				if ($parent_table->is_unpath) {
 					if (my $p=$stack->{UNPATH_PREPARED}->{$parent_tag}) {
 						#confess "not implemented\n";
-						if 	($stack->{UNPATH_COLSEQ}->{$parent_tag} >= $parent_column->get_column_sequence) {
+						if 	($stack->{UNPATH_COLSEQ}->{$parent_tag} >= $parent_column->get_xsd_seq) {
 							$p->execute(TAG => __LINE__);
 							_insert_seq_inc($p,TAG => __LINE__);
 						}
@@ -500,7 +500,7 @@ my %H=(
 						$stack->{PREPARED}->bind_column($gran_parent_column,$id,TAG => __LINE__);
 						$stack->{UNPATH_PREPARED}->{$parent_tag}=$sth;
 					}
-					$stack->{UNPATH_COLSEQ}->{$parent_tag}=$parent_column->get_column_sequence;
+					$stack->{UNPATH_COLSEQ}->{$parent_tag}=$parent_column->get_xsd_seq;
 				} 
 				else {
 					$self->_debug(__LINE__,$curr_table->get_sql_name,': table is not an unpath ');
@@ -542,7 +542,7 @@ my %H=(
 			}
 		}
 		elsif ($tc->{C}->is_internal_reference) { #the column is an occurs of simple types
-$self->_debug(__LINE__,$tc->{C}->get_full_name,' has internal reference');
+			$self->_debug(__LINE__,$tc->{C}->get_full_name,' has internal reference');
 			my $prepared_tag=$tc->{C}->get_sql_name;
 			if ($stack->{INTERNAL_REFERENCE}->{$prepared_tag}) {
 				_insert_seq_inc($stack->{INTERNAL_REFERENCE}->{$prepared_tag},TAG => __LINE__); #increment the value of the seq column
@@ -736,8 +736,8 @@ sub _write_xml {
 		my $col=($table->get_columns)[$i];
 		next unless defined  $col->get_xsd_seq;
 		my $value=$r->[$i];
-		next unless defined $value;
 		if (my $table=$col->get_table_reference) {
+			next unless defined $value;
 			if (!$col->is_internal_reference) {
 				if (defined $table->get_attrs_value qw(PATH)) {
 					if (!$table->is_type) { 
@@ -781,8 +781,11 @@ sub _write_xml {
 		}
 		else {
 			if (my $path=$col->get_attrs_value(qw(PATH))) {
-				my $tag=$ns.basename($path);
-				$ostr->dataElement($tag,$value);                              
+				if (defined $value || $col->get_min_occurs > 0) {
+					my $tag=$ns.basename($path);
+					$value='' unless defined $value;
+					$ostr->dataElement($tag,$value);                              
+				}
 			}
 		}
 	}

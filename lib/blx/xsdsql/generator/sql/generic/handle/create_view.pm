@@ -25,7 +25,7 @@ sub _alias_table {
 sub table_header {
 	my ($self,$table,%params)=@_;
 	my $path=$table->get_attrs_value qw(PATH);
-	my $comm=defined  $path ? $table->comment('PATH: '.$path) : '';
+	my $comm=defined  $path ? $table->comment('ROOTPATH: '.$path) : '';
 	$self->{STREAMER}->put_line($self->_get_create_prefix,' ',$table->get_view_sql_name," as select  $comm");
 	my @cols=$self->_get_columns($table,%params);
 	my $colseq=0;

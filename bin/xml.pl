@@ -178,7 +178,7 @@ if (scalar(@ARGV) < 2) {
 }
 
 unless (-r $ARGV[1]) {
-	print STDERR "xsdfile is not readable\n";
+	print STDERR $ARGV[1].": xsdfile is not readable\n";
 	exit 1;
 }
 

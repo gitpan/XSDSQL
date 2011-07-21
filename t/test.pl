@@ -44,13 +44,28 @@ sub xsd2sql {
 		." -s '".$params{PREFIX_SEQUENCE}."'"
 		.($params{EXTRA_PARAMS} ? " -o '".$params{EXTRA_PARAMS}."'" : "")
 		." '".$params{SCHEMA_FILE}."'";
-	for my $c qw(drop_table create_table addpk drop_sequence create_sequence drop_view create_view drop_dictionary create_dictionary insert_dictionary) {
-		$ret{$c}="${c}.sql";
-		my $cmd=$pcmd." '${c}'  > ".$ret{$c};
+	my @args=qw(drop_table create_table addpk drop_sequence create_sequence drop_view create_view drop_dictionary create_dictionary insert_dictionary);
+	unless ($params{XSD2SQL_ONE_PASS}) {
+		for my $c (@args) {
+			$ret{$c}="${c}.sql";
+			my $cmd=$pcmd." '${c}'  > ".$ret{$c};
+			debug(__LINE__,$cmd) if $params{DEBUG};
+			system($cmd);
+			return (%ret,ERR_MSG => "$cmd: execution error") if $?;
+		}				
+	}
+	else {
+		my $cmd=$pcmd.' '.join(' ',map { "'".$_."'" } grep(/^drop/,@args)).' > all_drops.sql ';
 		debug(__LINE__,$cmd) if $params{DEBUG};
 		system($cmd);
 		return (%ret,ERR_MSG => "$cmd: execution error") if $?;
-	}				
+		$cmd=$pcmd.' '.join(' ',map { "'".$_."'" } grep($_!~/^drop/,@args)).' > all_creates.sql ';
+		debug(__LINE__,$cmd) if $params{DEBUG};
+		system($cmd);
+		return (%ret,ERR_MSG => "$cmd: execution error") if $?;
+
+	}
+
 	return %ret;
 }
 
@@ -130,15 +145,24 @@ sub xml_load { #xml load & write & compare
 		system($cmd);
 		return (ERR_MSG => "$f: is not a valid xml file") if $?;
 		my $diff=$f.'.diff';
-		$cmd="diff -E -b -a '$f' '$tmp' > '$diff'";
+		my $xmldiff=0;
+		if ($params{XMLDIFF}) {
+			system("which xmldiff > /dev/null 2>&1");
+			my $rc=$?;
+			$xmldiff=1 if $rc == 0;
+		}
+		$cmd=$xmldiff ? "xmldiff -c '$f' '$tmp' > '$diff'" : "diff -E -b -a '$f' '$tmp' > '$diff'";
 		debug(__LINE__,$cmd) if $params{DEBUG};
 		system($cmd);
 		my $rc=$?;
-		return (ERR_MSG => "$cmd: execution error") if $rc == -1 || ($rc & 127);
+		return (ERR_MSG => "$cmd: execution error (rc==$rc)") if $rc == -1 || ($rc & 127);
+		$rc>>=8;
+		debug(__LINE__,' return code ',$rc) if $params{DEBUG};
+		$rc=1 if $xmldiff && $rc > 1; 
 		my $fd=xopen('<',$diff);
 		while(<$fd>) { xprint(*STDOUT,$_); }
 		close $fd;
-		$rc>>=8;
+#		$rc>>=8;
 		if ($rc == 1) {
 			return (ERR_MSG => "the files diff") unless $params{IGNORE_DIFF};
 			print STDERR "(W) the files diff\n"; 
@@ -153,12 +177,20 @@ sub xml_load { #xml load & write & compare
 my @STEPS=(
 	{	#0
 		NAME => 'CREATE_SQL_FILES',SH_NAME => 'SQ',D => 'create sql files'
-		,F => sub {  return xsd2sql(@_); }
+		,F => sub {  
+			my %params=@_;
+			my %ret=xsd2sql(%params);
+			return %ret unless $params{XSD2SQL_ONE_PASS};
+			%ret=isql(%params,FILE => 'all_drops.sql',DROP => 1);
+			return %ret if scalar(keys %ret);
+			return isql(%params,FILE => 'all_creates.sql');
+		}
 	}
 	,{	#1
 		NAME => 'DROP_VIEW_OBJECTS',SH_NAME => 'DV',D => 'drop view objects',INCLUDE => [ 0 ]
 		,F	=> sub {
 				my %params=@_;
+				return () if $params{XSD2SQL_ONE_PASS};
 				return isql(%params,FILE => $params{drop_view},DROP => 1);				
 		}
 	}
@@ -166,6 +198,7 @@ my @STEPS=(
 		NAME => 'DROP_TABLE_OBJECTS',SH_NAME => 'DT',D => 'drop table objects',INCLUDE => [ 1 ] 
 		,F	=> sub {
 				my %params=@_;
+				return () if $params{XSD2SQL_ONE_PASS};
 				return isql(%params,FILE => $params{drop_table},DROP => 1);				
 		}		
 	}
@@ -173,6 +206,7 @@ my @STEPS=(
 		NAME => 'CREATE_TABLE_OBJECTS',SH_NAME => 'CT',D => 'create table objects',INCLUDE => [ 1,2 ]
 		,F => sub {
 				my %params=@_;
+				return () if $params{XSD2SQL_ONE_PASS};
 				my @errs=isql(%params,FILE => $params{create_table});
 				return @errs if scalar(@errs);
 				return isql(%params,FILE => $params{addpk});				
@@ -182,6 +216,7 @@ my @STEPS=(
 		NAME => 'DROP_SEQUENCE_OBJECTS',SH_NAME => 'DS',D => 'drop sequence objects',INCLUDE => [ 0 ]
 		,F	=> 	sub {
 				my %params=@_;
+				return () if $params{XSD2SQL_ONE_PASS};
 				return isql(%params,FILE => $params{drop_sequence},DROP => 1);
 		}
 	}
@@ -189,6 +224,7 @@ my @STEPS=(
 		NAME => 'CREATE_SEQUENCE_OBJECTS',SH_NAME => 'CS',D => 'create sequence objects',INCLUDE => [ 4 ]  
 		,F	=> 	sub {
 				my %params=@_;
+				return () if $params{XSD2SQL_ONE_PASS};
 				return isql(%params,FILE => $params{create_sequence});
 		}
 	
@@ -197,6 +233,7 @@ my @STEPS=(
 		NAME => 'CREATE_VIEW_OBJECTS',SH_NAME => 'CV',D => 'create view objects',INCLUDE => [ 3 ]  
 		,F	=> 	sub {
 				my %params=@_;
+				return () if $params{XSD2SQL_ONE_PASS};
 				return isql(%params,FILE => $params{create_view});
 		}
 	
@@ -205,6 +242,7 @@ my @STEPS=(
 		NAME => 'DROP_DICTIONARY_OBJECTS',SH_NAME => 'DD',D => 'drop dictionary objects',INCLUDE => [ 0 ]  
 		,F	=> 	sub {
 				my %params=@_;
+				return () if $params{XSD2SQL_ONE_PASS};
 				return isql(%params,FILE => $params{drop_dictionary},DROP => 1);
 		}
 	
@@ -213,6 +251,7 @@ my @STEPS=(
 		NAME => 'CREATE_DICTIONARY_OBJECTS',SH_NAME => 'CD',D => 'create dictionary objects',INCLUDE => [ 7 ]  
 		,F	=> 	sub {
 				my %params=@_;
+				return () if $params{XSD2SQL_ONE_PASS};
 				return isql(%params,FILE => $params{create_dictionary});
 		}
 	
@@ -221,6 +260,7 @@ my @STEPS=(
 		NAME => 'INSERT_DICTIONARY_OBJECTS',SH_NAME => 'ID',D => 'insert dictionary objects',INCLUDE => [ 8 ]  
 		,F	=> 	sub {
 				my %params=@_;
+				return () if $params{XSD2SQL_ONE_PASS};
 				return isql(%params,FILE => $params{insert_dictionary});
 		}
 	
@@ -250,7 +290,7 @@ sub get_operations {
 }
 
 my %Opt=();
-unless (getopts ('hdrRcCTeiuo:f:t:b:a:p:v:',\%Opt)) {
+unless (getopts ('hdrRcCTeiuo:f:t:b:a:p:v:XS',\%Opt)) {
 	 print STDERR "invalid option or option not set\n";
 	 exit 1;
 }
@@ -267,7 +307,7 @@ $0  [<options>] [<args>]..
     -c  - reset connection string and execute the tests
     -C  - reset connection string and not execute the tests
     -T  - clean temporary files in test + step file  and not execute the test
-    -e  - exclude the not valid xml files
+    -e  - exclude not valid xml files
     -i  - continue after xml difference
     -u  - set encondig utf8 to xmlwriter
     -f   <filename>[,<filename>...] - include in test only file match <filename>
@@ -275,22 +315,24 @@ $0  [<options>] [<args>]..
     -b  - set the execute prefix for db objects (Ex.   'scott.' in oracle)
     -a  - set the execute suffix for db objects (Ex: '\@dblink' in oracle)
     -v  <command> - use <command> for xml validation
-		    use \%f for xml file tag and \%s for schema (xsd) file tag
-		    the default is 'xmllint -schema \%s \%f' 
-	-p <name>=<value>[,<name>=<value>...]
-		set extra params - valid names are:
-				MAX_VIEW_COLUMNS 	=>  produce view code only for views with columns number <= MAX_VIEW_COLUMNS - 
-					-1 is a system limit (database depend)
-					false is no limit (the default)
-				MAX_VIEW_JOINS 		=>  produce view code only for views with join number <= MAX_VIEW_JOINS - 
-					-1 is a system limit (database depend)
-					false is no limit (the default)						
+            use \%f for xml file tag and \%s for schema (xsd) file tag
+            the default is 'xmllint -schema \%s \%f'
+    -X  - do not use xmldiff for difference - use the normal diff command
+    -S  - do not execute xsd2sql in one pass 
+    -p <name>=<value>[,<name>=<value>...]
+        set extra params for xsd2sql - valid names are:
+                MAX_VIEW_COLUMNS     =>  produce view code only for views with columns number <= MAX_VIEW_COLUMNS - 
+                    -1 is a system limit (database depend)
+                    false is no limit (the default)
+                MAX_VIEW_JOINS         =>  produce view code only for views with join number <= MAX_VIEW_JOINS - 
+                    -1 is a system limit (database depend)
+                    false is no limit (the default)                        
     -o  - execute only the target operation
         <op> must be ".join("|",map { ($_->{NAME},$_->{SH_NAME}) } @STEPS)." 
 
 <arguments>:
-	<testnumber>|<testnumber>-<testnumber>...
-	if <testnumber> is not spec all tests can be executed
+    <testnumber>|<testnumber>-<testnumber>...
+    if <testnumber> is not spec all tests can be executed
 
 "; 
     exit 0;
@@ -609,6 +651,8 @@ for my $n(@testdirs) {
 											,ONLY_FILES						=> $only_files
 											,EXTRA_PARAMS					=> $Opt{p}
 											,XML_VALIDATOR  				=> $Opt{v}
+											,XMLDIFF						=> $Opt{X} ? 0 : 1
+											,XSD2SQL_ONE_PASS				=> $Opt{S} ? 0 : 1
 		}
 		,OPERATIONS					=> join(',',@operations)
 	);

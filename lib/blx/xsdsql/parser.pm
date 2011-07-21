@@ -4,6 +4,7 @@ use strict;
 use warnings FATAL => 'all';
 use integer;
 use Carp;
+use POSIX;
 
 use File::Basename;
 use Data::Dumper;
@@ -15,7 +16,7 @@ use blx::xsdsql::IStream;
 
 use constant {
 			 DEFAULT_OCCURS_TABLE_PREFIX 		=> 'm_'
-			,UNBOUNDED							=> 2 ** 32
+			,UNBOUNDED							=> INT_MAX
 			,XS_STRING_TYPE						=> 'string  normalizedString  token  base64Binary  hexBinary duration ID IDREF  IDREFS  NMTOKEN NMTOKENS language Name QName NCName anyURI' 
 			,XS_INTEGER_TYPE					=> 'integer integer  nonPositiveInteger  negativeInteger  long  int  short  byte  nonNegativeInteger  unsignedLong  unsignedInt  unsignedShort  unsignedByte  positiveInteger'
 			,XS_DOUBLE_TYPE						=> 'double'
@@ -29,7 +30,7 @@ use constant {
 			,XS_GMONTHDAY_TYPE					=> 'gMonthDay'
 			,XS_BOOLEAN_TYPE					=> 'boolean'
 			,SIMPLE_TYPE_CLASS					=> 'blx::xsdsql::xml::simple_type'
-			,STRING_MAXSIZE						=>  2**32
+			,STRING_MAXSIZE						=>  INT_MAX
 			,XML_STD_NAMESPACES					=>  'xs xsd' 
 			,DEFAULT_TABLE_DICTIONARY_NAME		=>  'table_dictionary'
 			,DEFAULT_COLUMN_DICTIONARY_NAME		=>  'column_dictionary'
@@ -53,7 +54,7 @@ sub _autodetect_xml_namespaces { #is a brutal autodetect namespaces from a xml s
 			last;
 		}
 		
-		if ($line=~/^.*<\?xml\s+version="[^"]+".*\?>/) {
+		if ($line=~/^.*<\?xml\s+version="[^"]+".*\?>/) {	# "
 			$encoding='utf-8';
 			last;
 		}
@@ -103,7 +104,7 @@ sub _get_type {
 	if ($r =~/::SimpleType$/) {
 		for my $e(@{$parent->{_content_}}) {
 			my $r=ref($e); 
-			if ($r  =~/::Restriction$/) {
+			if ($r=~/::Restriction$/) {
 				$type{BASE}=$e->base();
 			}
 			elsif ($r =~/::Union$/) {
@@ -237,6 +238,7 @@ sub _get_type_x {
 
 sub _parse_x {
 	my ($parent,$level,$parent_table,$types,%params)=@_;
+	my $isparent_choice=$parent_table->get_attrs_value qw(CHOICE);
 	for my $node(@{$parent->{_content_}}) {
 		my $r=ref($node);
 		if ($r =~/::Element$/) {
@@ -244,6 +246,7 @@ sub _parse_x {
 			$node->{complete_name}=$parent->{complete_name}.'/'.$name;
 			my ($maxoccurs,$minoccurs,$type) = (nvl($node->{_maxOccurs},1),nvl($node->{_minOccurs},1),_get_type_x($node,$level + 1,%params));
 			$maxoccurs=UNBOUNDED if $maxoccurs eq 'unbounded';
+			$minoccurs=0 if $isparent_choice;
 			if (defined $type) {
 				if ($maxoccurs > 1  && ref($type) eq SIMPLE_TYPE_CLASS) {
 					my $column = $params{COLUMN_CLASS}->new(
@@ -251,11 +254,12 @@ sub _parse_x {
 						,TYPE		=> Storable::dclone($params{ID_SQL_TYPE})
 						,MINOCCURS	=> $minoccurs
 						,MAXOCCURS	=> $maxoccurs
-						,INTERNAL_REFERENCE => 1  
+						,INTERNAL_REFERENCE => 1
+						,CHOICE		=> $isparent_choice
 					);
-					if (defined $parent_table->{XSD_SEQ}) {	   #the table is a sequence or choise
-						$column->{XSD_SEQ}=$parent_table->{XSD_SEQ}; 
-						++$parent_table->{XSD_SEQ} unless $parent_table->{CHOISE}; #the columns of a choise have the same xsd_seq
+					if (defined $parent_table->get_xsd_seq) {	   #the table is a sequence or choice
+						$column->set_attrs_value(XSD_SEQ => $parent_table->get_xsd_seq); 
+						$parent_table->_inc_xsd_seq unless $isparent_choice; #the columns of a choice have the same xsd_seq
 					}
 					$parent_table->add_columns($column);
 					my $table = $params{TABLE_CLASS}->new(
@@ -272,9 +276,9 @@ sub _parse_x {
 						,$params{SELF}->{ANONYMOUS_COLUMN}->factory_column(qw(SEQ))
 					);
 					my $value_col=$params{SELF}->{ANONYMOUS_COLUMN}->factory_column(qw(VALUE));
-					$value_col->set_attrs_value(TYPE => $type,PATH => $node->{complete_name});
+					$value_col->set_attrs_value(TYPE => $type,PATH => $node->{complete_name},CHOICE => $isparent_choice);
 					$table->add_columns($value_col);
-					$column->set_attrs_value(PATH_REFERENCE => $table);
+					$column->set_attrs_value(TABLE_REFERENCE => $table,PATH_REFERENCE => $table->get_path);
 					$parent_table->add_child_tables($table);
 				}
 				else {
@@ -283,11 +287,13 @@ sub _parse_x {
 						,TYPE		=> $type
 						,MINOCCURS	=> $minoccurs
 						,MAXOCCURS	=> $maxoccurs
+						,CHOICE 	=> $isparent_choice
 					);
-					if (defined $parent_table->{XSD_SEQ}) {	   #the table is a sequence or choise
-						$column->{XSD_SEQ}=$parent_table->{XSD_SEQ}; 
-						++$parent_table->{XSD_SEQ} unless $parent_table->{CHOISE}; #the columns of a choise have the same xsd_seq
+					if (defined $parent_table->get_xsd_seq) {	   #the table is a sequence or choice
+						$column->set_attrs_value(XSD_SEQ => $parent_table->get_xsd_seq); 
+						$parent_table->_inc_xsd_seq unless $isparent_choice; #the columns of a choice have the same xsd_seq
 					}
+
 					$parent_table->add_columns($column);
 				}
 			}
@@ -295,7 +301,6 @@ sub _parse_x {
 				my $table = $params{TABLE_CLASS}->new(
 					 PATH				=> $node->{complete_name}
 					 ,DEEP_LEVEL		=> $level
-
 				);
 				$table->get_sql_name(%params); #force the resolve of sql name
 				$table->get_constraint_name('pk',%params); #force the resolve of pk constraint
@@ -308,19 +313,20 @@ sub _parse_x {
 				$parent_table->add_child_tables($table);
 
 				my $column = $params{COLUMN_CLASS}->new(	 #hoock to the parent the column 
-					  NAME		=> $name
-					  ,PATH		=> 	undef
-					  ,TYPE		=>  Storable::dclone($params{ID_SQL_TYPE})
-					  ,MINOCCURS	=> $minoccurs
-					  ,MAXOCCURS	=> $maxoccurs
+					  NAME				=> $name
+					  ,PATH				=> 	undef
+					  ,TYPE				=>  Storable::dclone($params{ID_SQL_TYPE})
+					  ,MINOCCURS		=> $minoccurs
+					  ,MAXOCCURS		=> $maxoccurs
 					  ,PATH_REFERENCE	=> $node->{complete_name}
+					  ,CHOICE			=> $isparent_choice
 				  );
-				if (defined $parent_table->{XSD_SEQ}) {	   #the table is a xs:sequence or a xs:choice 
-					$column->{XSD_SEQ}=$parent_table->{XSD_SEQ}; 
-					++$parent_table->{XSD_SEQ} unless $parent_table->{CHOISE}; 
+				if (defined $parent_table->get_xsd_seq) {	   #the table is a xs:sequence or a xs:choice 
+					$column->set_attrs_value(XSD_SEQ => $parent_table->get_xsd_seq); 
+					$parent_table->_inc_xsd_seq unless $isparent_choice; 
 				}	
 				$parent_table->add_columns($column);
-				_parse_x($node,$level + 1,$table,$types,%params);
+				_parse_x($node,$level + 1,$table,$types,%params,PARENT_PATH => $table->get_path);
 			}
 		}
 		elsif ($r=~/::ComplexType$/) {
@@ -343,7 +349,7 @@ sub _parse_x {
 					,$params{SELF}->{ANONYMOUS_COLUMN}->factory_column qw(SEQ)
 				);
 				push @$types,$table;
-				_parse_x($node,$level + 1,$table,undef,%params);
+				_parse_x($node,$level + 1,$table,undef,%params,PARENT_PATH => $table->get_path);
 			}						
 			else {
 				$node->{complete_name}=$parent->{complete_name};
@@ -356,11 +362,12 @@ sub _parse_x {
 			$maxoccurs=UNBOUNDED if $maxoccurs eq 'unbounded';
 			if ($maxoccurs > 1) {
 				my $table = $params{TABLE_CLASS}->new(
-					NAME		=> DEFAULT_OCCURS_TABLE_PREFIX.$parent_table->get_attrs_value qw(NAME)
-					,PATH		=> undef
-					,MAXOCCURS 	=> $maxoccurs
-					,CHOISE		=> 1
-					,DEEP_LEVEL	=> $level
+					NAME			=> DEFAULT_OCCURS_TABLE_PREFIX.$parent_table->get_attrs_value qw(NAME)
+					,PATH			=> undef
+					,MAXOCCURS 		=> $maxoccurs
+					,CHOICE			=> 1
+					,DEEP_LEVEL		=> $level
+					,PARENT_PATH	=> $params{PARENT_PATH}
 				);
 				$table->get_sql_name(%params); #force the resolve of sql name
 				$table->get_constraint_name('pk',%params); #force the resolve of pk constraint 
@@ -373,25 +380,27 @@ sub _parse_x {
 				$parent_table->add_child_tables($table);
 
 				my $column = $params{COLUMN_CLASS}->new(	 
-					NAME		=> $table->{NAME}
-					,PATH		=> 	undef
-					,TYPE		=>  Storable::dclone($params{ID_SQL_TYPE})
-					,MINOCCURS	=> 0
-					,MAXOCCURS	=> 1
-					,PATH_REFERENCE	=> $table
+					NAME				=> $table->{NAME}
+					,PATH				=> 	undef
+					,TYPE				=>  Storable::dclone($params{ID_SQL_TYPE})
+					,MINOCCURS			=> 0
+					,MAXOCCURS			=> 1
+					,PATH_REFERENCE		=> $table->get_path
+					,TABLE_REFERENCE 	=> $table
+					,CHOICE				=> $isparent_choice
 				);
-				if (defined $parent_table->{XSD_SEQ}) {	  
-					$column->{XSD_SEQ}=$parent_table->{XSD_SEQ}; 
-					++$parent_table->{XSD_SEQ} unless $parent_table->{CHOISE}; 
+				if (defined $parent_table->get_xsd_seq) {	  
+					$column->set_attrs_value(XSD_SEQ => $parent_table->get_xsd_seq); 
+					$parent_table->_inc_xsd_seq unless $isparent_choice; 
 				}
 				$parent_table->add_columns($column);
 				_parse_x($node,$level + 1,$table,$types,%params);
 			}
 			else {
-				$parent_table->{CHOISE}=1;
-				$parent_table->{XSD_SEQ}=0 unless defined $parent_table->{XSD_SEQ};
+				$parent_table->set_attrs_value(CHOICE => 1);
+				$parent_table->set_attrs_values(XSD_SEQ => 0) unless defined $parent_table->get_xsd_seq; 
 				_parse_x($node,$level + 1,$parent_table,$types,%params);
-				delete $parent_table->{CHOISE};
+				$parent_table->set_attrs_value(CHOICE => $isparent_choice);
 			}
 		}
 		elsif ($r=~/::Sequence$/) {
@@ -400,9 +409,10 @@ sub _parse_x {
 			$maxoccurs=UNBOUNDED if $maxoccurs eq 'unbounded';
 			if ($maxoccurs > 1) {
 				my $table = $params{TABLE_CLASS}->new(
-					NAME		=> DEFAULT_OCCURS_TABLE_PREFIX.$parent_table->get_attrs_value(qw(NAME))
-					,MAXOCCURS	=> $maxoccurs
-					,DEEP_LEVEL	=> $level
+					NAME			=> DEFAULT_OCCURS_TABLE_PREFIX.$parent_table->get_attrs_value(qw(NAME))
+					,MAXOCCURS		=> $maxoccurs
+					,DEEP_LEVEL		=> $level
+					,PARENT_PATH	=> $params{PARENT_PATH}
 				);
 				$table->get_sql_name(%params); #force the resolve of sql name
 				$table->get_constraint_name('pk',%params); #force the resolve of pk constraint 
@@ -415,21 +425,23 @@ sub _parse_x {
 				$parent_table->add_child_tables($table);
 
 				my $column = $params{COLUMN_CLASS}->new (	 #hook the column to the parent table 
-					NAME		=> $table->{NAME}
-					,TYPE		=> Storable::dclone($params{ID_SQL_TYPE})
-					,MINOCCURS	=> 0
-					,MAXOCCURS	=> 1
-					,PATH_REFERENCE	=> $table
+					NAME				=> $table->{NAME}
+					,TYPE				=> Storable::dclone($params{ID_SQL_TYPE})
+					,MINOCCURS			=> 0
+					,MAXOCCURS			=> 1
+					,PATH_REFERENCE		=> $table->get_path
+					,TABLE_REFERENCE	=> $table
+					,CHOICE				=> $isparent_choice
 				);
-				if (defined $parent_table->{XSD_SEQ}) {	   #the table is a sequence or a choise 
-					$column->{XSD_SEQ}=$parent_table->{XSD_SEQ}; 
-					++$parent_table->{XSD_SEQ} unless $parent_table->{CHOISE};
+				if (defined $parent_table->get_xsd_seq) {	   #the table is a sequence or a choice 
+					$column->set_attrs_value(XSD_SEQ => $parent_table->get_xsd_seq); 
+					$parent_table->_inc_xsd_seq unless $isparent_choice;
 				}
 				$parent_table->add_columns($column);
 				_parse_x($node,$level + 1,$table,$types,%params);
 			}
 			else {
-				$parent_table->{XSD_SEQ}=0 unless defined $parent_table->{XSD_SEQ};
+				$parent_table->set_attrs_value(XSD_SEQ => 0) unless defined $parent_table->get_xsd_seq; 
 				_parse_x($node,$level + 1,$parent_table,$types,%params);
 			}
 		}
@@ -468,6 +480,7 @@ sub _parse_x {
 			if (defined $ref) {  # is a reference 
 				my ($maxoccurs,$minoccurs) = (nvl($node->{_maxOccurs},1),nvl($node->{_minOccurs},1));
  				$maxoccurs=UNBOUNDED if $maxoccurs eq 'unbounded';
+				$minoccurs=0 if $isparent_choice;
 				my $name=nvl($node->name,$ref);
 				my $column = $params{COLUMN_CLASS}->new(
 					PATH		=> $parent->{complete_name}
@@ -476,10 +489,11 @@ sub _parse_x {
 					,MINOCCURS	=> $minoccurs
 					,MAXOCCURS	=> $maxoccurs
 					,GROUP_REF	=> 1
+					,CHOICE		=> $isparent_choice
 				);
-				if (defined $parent_table->{XSD_SEQ}) {	   #the table is a sequence or choise
-					$column->{XSD_SEQ}=$parent_table->{XSD_SEQ}; 
-					++$parent_table->{XSD_SEQ} unless $parent_table->{CHOISE}; #the columns of a choise have the same xsd_seq
+				if (defined $parent_table->get_xsd_seq) {	   #the table is a sequence or choice
+					$column->set_attrs_value(XSD_SEQ => $parent_table->get_xsd_seq); 
+					$parent_table->_inc_xsd_seq unless $isparent_choice; #the columns of a choice have the same xsd_seq
 				}
 				$parent_table->add_columns($column);
 			}
@@ -505,7 +519,7 @@ sub _parse_x {
 						,$params{SELF}->{ANONYMOUS_COLUMN}->factory_column qw(SEQ)
 					);
 					push @$types,$table;
-					_parse_x($node,$level + 1,$table,undef,%params);
+					_parse_x($node,$level + 1,$table,undef,%params,PARENT_PATH => $table->get_path);
 				}
 				else {
 					confess "invalid xsd: group without name or ref"	
@@ -530,27 +544,108 @@ sub _resolve_simple_type {
 	return $ty;
 }
 
+sub _parse_group_ref {  # flat the columns of groups table  into $table
+	my ($table,%params)=@_;
+	if ($params{START_FLAG}) {
+		$params{PATH}={};
+		my $z=-1;
+		$params{MAX_XSD_SEQ}=\$z;
+		$params{START_TABLE}=$table;
+	}
+	my $max_xsd_seq=${$params{MAX_XSD_SEQ}};
+	my $pred_xsd_seq=!$params{START_FLAG} && $params{CHOICE} ? $max_xsd_seq : undef; 
+	my $fl=0;
+	my @newcols=();
+	for my $c($table->get_columns) {
+		next if $c->is_pk && ! $params{START_FLAG};  #bypass the primary keys if is not a start table 
+		my $p=$c->get_path;
+		my $nc=$params{START_FLAG} ? $c : $c->shallow_clone;
+
+		if (defined ( my $xsd_seq=$nc->get_xsd_seq)) {  # change xsd_seq
+			if (defined $pred_xsd_seq && $xsd_seq == $pred_xsd_seq) {
+				$xsd_seq=$max_xsd_seq;
+			}
+			else  {
+				$pred_xsd_seq=$xsd_seq;
+				$xsd_seq=++$max_xsd_seq;
+			}
+			$nc->set_attrs_value(XSD_SEQ => $xsd_seq);
+			unless ($params{START_FLAG}) {
+				$nc->set_attrs_value(CHOICE => $params{CHOICE});
+				$nc->set_attrs_value(MINOCCURS => 0) if $params{CHOICE}; 
+			}
+		}
+
+		if  (!$params{START_FLAG}  && defined (my $cpath=$nc->get_path)) {  #change the path of the column
+			my $path=$params{START_TABLE}->is_unpath ? $params{START_TABLE}->get_parent_path : $params{START_TABLE}->get_path;
+			$path.='/'.basename($cpath) unless $nc->is_group_reference;
+			_debug(__LINE__,' change path of column ',$nc->get_full_name," from '$cpath' to '$path'") if $params{DEBUG};
+			$nc->set_attrs_value(PATH	=> $path);
+			$p=$path;
+		}
+
+
+		if (defined $p && !$nc->is_group_reference) {  #register new path
+			if (defined (my $col=$params{PATH}->{$p})) {
+				_debug(__LINE__,$p,': path already register for column ',$nc->get_full_name,' - pred column is ',$col->get_full_name)
+					if $params{DEBUG};
+				unless ($params{START_FLAGS}) {		 # a column into a group has priority to a column with same path
+					$col->set_attrs_value(DELETE => 1);	  # the pred column is marked for deletion
+				}
+				else {
+					_debug(__LINE__,$p,' the column ',$nc->get_full_name, ' is bypassed')
+						if $params{DEBUG};
+					next;
+				}
+			}
+			$params{PATH}->{$p}=$nc;
+		}
+
+
+		if ($nc->is_group_reference && $nc->get_max_occurs <= 1) { #flat the columns of ref table into $table
+			++$fl;
+			my $ty=$nc->get_attrs_value qw(TYPE);
+			my $ref=$params{TYPE_NAMES}->{$ty};
+			confess "no such table ref for column ".$c->get_full_name."(type '$ty')\n" unless defined $ref;
+			_debug(__LINE__,$nc->get_full_name,": the columun ref table group '",$ref->get_sql_name,"' with maxoccurs <=1 - flating  the columns of table !!")
+				if $params{DEBUG};
+			${$params{MAX_XSD_SEQ}}=$max_xsd_seq;
+			my @cols=_parse_group_ref($ref,%params,START_FLAG => 0,CHOICE => $nc->is_choice);
+			$max_xsd_seq=${$params{MAX_XSD_SEQ}};
+			push @newcols,@cols;
+		}
+		else {
+			push @newcols,$nc
+		}
+	}	   #for
+	${$params{MAX_XSD_SEQ}}=$max_xsd_seq;
+	return @newcols unless $params{START_FLAG};
+	return undef unless $fl; # no group ref column
+	$table->reset_columns;
+	$table->add_columns(grep(!$_->get_attrs_value qw(DELETE),@newcols));
+	return undef;
+}
+
+
 sub _parse_user_def_types {
 	my ($tables,$types,%params)=@_;
-	confess "param ID_SQL_TYPE not set" unless defined $params{ID_SQL_TYPE};
-	my %type_names=map { ($_->get_attrs_value(qw(NAME)),$_) } grep(defined $_->get_attrs_value(qw(NAME)),@$types);
-	$params{TYPE_NAMES}=\%type_names; #for call other sub
 	for my $t(@$tables) {
 		my $child_tables=$t->get_attrs_value qw(CHILD_TABLES);
 		_parse_user_def_types($child_tables,$types,%params);
+		_parse_group_ref($t,%params,START_FLAG => 1) unless  $params{NO_FLAT_GROUPS};
 		for my $c($t->get_columns) {
 			next if $c->is_pk;
-			if (ref($c->{TYPE}) eq '') {
-				my $ty=_resolve_simple_type($c->{TYPE},$types,%params);
-#				my $ty=(grep($c->{TYPE} eq $_->get_attrs_value(qw(NAME)),@$types))[0];
-				confess $c->{TYPE}.": type not found\n" unless defined $ty;
+			my $ctype=$c->get_attrs_value qw(TYPE);
+			if (ref($ctype) eq '') {
+				my $ty=_resolve_simple_type($ctype,$types,%params);
+				confess "$ctype: type not found\n" unless defined $ty;
 				if ($ty->{SIMPLE_TYPE}) {
 					my $type=_get_simple_type_from_node($ty->{TYPE},%params);
 					if ($c->get_max_occurs > 1) {						
 						my $table = $params{TABLE_CLASS}->new(
-							PATH		    => $c->get_path
-							,TABLE_IS_TYPE  => 0
-							,DEEP_LEVEL		=> $t->get_deep_level + 1
+							PATH		    	=> $c->get_path
+							,TABLE_IS_TYPE  	=> 0
+							,DEEP_LEVEL			=> $t->get_deep_level + 1
 							,INTERNAL_REFERENCE => 1
 						);
 						$table->get_sql_name(%params); #force the resolve of sql name
@@ -563,8 +658,12 @@ sub _parse_user_def_types {
 							,$params{SELF}->{ANONYMOUS_COLUMN}->factory_column(qw(SEQ))
 							,$value_col
 						);
-
-						$c->set_attrs_value(PATH_REFERENCE => $table,INTERNAL_REFERENCE => 1,TYPE => Storable::dclone($params{ID_SQL_TYPE}));
+						$c->set_attrs_value(
+							PATH_REFERENCE 			=> $table->get_path
+							,INTERNAL_REFERENCE 	=> 1
+							,TYPE 					=> Storable::dclone($params{ID_SQL_TYPE})
+							,TABLE_REFERENCE 		=> $table
+						);
 						$t->add_child_tables($table);						
 					}
 					else {
@@ -575,13 +674,11 @@ sub _parse_user_def_types {
 					delete $c->{INTERNAL_REFERENCE};  #the column is not an internal reference
 					my $h=Storable::dclone($params{ID_SQL_TYPE});
 					if (ref($ty) =~ /::table$/) {
-						$c->{TABLE_REFERENCE}=$ty;
-						$c->{PATH_REFERENCE}=$ty->get_attrs_value('PATH');
+						$c->set_attrs_value(PATH_REFERENCE => $ty->get_path,TABLE_REFERENCE => $ty,TYPE => $h);
 					}
 					else {
-						$c->{PATH_REFERENCE}=$ty->{PATH};
+						$c->set_attrs_value(PATH_REFERENCE => $ty->{PATH},TYPE => $h); 
 					}
-					$c->{TYPE}=$h; 
 				}
 				else {
 					_debug(__LINE__,Dumper($ty)) if $params{DEBUG};
@@ -589,17 +686,17 @@ sub _parse_user_def_types {
 				}
 			}
 			else {
-				next if defined $c->{TYPE}->{SQL_TYPE};
-				next unless scalar(%{$c->{TYPE}}); #skip if an empty hash
-				my $base= $c->{TYPE}->{BASE};
+				next if defined $ctype->{SQL_TYPE};
+				next unless scalar(%$ctype); #skip if an empty hash
+				my $base= $ctype->{BASE};
 				unless (defined $base) {
-					_debug(__LINE__,Dumper($c->{TYPE})) if $params{DEBUG};
+					_debug(__LINE__,Dumper($ctype)) if $params{DEBUG};
 					confess " type without base\n";
 				}
 				my @base=ref($base) eq 'ARRAY' ? @$base : ($base);
 				my @outtype=();
 				for my $base(@base) {
-					my $t=$type_names{$base};
+					my $t=$params{TYPE_NAMES}->{$base};
 					unless (defined $t) {
 						_debug(__LINE__,Dumper($base)) if $params{DEBUG};
 						confess "base not found into types for column\n";
@@ -609,15 +706,15 @@ sub _parse_user_def_types {
 						unless (defined $st->{SQL_TYPE}) {
 							_debug(__LINE__,"base --> ".$base."\n".Dumper($t->{TYPE}))
 								if $params{DEBUG};
-							confess "not SQL_TYPE"; 
+							confess "not SQL_TYPE\n"; 
 						}
 						push @outtype,$st;
 					}
 				}
 				$c->{TYPE}=scalar(@outtype) == 1 ? $outtype[0] : \@outtype;
 			}
-		}
-	}
+		} #for on columns
+	}  # for on tables
 }
 
 
@@ -638,7 +735,7 @@ sub _parse {
 	my $root=$params{TABLE_CLASS}->new (
 		NAME			=> undef
 		,PATH			=> '/'
-		,CHOISE			=> 1
+		,CHOICE			=> 1
 	);
 
 	$root->get_sql_name(%params); #force the resolve of sql name 
@@ -647,9 +744,14 @@ sub _parse {
 	$root->get_sequence_name(%params); #force the resolve of the corresponding sequence name
 	$root->add_columns($params{SELF}->{ANONYMOUS_COLUMN}->factory_column(qw(ID)));
 	my $types=[];
-	_parse_x($r,0,$root,$types,%params);
-	_parse_user_def_types($types,$types,%params);
-	_parse_user_def_types($root->{CHILD_TABLES},$types,%params);
+	_parse_x($r,0,$root,$types,%params,PARENT_PATH => $root->get_path);
+	my %type_names=map { ($_->get_attrs_value(qw(NAME)),$_) } grep(defined $_->get_attrs_value(qw(NAME)),@$types);
+	my %p=(
+			%params
+			,TYPE_NAMES 		=> \%type_names
+	);
+	_parse_user_def_types($types,$types,%p);
+	_parse_user_def_types($root->{CHILD_TABLES},$types,%p);
 	
 	my $schema=blx::xsdsql::schema->new(%params,TYPES => $types,ROOT => $root);
 	$schema->mapping_paths(DEBUG => $params{DEBUG}); 
@@ -713,8 +815,8 @@ sub get_db_namespaces {
 		next if $dir=~/^\./;
 		next unless opendir(my $fd,$dir);
 		while(my $d=readdir($fd)) {
-			next unless -d File::Spec->catdir($dir,$d);
 			next if $d=~/^\./;
+			next unless -d File::Spec->catdir($dir,$d);
 			push @n,$d;
 		}
 		closedir($fd);
@@ -785,6 +887,7 @@ parsefile - parse a xsd file
 		RELATION_DICTIONARY_NAME 	=>  the name of the relation dictionary
 		SCHEMA_DUMPER 				=>  print on STDERR the dumper of the schema generated by Runchi::XMLSchema
 		DEBUG		 				=>  set debug mode
+		NO_FLAT_GROUPS				=>  no flat the columns of table groups with maxoccurs <= 1 into the ref table
 
 get_db_namespaces - static method 
 

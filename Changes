@@ -41,6 +41,28 @@ Revision history for Perl extension blx::xsdsql
 	- new options in test.pl/xsd2sql/xml.pl
 	- bugs corrected 
 	 
-0.06.1 June 16 16:13 2011
-	- corretted algo bugs on param ROOT_TAG_PARAMS  for method blx::xsdsql::xml::write
 	
+0.06.1 June 16 16:13 2011
+	- corrected algo bugs on param ROOT_TAG_PARAMS of  method blx::xsdsql::xml::write
+
+0.06.2 - July 20 18:12 2011
+	- corrected max int on parser 
+	- bug in write mandatory note with value null string
+	- create_view: in the header of views converted comment PATH to ROOTPATH
+	- bug on choice - a default minOccurs for a choice node is 0 and not 1
+	- bug on choice into a node with maxOccurs > 1
+	- change the param CHOISE into CHOICE  in all modules
+	- correct documentation
+	- add this attribute in class blx::xsdsql::xml::generic::table and new columns in table_dictionary:
+		PARENT_PATH,IS_ROOT_TABLE,IS_UNPATH,IS_INTERNAL_REF,VIEW_NAME
+	- new method blx::xsdsql::xml::generic::table::reset_columns
+	- revised the method  blx::xsdsql::xml::generic::table::add_columns
+	- new param FORCE in blx::xsdsql::xml::generic::column::get_sql_name
+	- new attribute CHOICE for class blx::xsdsql::xml::generic::column and new column in column_dictionary
+	- flat the columns of a group with maxoccurs <= 1 into the parent table
+	- new option -X in test.pl (modality change, test.pl use for default xmldiff if is installed)
+	- new option -S in test.pl (modality change, for default test.pl esecute xsd2sql in one step) 
+	- new param NO_FLAT_GROUPS in blx::xsdsql::parser::parsefile
+	- correct bug on join a table with maxoccurs > 1 in create view
+	- parser restyling code 
+
