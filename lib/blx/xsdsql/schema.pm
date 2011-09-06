@@ -76,6 +76,12 @@ sub resolve_column_link {
 	return $self->{MAPPING_PATH}->resolve_column_link($t1,$t2,%params);
 }
 
+
+sub resolve_attributes {
+	my ($self,$table_name,@attrnames)=@_;
+	return $self->{MAPPING_PATH}->resolve_attributes($table_name,@attrnames);
+}
+
 sub get_root_table { 
 	my ($self,%params)=@_;
 	return $self->get_attrs_value qw(ROOT);
@@ -178,6 +184,12 @@ resolve_column_link - return the column link a tables
 	arguments
 		parent table
 		child table
+
+
+resolve_attributes - return columns that bind node attributes
+	
+	the arguments are a table name and a attribute node name list
+
 		
 get_root_table - return the root table objects
 

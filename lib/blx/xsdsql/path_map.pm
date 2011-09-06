@@ -30,6 +30,14 @@ sub _debug {
 }
 
 
+sub _register_attribute {
+	my ($self,%params)=@_;
+	my $tag=$params{TAG};
+	$self->_debug($tag,'register column attribute ',$params{C}->get_name,' with (',$params{C}->get_full_name,')');
+	$params{ATTRIBUTES}->{$params{T}->get_sql_name}->{$params{C}->get_name}=$params{C};
+	return $self;
+}
+
 sub _link_tables {  # link column $t1.$c1 => $t2.id 
 	my ($self,$t1,$c1,$t2,%params)=@_;
 	$self->{LINK_TABLES}->{$t1->get_sql_name}->{$t2->get_sql_name}=$c1;
@@ -139,16 +147,24 @@ sub _mapping_path {
 
 	for my $col($table->get_columns) {
 		next if $col->is_pk;
+		if ($col->is_attribute) {
+			$self->_register_attribute(%params,T => $table,C => $col,TAG => __LINE__);
+			next;
+		}
 		my ($path_ref,$table_ref)=$col->get_attrs_value qw(PATH_REFERENCE TABLE_REFERENCE);
 		if (defined $path_ref || defined $table_ref) {
 			if (defined $table_ref) {  #the column ref a table
 				if ($col->is_internal_reference) {
-#					$col->set_attrs_value(TABLE_REFERENCE => $table_ref);
-					$self->_register_path(%params,T => $table,C => $col,TAG => __LINE__)
+					$self->_register_path(%params,T => $table,C => $col,TAG => __LINE__);
+					if ($table_ref->is_simple_content_type)  {
+						for my $col($table_ref->get_columns) {
+							next unless $col->is_attribute;
+							$self->_register_attribute(%params,T => $table_ref,C => $col,TAG => __LINE__);
+						}
+					}
 				}
 				else {
 					$self->_link_tables($table,$col,$table_ref);
-#					$col->set_attrs_value(TABLE_REFERENCE => $path_ref);
 					my $orig_path_name=$params{ORIG_PATH_NAME};
 					if (my $path=$col->get_path) {
 						$orig_path_name=$self->_resolve_relative_path(
@@ -188,7 +204,7 @@ sub _mapping_path {
 			}
 		}
 		else {
-			$self->_register_path(%params,T => $table,C => $col,TAG => __LINE__);
+			$self->_register_path(%params,T => $table,C => $col,TAG => __LINE__) if defined $col->get_path;
 		}
 	}
 	return undef;
@@ -197,11 +213,12 @@ sub _mapping_path {
 sub mapping_paths {
 	my ($self,$root_table,$type_paths,%params)=@_;
 	my %path_translate=();
+	my %attr_translate=();
 	my $p=$self->_fusion_params(%params);
 	my %savekey=%$self;
 	$self->{DEBUG}=$params{DEBUG} if exists $params{DEBUG};
-	$self->_mapping_path($root_table,%$p,PATH => \%path_translate,TYPE_PATHS => $type_paths,STACK => []);
-	$self->set_attrs_value(TC => \%path_translate);
+	$self->_mapping_path($root_table,%$p,PATH => \%path_translate,TYPE_PATHS => $type_paths,STACK => [],ATTRIBUTES => \%attr_translate);
+	$self->set_attrs_value(TC => \%path_translate,ATTRS => \%attr_translate); 
 	$self->{DEBUG}=$savekey{DEBUG};
 	return $self;
 }
@@ -212,6 +229,14 @@ sub resolve_path { #return an array if resolve into tables otherwise an hash
 	my $a=$self->{TC}->{$path};
 	croak "$path: path not resolved ".nvl($params{TAG}) unless defined $a;
 	return $a;
+}
+
+
+sub resolve_attributes {
+	my ($self,$table_name,@attrnames)=@_;
+	my @cols=map { 	$self->{ATTRS}->{$table_name}->{$_} } @attrnames;
+	return @cols if wantarray;
+	return scalar(@cols) <= 1 ? $cols[0] : \@cols;
 }
 
 sub resolve_column_link {
@@ -295,10 +320,15 @@ resolve_path - return the table and the column associated  to the the pathnode
 		DEBUG - emit debug info 
 
 
+
 resolve_column_link - return a column that link 2 tables
 
 	the arguments are  a parent table and a child tables
 	
+
+resolve_attributes - return columns that bind node attributes
+	
+	the arguments are a table name and a attribute node name list
 
 
 set_attrs_value   - set a value of attributes

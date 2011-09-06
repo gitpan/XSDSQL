@@ -9,6 +9,7 @@ use File::Basename;
 use Storable;
 
 use base qw(blx::xsdsql::xml::generic::catalog);
+use blx::xsdsql::xml::generic::table qw(:overload);
 
 use constant {
 			DEFAULT_SQL_VARCHAR             =>  'varchar'
@@ -44,48 +45,20 @@ our  %_DEFAULT_SIZE =(
 );
 
 our %_ATTRS_R=( 
-			NAME   => sub {
-							my $self=shift;
-							return defined $self->{PATH} ? basename($self->{PATH}) : $self->{NAME};
-			}
-			,COLUMN_SEQUENCE	=> sub {
-							my $self=shift;
-							return $self->{COLUMN_SEQUENCE};
-			}
-			,MAXOCCURS => sub {
-							my $self=shift;
-							return 1 unless defined $self->{MAXOCCURS};
-							return $self->{MAXOCCURS};
-			}
-			,MINOCCURS => sub {
-							my $self=shift;
-							return 1 unless defined $self->{MINOCCURS};
-							return $self->{MINOCCURS};
-			}
-			,SQL_NAME => sub {
-							my $self=shift;
-							return $self->get_sql_name;
-			}
-			,INTERNAL_REFERENCE => sub {
-							my $self=shift;
-							return $self->{INTERNAL_REFERENCE} ? 1 : 0;
-			}
-			,SQL_TYPE  => sub {
-							my $self=shift;
-							return $self->get_sql_type
-			}
-			,PK			=> sub {
-							my $self=shift;
-							return defined $self->get_attrs_value qw(PK_SEQ)  ? 1 : 0;
-			}
-			,GROUP_REF	=> sub {
-							my $self=shift;
-							return $self->{GROUP_REF} ? 1 : 0;
-			}
-			,PATH		=> sub {
-							my $self=shift;
-							return $self->{PATH};
-			}
+			NAME   				=> sub { 
+											my $self=$_[0]; 	
+											my ($n,$p)=map { $self->{$_} } qw(NAME PATH); 
+											return $self->{ATTRIBUTE} || !defined  $p ? $n : basename($p); 
+			} 			
+			,MAXOCCURS 			=> sub {	my $m=$_[0]->{MAXOCCURS}; return nvl($m,1); }
+			,MINOCCURS 			=> sub {	my $m=$_[0]->{MINOCCURS}; return nvl($m,1); }
+			,SQL_NAME 			=> sub {	return $_[0]->get_sql_name; }
+			,INTERNAL_REFERENCE => sub { 	return $_[0]->{INTERNAL_REFERENCE} ? 1 : 0; }
+			,SQL_TYPE  			=> sub {	return $_[0]->get_sql_type; }
+			,PK					=> sub { 	return defined $_[0]->{PK_SEQ}  ? 1 : 0; }
+			,GROUP_REF			=> sub {	return $_[0]->{GROUP_REF} ? 1 : 0; }
+			,CHOICE				=> sub {	return $_[0]->{CHOICE} ? 1 : 0; }
+			,ATTRIBUTE			=> sub {	return $_[0]->{ATTRIBUTE} ? 1 : 0; }
 );
 
 our %_ATTRS_W=();
@@ -131,7 +104,10 @@ sub _get_sql_size {
 
 sub get_sql_type {
 	my ($self,%params)=@_;
-	return $self->{SQL_TYPE} if defined $self->{SQL_TYPE}; 
+	return $self->{SQL_TYPE} if defined $self->{SQL_TYPE};
+#$self->{DEBUG}=1;
+#$self->_debug(__LINE__,ref($self->{TYPE}),'<--------------');
+#	confess "not hash ref\n" if ref($self->{TYPE}) ne 'HASH';
 	my $type=$self->{TYPE}->{SQL_TYPE};
 	my $sz=$self->_get_sql_size(%params);
 	$type.='('.$sz.')' if defined $sz;
@@ -185,6 +161,11 @@ sub get_column_sequence {
 	return $self->get_attrs_value qw(COLUMN_SEQUENCE);
 }
 
+sub get_name { 	
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(NAME);
+}
+
 sub get_sql_name {
 	my ($self,%params)=@_;
 	return $self->{SQL_NAME} if defined $self->{SQL_NAME} && !$params{FORCE};
@@ -217,6 +198,11 @@ sub is_choice {
 	return  $self->get_attrs_value qw(CHOICE);
 }
 
+sub is_attribute {
+	my ($self,%params)=@_;
+	return  $self->get_attrs_value qw(ATTRIBUTE);
+}
+
 sub get_min_occurs {
 	my ($self,%params)=@_;
 	return $self->get_attrs_value qw(MINOCCURS);
@@ -229,7 +215,7 @@ sub get_max_occurs {
 
 sub is_pk {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(PK) ? 1 : 0;
+	return $self->get_attrs_value qw(PK);
 }
 
 sub get_pk_seq {
@@ -314,9 +300,6 @@ sub factory_dictionary_columns {
 		? (
 			$c->factory_column(undef,NAME => 'table_name',SQL_TYPE	=> 'VARCHAR',SQL_SIZE => $c->get_name_maxsize,PK_SEQ => 0) 
 			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'xsd_seq',COMMENT => 'xsd sequence start',PK_SEQ => undef)
-			,$c->factory_column(undef,NAME => 'type',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { C => 'complex type',S => 'simple_type' },COMMENT => 'values: C - the table is a simple_type - S - the table is a complex_type')
-			,$c->factory_column(undef,NAME => 'is_group',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => 'is a group' },COMMENT => 'values: Y - the table is a group type')
-			,$c->factory_column(undef,NAME => 'is_choice',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => 'is a choice' },COMMENT => 'values: Y - the table is a choice')
 			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'min_occurs',PK_SEQ => undef)
 			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'max_occurs',PK_SEQ => undef)
 			,$c->factory_column(undef,NAME => 'path_name',SQL_TYPE	=> 'VARCHAR')
@@ -326,6 +309,12 @@ sub factory_dictionary_columns {
 			,$c->factory_column(undef,NAME => 'is_unpath',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => 'is an unpath table' },COMMENT => 'values: Y - the table has not an associated path')
 			,$c->factory_column(undef,NAME => 'is_internal_ref',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => 'is an occurs of simple type' },COMMENT => 'values: Y - the table is an occurs of simple type')
 			,$c->factory_column(undef,NAME => 'view_name',SQL_TYPE	=> 'VARCHAR',SQL_SIZE => $c->get_name_maxsize,PK_SEQ => 0,COMMENT => 'the view name associated to the table')
+			,$c->factory_column(undef,NAME => 'xsd_type',SQL_TYPE	=> 'VARCHAR',SQL_SIZE => 5,ENUM_RESTRICTIONS => { &XSD_TYPE_COMPLEX => 'complex type',&XSD_TYPE_SIMPLE => 'simple_type',&XSD_TYPE_GROUP => 'group_type',&XSD_TYPE_SIMPLE_CONTENT => 'simple content' },COMMENT => 'xsd node type')
+			,$c->factory_column(undef,NAME => 'is_group_type',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => 'is a group' },COMMENT => 'values: Y - the table is a group type')
+			,$c->factory_column(undef,NAME => 'is_complex_type',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => 'is a complex' },COMMENT => 'values: Y - the table is a complex type')
+			,$c->factory_column(undef,NAME => 'is_simple_type',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => 'is a simple type' },COMMENT => 'values: Y - the table is a simple_type')
+			,$c->factory_column(undef,NAME => 'is_simple_content_type',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => 'is a simple content type' },COMMENT => 'values: Y - the table is a simple content type')
+
 		)
 		: $dictionary_type eq 'COLUMN_DICTIONARY' 
 		? (
@@ -342,6 +331,7 @@ sub factory_dictionary_columns {
 			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'max_occurs',COMMENT => 'the ref table has this max_occurs or the column has internal reference',PK_SEQ => undef )
 			,$c->factory_column(qw(SEQ))->set_attrs_value(NAME => 'pk_seq',COMMENT => 'the column is part of the primary key - this is the sequence number',PK_SEQ => undef )
 			,$c->factory_column(undef,NAME => 'is_choice',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => ' is part of a choice' },COMMENT => 'values: Y - the column is part of a choice')
+			,$c->factory_column(undef,NAME => 'is_attribute',SQL_TYPE	=> 'CHAR',SQL_SIZE => 1,ENUM_RESTRICTIONS => { Y => ' is an attribute' },COMMENT => 'values: Y - the column is an attribute')
 		)
 		: $dictionary_type eq 'RELATION_DICTIONARY' 
 		? (
@@ -376,7 +366,8 @@ sub get_dictionary_data {
 			,MIN_OCCURS			=> $self->get_min_occurs
 			,MAX_OCCURS			=> $self->get_max_occurs
 			,PK_SEQ				=> $self->get_pk_seq
-			,IS_CHOICE			=> $self->is_choice
+			,IS_CHOICE			=> ($self->is_choice ? 'Y' : undef)
+			,IS_ATTRIBUTE		=> ($self->is_attribute ? 'Y' : undef)
 		);	
 		return wantarray ? %data : \%data;
 	}
@@ -423,11 +414,11 @@ new - constructor
 		PATH_REFERENCE - the referenced by column 
 		TABLE_REFERENCE	- the table referenced by column
 		INTERNAL_REFERENCE - true if the column is an array of simple types
-		PK_SEQ  - sequence into the primary key 
+		PK_SEQ  - sequence position number into the primary key 
 		GROUP_REF - true if the column reference a group
 		TABLE_NAME - the table name of the column
 		CHOICE	- if true the column is part of a choice
-
+		ATTRIBUTE	- if true the column  is an attribute
 
 set_attrs_value   - set a value of attributes
 
@@ -469,7 +460,10 @@ is_group_reference - return true if the column reference a xsd group
 is_choice  - return true if the column is a part of a choice 
 
 
-get_path		   - return the node path name
+is_attribute - return true if the column is an attribute
+
+
+get_path - return the node path name
 
 
 get_path_reference - return the path referenced 

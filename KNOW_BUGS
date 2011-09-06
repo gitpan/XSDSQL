@@ -1,25 +1,25 @@
 
-Element             - yes: implemented - no: non implemented - not rilevant: not rilevant to conversion 
+Element             - yes: implemented - no: non implemented - ignored: conversion ignored 
 
 all                 - no
-annotation          - yes (non completely tested) (possible conversion into sql comment)
+annotation          - ignored (non completely tested) (possible conversion into sql comment)
 any                 - no 
 anyAttribute        - no     
-appInfo             - not rilevant 
-attribute           - no 
+appInfo             - ignored 
+attribute           - yes 
 attributeGroup      - no 
 choice              - yes 
 complexContent      - no 
 complexType         - yes 
-documentation       - not rilevant 
+documentation       - ignored 
 element             - yes 
-extension           - no 
+extension           - yes 
 field               - no  
 group               - yes  
 import              - no 
 include             - no 
-key                 - not rilevant  (possible conversion into sql unique constraint)
-keyref              - not rilevant  (possible conversion into sql foreign constraint)
+key                 - ignored  (possible conversion into sql unique constraint)
+keyref              - ignored  (possible conversion into sql foreign constraint)
 list                - no 
 notation            - no 
 redefine            - no 
@@ -27,23 +27,23 @@ restriction         - yes
 schema              - yes 
 selector            - no 
 sequence            - yes 
-simpleContent       - no 
+simpleContent       - yes 
 simpleType          - yes 
 union               - yes 
-unique              - not rilevant (possible conversion into sql unique constraint) 
+unique              - ignored (possible conversion into sql unique constraint) 
 
 enumeration         - yes 
 fractionDigits      - no 
 length              - yes 
-maxExclusive        - not rilevant (possible conversion into sql check constraint) 
-maxInclusive        - not rilevant (possible conversion into sql check constraint) 
+maxExclusive        - ignored (possible conversion into sql check constraint) 
+maxInclusive        - ignored (possible conversion into sql check constraint) 
 maxLength           - yes 
-minExclusive        - not rilevant (possible conversion into sql check constraint)  
-minInclusive        - not rilevant (possible conversion into sql check constraint) 
-minLength           - not rilevant (possible conversion into sql check constraint) 
-pattern             - not rilevant (possible conversion into sql check constraint)  
+minExclusive        - ignored (possible conversion into sql check constraint)  
+minInclusive        - ignored (possible conversion into sql check constraint) 
+minLength           - ignored (possible conversion into sql check constraint) 
+pattern             - ignored (possible conversion into sql check constraint)  
 totalDigits         - yes 
-whiteSpace          - not rilevant 
+whiteSpace          - ignored 
 
 
 this xml types are non implemented:
@@ -67,8 +67,9 @@ in this xsd code:
 		<xs:group ref="e1-e2"/>
 	</xs:choice>
 
-the element e1 ed e1-e2.e1 has the same xpath
-the parser takes the element of the group
+the element 'e1' and 'e1-e2.e1' share the same xpath
+the parser takes the element of the group 'e1-e2'
+
 
 
 

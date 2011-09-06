@@ -12,10 +12,10 @@
 	<xs:element name="root">
 		<xs:complexType>
 			<xs:sequence>
-			<xs:choice>
-				<xs:element name="c1" type="xs:string"/>
-				<xs:group ref="g0"/> 
-			</xs:choice>
+				<xs:choice>
+					<xs:element name="c1" type="xs:string"/>
+					<xs:group ref="g0"/> 
+				</xs:choice>
 			</xs:sequence>
 		</xs:complexType>
 	</xs:element>

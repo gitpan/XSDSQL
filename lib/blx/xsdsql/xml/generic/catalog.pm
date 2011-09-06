@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Carp;
 
-use blx::xsdsql::ut;
+use blx::xsdsql::ut qw( nvl);
 
 use constant {
 				 DICTIONARY_NAME_MAXSIZE	=> 2048
@@ -20,6 +20,14 @@ use constant {
 our %_ATTRS_R=();
 our %_ATTRS_W=();
 
+
+sub _debug {
+	return $_[0] unless $_[0]->{DEBUG};
+	my ($self,$n,@l)=@_;
+	$n='<undef>' unless defined $n; 
+	print STDERR 'xml (D ',$n,'): ',join(' ',map { ref($_) eq "" ? nvl($_) : Dumper($_); } @l),"\n"; 
+	return $self;
+}
 
 sub new {
 	my ($classname,%params)=@_;

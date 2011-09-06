@@ -15,7 +15,7 @@ sub _debug {
 	return $_[0] unless $_[0]->{DEBUG};
 	my ($self,$n,@l)=@_;
 	$n='<undef>' unless defined $n; 
-	print STDERR 'xml (D ',$n,'): ',join(' ',grep(defined $_,@l)),"\n"; 
+	print STDERR 'xml (D ',$n,'): ',join(' ',map { ref($_) eq "" ? nvl($_) : Dumper($_); } @l),"\n"; 
 	return $self;
 }
 
@@ -76,7 +76,7 @@ sub _is_equal {
 	my ($self,$t1,$t2,%params)=@_;
 	confess "param 1 not set\n" unless defined $t1;
 	confess "param 2 not set\n" unless defined $t2;
-	my $r=$t1 == $t2 #same pointer
+	my $r=$t1 == $t2 #same point r
 		|| $t1->get_sql_name eq $t2->get_sql_name ? 1 : 0;
 	return $r unless $self->{DEBUG};
 	$self->_debug($params{TAG},'not equal ',$t1->get_sql_name,' <==> ',$t2->get_sql_name)
@@ -310,6 +310,22 @@ sub _resolve_link {
 	return $column;
 }
 
+
+sub _bind_node_attrs {
+	my ($self,$prep,$attrs,%params)=@_;
+	my @keys=keys %$attrs;
+	my $table=$prep->get_binding_table;
+	my $tname=$table->get_sql_name;
+	my @cols=$self->{_PARAMS}->{SCHEMA}->resolve_attributes($tname,@keys);
+	for my $i(0..scalar(@cols) - 1) {
+		my $col=$cols[$i];
+		confess $attrs->{$keys[$i]}.": no such column for this attribute in node '".$table->get_path."' - table '$tname'\n"
+			unless defined $col;
+		$prep->bind_column($col,$attrs->{$keys[$i]},%params);
+	}
+	return $self;
+}
+
 sub _unpath_table {
 	my ($self,$stack,$tc,%params)=@_;
 	confess $tc->{T}->get_sql_name."table is not an unpath sequence table"
@@ -449,13 +465,15 @@ sub _start_group_type {
 
 my %H=(
 	Start	=>   sub {
-		my $self=$_[0]->{LOAD_INSTANCE};		
-		$self->{_CURRENT_PATH}=$self->_decode('/'.join('/',(@{$_[0]->{Context}},($_[1]))));
+		my ($expect,$node,%node_attrs)=@_;
+		my $self=$expect->{LOAD_INSTANCE};		
+		$self->{_CURRENT_PATH}=$self->_decode('/'.join('/',(@{$expect->{Context}},($node))));
 		$self->_debug(__LINE__,'> (start path)',$self->{_CURRENT_PATH},"\n");
 		
 		my $stack=$self->_get_stack(TAG => __LINE__);
 		my $tc=_resolve_path($self,$self->{_CURRENT_PATH},TAG => __LINE__);
 		
+
 		if (ref($tc) eq 'ARRAY') {  #is a path for a table
 			if (scalar(@$tc) == 2) {
 				my ($table,$parent_table,$parent_column)=($tc->[-1]->{T},$tc->[0]->{T},$tc->[0]->{C});
@@ -463,9 +481,11 @@ my %H=(
 					my $prepared_tag=$parent_column->get_sql_name;
 					if ($stack->{EXTERNAL_REFERENCE}->{$prepared_tag}) {
 						_insert_seq_inc($stack->{EXTERNAL_REFERENCE}->{$prepared_tag},TAG => __LINE__); #increment the value of the seq column
+						$self->_bind_node_attrs($stack->{EXTERNAL_REFERENCE}->{$prepared_tag},\%node_attrs,TAG => __LINE__) if scalar keys %node_attrs;
 					}
 					else {
 						my $p=$self->_prepared_insert($parent_column->get_table_reference,TAG => __LINE__);
+						$self->_bind_node_attrs($p,\%node_attrs,TAG => __LINE__) if scalar keys %node_attrs;
 						my ($id)=$p->get_binding_values(PK_ONLY => 1,TAG => __LINE__);
 						$stack->{PREPARED}->bind_column($parent_column,$id,TAG => __LINE__);
 						$stack->{EXTERNAL_REFERENCE}->{$prepared_tag}=$p;
@@ -477,6 +497,7 @@ my %H=(
 					my $p=$self->_get_prepared_insert($table);
 					my ($id)=$p->get_binding_values(PK_ONLY => 1,TAG => __LINE__);
 					$stack->{PREPARED}->bind_column($parent_column,$id,TAG => __LINE__);
+					$self->_bind_node_attrs($p,\%node_attrs,TAG => __LINE__) if scalar keys %node_attrs;
 					$stack=$self->_push({  PREPARED => $p },TAG => __LINE__);
 				}
 			}
@@ -503,7 +524,7 @@ my %H=(
 					$stack->{UNPATH_COLSEQ}->{$parent_tag}=$parent_column->get_xsd_seq;
 				} 
 				else {
-					$self->_debug(__LINE__,$curr_table->get_sql_name,': table is not an unpath ');
+					$self->_debug(__LINE__,'(W) ',$curr_table->get_sql_name,': table is not an unpath table');
 				}
 
 				if ($self->_is_equal($stack->{PREPARED}->get_binding_table,$curr_table,TAG => __LINE__)) {
@@ -527,7 +548,6 @@ my %H=(
 						my ($id)=$sth->get_binding_values(PK_ONLY => 1,TAG => __LINE__);
 						if ($stack->{UNPATH_PREPARED}) {
 							$stack->{UNPATH_PREPARED}->{$parent_tag}->bind_column($parent_column,$id,TAG => __LINE__);
-#							$stack->{EXTERNAL_REFERENCE}->{$prepared_tag}=$stack->{UNPATH_PREPARED}->{$parent_tag} if $parent_column->get_max_occurs > 1;
 						}
 						else {
 							$stack->{PREPARED}->bind_column($parent_column,$id,TAG => __LINE__);
@@ -550,6 +570,7 @@ my %H=(
 			else {
 				my $p=$self->_prepared_insert($tc->{C}->get_table_reference,TAG => __LINE__);
 				my ($id)=$p->get_binding_values(PK_ONLY => 1,TAG => __LINE__);
+				$self->_bind_node_attrs($p,\%node_attrs,TAG => __LINE__) if scalar keys %node_attrs;
 				unless($self->_is_equal($stack->{PREPARED}->get_binding_table,$tc->{T},TAG => __LINE__)) {
 					if ($tc->{T}->is_unpath) {
 						my $sth=$self->_unpath_table($stack,$tc);
@@ -664,6 +685,7 @@ my %H=(
 		my $stack=$self->_get_stack(TAG => __LINE__,NOT_DEBUG => 1);
 		$stack->{VALUE}.=$value if defined $stack->{VALUE};
 	}
+
 );
 
 sub get_handler {
@@ -687,6 +709,11 @@ sub _tag_with_ns {
 	return $ns;
 }
 	
+sub _resolve_attrs {
+	my ($self,$r,$columns,%params)=@_;
+	my @attrs=map {  $columns->[$_]->is_attribute && defined $r->[$_] ? ($columns->[$_]->get_name,$r->[$_]) : ()  } (0..scalar(@$r) - 1);
+	return @attrs;
+}
 
 sub _write_xml {
 	my ($self,%params)=@_;
@@ -703,18 +730,24 @@ sub _write_xml {
 			next unless defined $row->[$i];
 			my $col=$cols[$i];
 			if (my $table=$col->get_table_reference) {
-				my $tag=basename($table->get_attrs_value qw(PATH));
 				my @root_tag_params=@{$p->{ROOT_TAG_PARAMS}};
 				croak join(",",@root_tag_params).": param ROOT_TAG_PARAMS is not an array of pairs key,value\n" 
 					if scalar(@root_tag_params) % 2;
 				my %root_tag_params=@root_tag_params;
 				my @namespace_prefix=map {  my @out=(/^xmlns:(\w+)/ && $1 ne 'xsi' ? ($1) : ()); @out; } keys(%root_tag_params); 				
 				croak join(",",@namespace_prefix).": multiple xml namespaces are not suppported\n" if scalar(@namespace_prefix) > 1;
-				$tag=_tag_with_ns(\@namespace_prefix).$tag;
-				$ostr->startTag($tag,@root_tag_params);
-				$self->_write_xml(ID => $row->[$i],TABLE	=> $table,LEVEL	=> 1,NAMESPACE_PREFIX => \@namespace_prefix);
-				$ostr->endTag($tag);
 
+				if ($table->is_simple_content_type) {
+					my $tag=basename($col->get_attrs_value('PATH'));
+					$self->_write_xml(ID => $row->[$i],TABLE	=> $table,LEVEL	=> 1,NAMESPACE_PREFIX => \@namespace_prefix,START_TAG => $tag,END_TAG => $tag);
+				}
+				else {
+					my $tag=basename($table->get_attrs_value('PATH'));
+					$tag=_tag_with_ns(\@namespace_prefix).$tag;
+					$ostr->startTag($tag,@root_tag_params);
+					$self->_write_xml(ID => $row->[$i],TABLE	=> $table,LEVEL	=> 1,NAMESPACE_PREFIX => \@namespace_prefix);
+					$ostr->endTag($tag);
+				}
 			}
 			else { 
 				$self->_write_xml(ROW_FOR_ID => $row,TABLE	=> $root,LEVEL	=> 1);
@@ -731,20 +764,40 @@ sub _write_xml {
 	confess nvl($params{ID}).": no such id\n" unless defined $r;
 	$self->_prepared_delete($table,ID => $r->[0],TAG => __LINE__) if $p->{DELETE_ROWS};
 	my $ns=_tag_with_ns($params{NAMESPACE_PREFIX});
+	my $columns=$table->get_columns;	
+
+	if (defined (my $tag=$params{START_TAG})) {
+		my @attrs=$self->_resolve_attrs($r,$columns);
+		$ostr->startTag($tag,@attrs);
+	}
+
 
 	for my $i(1..scalar(@$r) - 1) {
-		my $col=($table->get_columns)[$i];
-		next unless defined  $col->get_xsd_seq;
+		my $col=$columns->[$i];
+		next if $col->is_attribute;
 		my $value=$r->[$i];
 		if (my $table=$col->get_table_reference) {
 			next unless defined $value;
-			if (!$col->is_internal_reference) {
+			next unless defined  $col->get_xsd_seq;
+			if ($table->is_simple_content_type) {
+				my $tag=basename($col->get_attrs_value('PATH'));
+				if ($col->get_max_occurs > 1) {
+					my $cur=$self->_prepared_query($table,ID => $value,TAG => __LINE__);
+					$self->_prepared_delete($table,ID => $value,TAG => __LINE__) if $p->{DELETE_ROWS};
+					while(my $r=$cur->fetchrow_arrayref) {
+						$self->_write_xml(TABLE	=> $table,LEVEL	=> $params{LEVEL},ROW_FOR_ID	=> $r,NAMESPACE_PREFIX => $ns,START_TAG => $tag,END_TAG => $tag);	
+					}
+					$cur->finish;
+				}
+				else {
+					$self->_write_xml(ID => $value,TABLE	=> $table,LEVEL	=> $params{LEVEL} + 1,NAMESPACE_PREFIX => $ns,START_TAG => $tag,END_TAG => $tag);
+				}
+			}
+			elsif (!$col->is_internal_reference) {
 				if (defined $table->get_attrs_value qw(PATH)) {
 					if (!$table->is_type) { 
 						my $tag=$ns.basename($table->get_attrs_value qw(PATH));
-						$ostr->startTag($tag);
-						$self->_write_xml(ID => $value,TABLE	=> $table,LEVEL	=> $params{LEVEL} + 1,NAMESPACE_PREFIX => $ns);
-						$ostr->endTag($tag);
+						$self->_write_xml(ID => $value,TABLE	=> $table,LEVEL	=> $params{LEVEL} + 1,NAMESPACE_PREFIX => $ns,START_TAG => $tag,END_TAG => $tag);
 					}
 					else {  #the column reference a complex type
 						my $cur=$self->_prepared_query($table,ID => $value,TAG => __LINE__);
@@ -755,11 +808,14 @@ sub _write_xml {
 								$self->_write_xml(TABLE	=> $table,LEVEL	=> $params{LEVEL},ROW_FOR_ID	=> $r,NAMESPACE_PREFIX => $ns);										
 							}
 							else {
-								$ostr->startTag($tag);
+								my $columns=$table->get_columns;
+								my @attrs=$self->_resolve_attrs($r,$columns);
+								$ostr->startTag($tag,@attrs);
 								$self->_write_xml(TABLE	=> $table,LEVEL	=> $params{LEVEL} + 1,ROW_FOR_ID	=> $r,NAMESPACE_PREFIX => $ns);	
 								$ostr->endTag($tag);
 							}
 						}
+						$cur->finish;
 					}
 				}
 				else {	# is a sequence table
@@ -768,6 +824,7 @@ sub _write_xml {
 					while(my $r=$cur->fetchrow_arrayref) {
 						$self->_write_xml(TABLE	=> $table,LEVEL	=> $params{LEVEL},ROW_FOR_ID	=> $r,NAMESPACE_PREFIX => $ns);	
 					}
+					$cur->finish;
 				}
 			}
 			else   { #the column reference a simple type
@@ -776,10 +833,11 @@ sub _write_xml {
 				while (my $r=$cur->fetchrow_arrayref) {
 					$ostr->dataElement($tag,$r->[2]);                              
 				}
+				$cur->finish;
 				$self->_prepared_delete($table,ID => $value,TAG => __LINE__) if $p->{DELETE_ROWS};
 			}
 		}
-		else {
+		else {  #normal data column
 			if (my $path=$col->get_attrs_value(qw(PATH))) {
 				if (defined $value || $col->get_min_occurs > 0) {
 					my $tag=$ns.basename($path);
@@ -787,7 +845,17 @@ sub _write_xml {
 					$ostr->dataElement($tag,$value);                              
 				}
 			}
+			elsif ($params{TABLE}->is_simple_content_type && $col->get_attrs_value('VALUE_COL')) {
+				if (defined $value) {
+					my $tag=$params{START_TAG};
+					$value='' unless defined $value;
+					$ostr->characters($value);                              
+				}
+			}
 		}
+	}  # for columns 
+	if (defined (my $tag=$params{END_TAG})) {
+		$ostr->endTag($tag);
 	}
 	return  $self;
 }

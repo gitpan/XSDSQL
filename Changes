@@ -45,7 +45,7 @@ Revision history for Perl extension blx::xsdsql
 0.06.1 June 16 16:13 2011
 	- corrected algo bugs on param ROOT_TAG_PARAMS of  method blx::xsdsql::xml::write
 
-0.06.2 - July 20 18:12 2011
+0.06.2 -  July 20 18:12 2011
 	- corrected max int on parser 
 	- bug in write mandatory note with value null string
 	- create_view: in the header of views converted comment PATH to ROOTPATH
@@ -64,5 +64,20 @@ Revision history for Perl extension blx::xsdsql
 	- new option -S in test.pl (modality change, for default test.pl esecute xsd2sql in one step) 
 	- new param NO_FLAT_GROUPS in blx::xsdsql::parser::parsefile
 	- correct bug on join a table with maxoccurs > 1 in create view
-	- parser restyling code 
+	- parser restyling code
+
+0.07.0	- September 5 19:15 2011
+	- simpleContent implementation
+	- column  restyling code
+	- table restyling code
+	- new attribute ATTRIBUTE for class blx::xsdsql::xml::generic::column and new column in column_dictionary
+	- new method   blx::xsdsql::path_map::resolve_attributes
+	- attribute implementation
+	- correct documentation
+	- restyle structure  of table dictionary 
+	- obsolete params TABLE_IS_TYPE,SIMPLE_TYPE,COMPLEX_TYPE,SIMPLE_CONTENT,GROUP_TYPE in blx::xsdsql::xml::generic::table
+	- new param XSD_TYPE in  blx::xsdsql::xml::generic::table
+	- correct bug on xseq choice
+
+	
 

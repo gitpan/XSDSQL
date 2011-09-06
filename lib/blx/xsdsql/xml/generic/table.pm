@@ -13,52 +13,50 @@ use constant {
 		DEFAULT_ROOT_TABLE_NAME	=> 'ROOT'
 };
 
+
+use base qw(Exporter); 
+
+
+my  %t=( overload => [ qw (
+	XSD_TYPE_SIMPLE
+	XSD_TYPE_COMPLEX
+	XSD_TYPE_SIMPLE_CONTENT
+	XSD_TYPE_GROUP
+) ]);
+
+our %EXPORT_TAGS=( all => [ map { @{$t{$_}} } keys %t ],%t); 
+our @EXPORT_OK=( @{$EXPORT_TAGS{all}} );
+our @EXPORT=qw( );
+
+
+use constant {  
+	XSD_TYPE_SIMPLE				=>  'ST'
+	,XSD_TYPE_COMPLEX			=>  'CT'
+	,XSD_TYPE_SIMPLE_CONTENT	=>  'SCT'
+	,XSD_TYPE_GROUP				=>  'GT'
+};
+
+sub _ob {
+	confess $_[0].": obsolete\n";
+}
+
 our %_ATTRS_R=( 
-			NAME   => sub {
-							my $self=shift;
-							return defined $self->{PATH} ? basename($self->{PATH}) : $self->{NAME};
-			}							
-			,TYPES => sub {
-							my $self=shift;
-							my $t=nvl($self->{TYPES},[]); 
-							return wantarray ? @{$t} : $t;
-			}
-			,MINOCCURS	=> sub {
-							my $self=shift;
-							return nvl($self->{MINOCCORS},0);
-			}
-			,MAXOCCURS  => sub {
-							my $self=shift;
-							return nvl($self->{MAXOCCURS},1);
-			}
-			,XSD_SEQ	=> sub {
-							my $self=shift;
-							return nvl($self->{XSD_SEQ},0);
-			}
-			,TABLE_IS_TYPE	=> sub {
-							my $self=shift;
-							return $self->{TABLE_IS_TYPE} ? 1 : 0;
-			}
-			,SIMPLE_TYPE	=> sub {
-							my $self=shift;
-							return $self->{SIMPLE_TYPE} ? 1 : 0;
-			}
-			,CHOICE			=> sub {
-							my $self=shift;
-							return $self->{CHOICE} ? 1 : 0;
-			}
-			,GROUP_TYPE		=> sub {
-							my $self=shift;
-							return $self->{GROUP_TYPE} ? 1 : 0;
-			}
-			,DEEP_LEVEL			=> sub {
-							my $self=shift;
-							return $self->{DEEP_LEVEL}
-			}
-			,INTERNAL_REFERENCE => sub {
-							my $self=shift;
-							return $self->{INTERNAL_REFERENCE} ? 1 : 0;
-			}
+			NAME   				=> sub { my $p=$_[0]->{PATH}; return defined $p ? basename($p) : $_[0]->{NAME}; }							
+			,TYPES 				=> sub { my $t=nvl($_[0]->{TYPES},[]); return wantarray ? @$t : $t; }
+			,MINOCCURS			=> sub { return nvl($_[0]->{MINOCCORS},0); }
+			,MAXOCCURS  		=> sub { return nvl($_[0]->{MAXOCCURS},1); }
+			,XSD_SEQ			=> sub { return nvl($_[0]->{XSD_SEQ},0); }
+#			,TABLE_IS_TYPE		=> sub { return $_[0]->{TABLE_IS_TYPE} ? 1 : 0; }
+			,TABLE_IS_TYPE		=> sub { _ob(__LINE__); my $t=$_[0]->get_attrs_value(qw(XSD_TYPE)); return defined $t ? 1 : 0; }
+#			,SIMPLE_TYPE		=> sub { return $_[0]->{SIMPLE_TYPE} ? 1 : 0; }
+			,SIMPLE_TYPE		=> sub { _ob(__LINE__); my $t=$_[0]->get_attrs_value(qw(XSD_TYPE)); return defined $t && $t eq XSD_TYPE_SIMPLE ? 1 : 0; }
+			,CHOICE				=> sub { return $_[0]->{CHOICE} ? 1 : 0; }
+#			,GROUP_TYPE			=> sub { return $_[0]->{GROUP_TYPE} ? 1 : 0; }
+			,GROUP_TYPE			=> sub { _ob(__LINE__); my $t=$_[0]->get_attrs_value(qw(XSD_TYPE)); return defined $t && $t eq XSD_TYPE_GROUP ? 1 : 0; }
+			,COMPLEX_TYPE		=> sub { _ob(__LINE__); my $t=$_[0]->get_attrs_value(qw(XSD_TYPE)); return defined $t && $t eq XSD_TYPE_COMPLEX ? 1 : 0; }
+			,SIMPLE_CONTENT_TYPE	=>	sub { _ob(__LINE__); my $t=$_[0]->get_attrs_value(qw(XSD_TYPE)); return defined $t && $t eq XSD_TYPE_SIMPLE_CONTENT ? 1 : 0; }
+			,SIMPLE_CONTENT	=> sub { _on(__LINE__); }
+			,INTERNAL_REFERENCE => sub { return $_[0]->{INTERNAL_REFERENCE} ? 1 : 0; }
 );
 
 our %_ATTRS_W=();
@@ -67,8 +65,10 @@ sub new {
 	my ($class,%params)=@_;
 	$params{COLUMNS}=[] unless  defined $params{COLUMNS};
 	$params{CHILD_TABLES}=[] unless defined $params{CHILD_TABLES}; 
-	$params{XSD_SEQ}=0 unless defined $params{XSD_SEQ}; 
-	return bless(\%params,$class);
+	$params{XSD_SEQ}=0 unless defined $params{XSD_SEQ};
+	my $self=bless(\%params,$class);
+	$self->_check_obsolete_params(keys %params);
+	return $self;
 }
 
 sub add_columns {
@@ -103,6 +103,16 @@ sub get_columns {
 sub add_child_tables {
 	my $self=shift;
 	push @{$self->{CHILD_TABLES}},@_;
+	return $self;
+}
+
+sub _check_obsolete_params {
+	my $self=shift;
+	for my $a(@_) {
+		if (grep($_ eq $a,qw(TABLE_IS_TYPE SIMPLE_TYPE SIMPLE_CONTENT_TYPE SIMPLE_CONTENT COMPLEX_TYPE GROUP_TYPE))) {
+			confess "$a:  obsolete param\n";
+		}
+	}
 	return $self;
 }
 
@@ -157,12 +167,15 @@ sub get_child_tables {
 	
 sub set_attrs_value {
 	my $self=shift;
+	my %h=@_;
+	$self->_check_obsolete_params(keys %h);
 	blx::xsdsql::ut::set_attrs_value($self,\%_ATTRS_W,@_);
 	return $self;
 }
 
 sub get_attrs_value {
 	my $self=shift;
+	$self->_check_obsolete_params(@_);
 	return blx::xsdsql::ut::get_attrs_value($self,\%_ATTRS_R,@_);
 }
 
@@ -222,17 +235,33 @@ sub _inc_xsd_seq {
 
 sub is_type {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(TABLE_IS_TYPE);
+	return $_[0]->get_attrs_value(qw(XSD_TYPE)) ? 1 : 0; 
+#	return $self->get_attrs_value qw(TABLE_IS_TYPE);
+}
+
+sub is_complex_type {
+	my ($self,%params)=@_;
+	return nvl($self->get_attrs_value(qw(XSD_TYPE))) eq XSD_TYPE_COMPLEX ? 1 : 0;
+#	return $self->get_attrs_value qw(COMPLEX_TYPE);
 }
 
 sub is_simple_type {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(SIMPLE_TYPE);
+	return nvl($self->get_attrs_value(qw(XSD_TYPE))) eq XSD_TYPE_SIMPLE ? 1 : 0;
+#	return $self->get_attrs_value qw(SIMPLE_TYPE);
 }
+
+sub is_simple_content_type {
+	my ($self,%params)=@_;
+	return nvl($self->get_attrs_value(qw(XSD_TYPE))) eq XSD_TYPE_SIMPLE_CONTENT ? 1 : 0;
+#	return $self->get_attrs_value qw(SIMPLE_CONTENT_TYPE);
+}
+
 
 sub is_group_type {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(GROUP_TYPE);
+#	return $self->get_attrs_value qw(GROUP_TYPE);
+	return nvl($self->get_attrs_value(qw(XSD_TYPE))) eq XSD_TYPE_GROUP ? 1 : 0;
 }
 
 sub is_choice {
@@ -258,6 +287,11 @@ sub get_max_occurs {
 sub get_xsd_seq {
 	my ($self,%params)=@_;
 	return $self->get_attrs_value qw(XSD_SEQ);
+}
+
+sub get_xsd_type {
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(XSD_TYPE);
 }
 
 sub get_sql_name {
@@ -384,18 +418,22 @@ sub get_dictionary_data {
 		my %data=(
 			TABLE_NAME 					=> $self->get_sql_name
 			,XSD_SEQ 					=> $self->get_xsd_seq
-			,TYPE						=> ($self->is_simple_type ? 'S' : $self->is_type ? 'C' : undef)  
-			,IS_GROUP					=> $self->is_group_type
-			,IS_CHOICE					=> $self->is_choice
+#			,TYPE						=> ($self->is_simple_type ? 'S' : $self->is_type ? 'C' : undef)  
+#			,IS_CHOICE					=> ($self->is_choice ? 'Y' : undef)
 			,MIN_OCCURS					=> $self->get_min_occurs
 			,MAX_OCCURS					=> $self->get_max_occurs
-			,PATH_NAME					=> $self->get_attrs_value qw(PATH)
+			,PATH_NAME					=> $self->get_path
 			,DEEP_LEVEL					=> $self->get_deep_level
 			,PARENT_PATH				=> $self->get_parent_path
-			,IS_ROOT_TABLE				=> $self->is_root_table
-			,IS_UNPATH					=> $self->is_unpath
-			,IS_INTERNAL_REF			=> $self->is_internal_reference
+			,IS_ROOT_TABLE				=> ($self->is_root_table ? 'Y' : undef)
+			,IS_UNPATH					=> ($self->is_unpath   ? 'Y' : undef)
+			,IS_INTERNAL_REF			=> ($self->is_internal_reference ? 'Y' : undef)
 			,VIEW_NAME					=> $self->get_view_sql_name
+			,XSD_TYPE					=> $self->get_xsd_type 
+			,IS_GROUP_TYPE				=> ($self->is_group_type ? 'Y' : undef)
+			,IS_COMPLEX_TYPE			=> ($self->is_complex_type ? 'Y' : undef)
+			,IS_SIMPLE_TYPE				=> ($self->is_simple_type ? 'Y' : undef)
+			,IS_SIMPLE_CONTENT_TYPE		=> ($self->is_simple_content_type ? 'Y' : undef)
 		);
 		return wantarray ? %data : \%data if scalar %data;
 	}
@@ -460,9 +498,7 @@ new  - contructor
 		COLUMNS  			- a pointer too an array of  column objects (default [])
 		CHILD_TABLES 		- pointer too an array of table objects (default [])
 		XSD_SEQ  			- a XSD_SEQ start number 
-		TABLE_IS_TYPE 		- the table is associated with type (simple or complex)
-		SIMPLE_TYPE 		- the table is associated with a simple type
-		GROUP_TYPE  		- the table is associated to an xsd group
+		XSD_TYPE			- xsd type - see XSD_TYPE_* constants 
 		CHOICE 				- the table is associated to a choice
 		MINOCCURS 			- the table as a minoccurs 
 		MAXOCCURS 			- the table as a maxoccurs
@@ -535,10 +571,28 @@ is_type	- return true if the table is associated to a xsd type
 is_simple_type - return true if the table is associated to a xsd simple type
 
 
+is_complex_type - return true if the table is associated to a xsd complex type
+
+
+is_simple_content_type - return true if the table is associated to a xsd simple content type
+
+
+is_group_type	- return true if the table is associated to a xsd group type
+
+
 is_choice - return true if the table is associated to a xsd choice
 
 
+is_internal_reference - return  true if the the table is an occurs of simple types
+
+
+is_unpath - return true if the table is not associated to a path
+
+
 get_xsd_seq - return the  start xsd sequence 
+
+
+get_xsd_type - return the xsd type og the object - see the constants XSD_TYPE_*
 
 
 get_min_occurs - return the min occurs of the table
@@ -559,12 +613,6 @@ get_dictionary_data - return an hash of dictionary column name => value for the 
 
 
 get_deep_level - return the deep level - the root has level 0
-
-
-is_internal_reference - return  true if the the table is an occurs of simple types
-
-
-is_unpath - return true if the table is not associated to a path
 
 
 get_parent_path - return the parent path if is_unpath is true

@@ -33,7 +33,7 @@ __END__
 
 =head1 NAME
 
-blx::xsdsql::generator::sql::generic::handle::drop_view  - generic handle for drop view
+blx::xsdsql::generator::sql::generic::handle::drop_dictionary - generic handle for drop dictionary
 
 
 =head1 SYNOPSIS

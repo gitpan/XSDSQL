@@ -49,7 +49,7 @@ sub _translate_type {
 }
 
 
-my %INVALID_NAMES=(map { (uc($_),undef) } qw ( int  short byte column varchar date long numeric table alter create drop union)); 
+my %INVALID_NAMES=(map { (uc($_),undef) } qw ( int  short byte column varchar date long numeric table alter create drop union end)); 
 
 sub _resolve_invalid_name {
 	my ($self,$name,%params)=@_;

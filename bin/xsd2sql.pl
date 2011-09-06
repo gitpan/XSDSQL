@@ -209,7 +209,7 @@ my $schema=$p->parsefile(
 	,TABLE_DICTIONARY_NAME 			=> $Opt{b}->[0]
 	,COLUMN_DICTIONARY_NAME			=> $Opt{b}->[1] 
 	,RELATION_DICTIONARY_NAME 		=> $Opt{b}->[2]
-	,SCHEMA_DUMPER					=>  0
+	,SCHEMA_DUMPER					=> 0
 ) || exit 1;
 
 
