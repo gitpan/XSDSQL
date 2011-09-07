@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- <attrs  attr1="pippo"></attrs> -->
-
 <root>
-	<c1  attr1="myattr"/>
+	<c1 attr1="myattr"></c1>
 </root>
-

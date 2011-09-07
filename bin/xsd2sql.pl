@@ -22,7 +22,7 @@ use constant {
  	,DEFAULT_TABLE_DICTIONARY		=> 'table_dictionary'
  	,DEFAULT_COLUMN_DICTIONARY		=> 'column_dictionary'
 	,DEFAULT_RELATION_DICTIONARY 	=> 'relation_dictionary'
-	,O_KEYS							=>  [ qw(MAX_VIEW_COLUMNS MAX_VIEW_JOINS) ]
+	,O_KEYS							=>  [ qw(MAX_VIEW_COLUMNS MAX_VIEW_JOINS EMIT_SCHEMA_DUMPER) ]
 	
 };
 
@@ -35,42 +35,43 @@ unless (getopts ('hn:r:p:l:t:w:s:b:do:',\%Opt)) {
 if ($Opt{h}) {
 	print STDOUT "
 $0  [<options>]  [<xsdfile>] [<command>...]
-	<options>: 
-		-h  - this help
-		-d  - emit debug info 
-		-n <output_namespace>::<db_namespace> - default sql::pg  (sql for PostgreSQL)
-		-r <root_table_name> - set the root table name  (default '".DEFAULT_ROOT_TABLE_NAME."')
-		-p <table_prefix_name> - set the prefix for the tables name (default none)
-		-w <view_prefix_name>  - set the prefix for views name (default '".DEFAULT_VIEW_PREFIX."')
-				WARNING - This option can influence table names
-		-s <sequence_prefix_name>  - set the prefix for sequences name (default '".DEFAULT_SEQUENCE_PREFIX."')
-				WARNING - This option can influence table names
-		-l <start_table_level> - set the start level for generate create/drop view (the root has level 0) (default 0)
-		-t <table_name>|<path_name>[,<table_name>|<path_name>...] - generate view starting only from <table_name> (default all tables)
-			if the first <table_name>|<path_name> begin with comma then <table_name>|<path_name> (without comma) is a file name containing a list of <table_name>|<path_name>
-		-b [<table_dictionary_name>][:<column_dictionary_name>[:<relation_dictionary_name>]] - set the name of the table_dictionary, the column_dictionary  and or the relation dictionary
-				the default names are '".DEFAULT_TABLE_DICTIONARY."' , '".DEFAULT_COLUMN_DICTIONARY."' and '".DEFAULT_RELATION_DICTIONARY."' 
-		-o <name>=<value>[,<name>=<value>...]
-			set extra params - valid names are:
-				MAX_VIEW_COLUMNS 	=>  produce view code only for views with columns number <= MAX_VIEW_COLUMNS
-					-1 is a system limit (database depend)
-					false is no limit (the default)
-				MAX_VIEW_JOINS 		=>  produce view code only for views with join number <= MAX_VIEW_JOINS 
-					-1 is a system limit (database depend)
-					false is no limit (the default)						
-	<commands>
-		display_cl_namespaces - display on stdout the namespaces (type+db) founded (Es: sql::pg)
-		drop_table  - generate a drop tables on stdout
-		create_table - generate a create tables on stdout
-		addpk - generate primary keys on stdout
-		drop_sequence - generate a drop sequence on stdout
-		create_sequence - generate a create sequence on stdout
-		drop_view       - generate a drop view on stdout
-		create_view     - generate a create view on stdout
-		drop_dictionary - generate a drop dictionary on stdout
-		create_dictionary - generate a create dictionary on stdout
-		insert_dictionary - generate an insert dictionary on stdout
-		display_path_relation - display on stdout the relation from path and table/column
+    <options>: 
+        -h  - this help
+        -d  - emit debug info 
+        -n <output_namespace>::<db_namespace> - default sql::pg  (sql for PostgreSQL)
+        -r <root_table_name> - set the root table name  (default '".DEFAULT_ROOT_TABLE_NAME."')
+        -p <table_prefix_name> - set the prefix for the tables name (default none)
+        -w <view_prefix_name>  - set the prefix for views name (default '".DEFAULT_VIEW_PREFIX."')
+                WARNING - This option can influence table names
+        -s <sequence_prefix_name>  - set the prefix for sequences name (default '".DEFAULT_SEQUENCE_PREFIX."')
+                WARNING - This option can influence table names
+        -l <start_table_level> - set the start level for generate create/drop view (the root has level 0) (default 0)
+        -t <table_name>|<path_name>[,<table_name>|<path_name>...] - generate view starting only from <table_name> (default all tables)
+            if the first <table_name>|<path_name> begin with comma then <table_name>|<path_name> (without comma) is a file name containing a list of <table_name>|<path_name>
+        -b [<table_dictionary_name>][:<column_dictionary_name>[:<relation_dictionary_name>]] - set the name of the table_dictionary, the column_dictionary  and or the relation dictionary
+                the default names are '".DEFAULT_TABLE_DICTIONARY."' , '".DEFAULT_COLUMN_DICTIONARY."' and '".DEFAULT_RELATION_DICTIONARY."' 
+        -o <name>=<value>[,<name>=<value>...]
+            set extra params - valid names are:
+                MAX_VIEW_COLUMNS     =>  produce view code only for views with columns number <= MAX_VIEW_COLUMNS
+                    -1 is a system limit (database depend)
+                    false is no limit (the default)
+                MAX_VIEW_JOINS         =>  produce view code only for views with join number <= MAX_VIEW_JOINS 
+                    -1 is a system limit (database depend)
+                    false is no limit (the default)
+                EMIT_SCHEMA_DUMPER     => is true emit the tree parser, before the conversion
+    <commands>
+        display_cl_namespaces - display on stdout the namespaces (type+db) founded (Es: sql::pg)
+        drop_table  - generate a drop tables on stdout
+        create_table - generate a create tables on stdout
+        addpk - generate primary keys on stdout
+        drop_sequence - generate a drop sequence on stdout
+        create_sequence - generate a create sequence on stdout
+        drop_view       - generate a drop view on stdout
+        create_view     - generate a create view on stdout
+        drop_dictionary - generate a drop dictionary on stdout
+        create_dictionary - generate a create dictionary on stdout
+        insert_dictionary - generate an insert dictionary on stdout
+        display_path_relation - display on stdout the relation from path and table/column
 \n"; 
     exit 0;
 }
@@ -79,7 +80,7 @@ $0  [<options>]  [<xsdfile>] [<command>...]
 my @cl_namespaces=blx::xsdsql::generator::get_namespaces;
 my @db_namespaces=blx::xsdsql::parser::get_db_namespaces;
 
-if ($ARGV[0] eq 'display_namespaces') {	
+if (nvl($ARGV[0]) eq 'display_namespaces') {	
 	for my $n(sort @cl_namespaces) {
 		print STDOUT $n,"\n";
 	}
@@ -209,7 +210,7 @@ my $schema=$p->parsefile(
 	,TABLE_DICTIONARY_NAME 			=> $Opt{b}->[0]
 	,COLUMN_DICTIONARY_NAME			=> $Opt{b}->[1] 
 	,RELATION_DICTIONARY_NAME 		=> $Opt{b}->[2]
-	,SCHEMA_DUMPER					=> 0
+	,SCHEMA_DUMPER					=> $Opt{o}->{EMIT_SCHEMA_DUMPER}
 ) || exit 1;
 
 

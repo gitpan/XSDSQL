@@ -79,5 +79,9 @@ Revision history for Perl extension blx::xsdsql
 	- new param XSD_TYPE in  blx::xsdsql::xml::generic::table
 	- correct bug on xseq choice
 
+0.07.1	- September 7 18:05 2011
+	- xsd2sql.pl -	correct warning parser command if $ARGV[0] is not set
+			add attribute EMIT_SCHEMA_DUMPER 
+	- exclusion system attribute for nodes at level 1
+	- correct some tests because  not passed if is use diff command  
 	
-

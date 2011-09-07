@@ -313,8 +313,8 @@ sub _resolve_link {
 
 sub _bind_node_attrs {
 	my ($self,$prep,$attrs,%params)=@_;
-	my @keys=keys %$attrs;
 	my $table=$prep->get_binding_table;
+	my @keys=grep($table->get_deep_level > 1 || $_ ne 'xmlns:xsi',keys %$attrs);
 	my $tname=$table->get_sql_name;
 	my @cols=$self->{_PARAMS}->{SCHEMA}->resolve_attributes($tname,@keys);
 	for my $i(0..scalar(@cols) - 1) {

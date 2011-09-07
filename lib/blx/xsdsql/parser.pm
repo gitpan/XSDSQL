@@ -794,6 +794,7 @@ sub _parse {
 		NAME			=> undef
 		,PATH			=> '/'
 		,CHOICE			=> 1
+		,DEEP_LEVEL		=> 0
 	);
 
 	$root->get_sql_name(%params); #force the resolve of sql name 
@@ -802,7 +803,7 @@ sub _parse {
 	$root->get_sequence_name(%params); #force the resolve of the corresponding sequence name
 	$root->add_columns($params{SELF}->{ANONYMOUS_COLUMN}->factory_column(qw(ID)));
 	my $types=[];
-	_parse_x($r,0,$root,$types,%params,PARENT_PATH => $root->get_path);
+	_parse_x($r,1,$root,$types,%params,PARENT_PATH => $root->get_path);
 	my %type_names=map { ($_->get_attrs_value(qw(NAME)),$_) } grep(defined $_->get_attrs_value(qw(NAME)),@$types);
 	my %p=(
 			%params
