@@ -20,10 +20,10 @@
 	<dateTime>1999-05-31T18:20:00.000Z</dateTime>
 	<date>-0044-03-15</date>
 	<time>14:30:00.000Z</time>
-	<gYear>-0001</gYear>
+<!--	<gYear>-0001</gYear>
 	<gYearMonth>2010-12</gYearMonth>
-	<gMonthDay>--02-29</gMonthDay>
-	<duration>P2000Y10M31DT09H32M7.4312S</duration>
+	<gMonthDay>\-\-02-29</gMonthDay>
+-->	<duration>P2000Y10M31DT09H32M7.4312S</duration>
 	<ID>ID</ID>
 	<IDREF>IDREF</IDREF>
 	<IDREFS>IDREFS</IDREFS>
@@ -40,6 +40,12 @@
 	<hexBinary>0102FF</hexBinary>
 	<boolean>1</boolean>
 	<anyURI>anyURI</anyURI>
-	<without_type>hhhhvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv</without_type>
+<!--	<without_type>hhhhvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv</without_type>
+-->
+
 	<customSimpleType>12</customSimpleType>
+	<customSimpleType1>13</customSimpleType1>
+	<customSimpleType2>13000</customSimpleType2>
+	<customSimpleType3>999</customSimpleType3>
+	<customSimpleType4>AA</customSimpleType4>
 </Types>

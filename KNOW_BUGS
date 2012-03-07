@@ -2,7 +2,7 @@
 Element             - yes: implemented - no: non implemented - ignored: conversion ignored 
 
 all                 - no
-annotation          - ignored (non completely tested) (possible conversion into sql comment)
+annotation          - ignored  (possible conversion into sql comment)
 any                 - no 
 anyAttribute        - no     
 appInfo             - ignored 
@@ -11,12 +11,12 @@ attributeGroup      - no
 choice              - yes 
 complexContent      - no 
 complexType         - yes 
-documentation       - ignored 
+documentation       - ignored  (possible conversion into sql comment)
 element             - yes 
 extension           - yes 
 field               - no  
 group               - yes  
-import              - no 
+import              - yes 
 include             - no 
 key                 - ignored  (possible conversion into sql unique constraint)
 keyref              - ignored  (possible conversion into sql foreign constraint)
@@ -33,7 +33,7 @@ union               - yes
 unique              - ignored (possible conversion into sql unique constraint) 
 
 enumeration         - yes 
-fractionDigits      - no 
+fractionDigits      - yes 
 length              - yes 
 maxExclusive        - ignored (possible conversion into sql check constraint) 
 maxInclusive        - ignored (possible conversion into sql check constraint) 

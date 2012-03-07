@@ -1,34 +1,17 @@
-package blx::xsdsql::path_map;
+package blx::xsdsql::xsd_parser::path_map;
 
 use strict;
 use warnings FATAL => 'all';
 use Carp;
 use Data::Dumper;
-
 use blx::xsdsql::ut qw(nvl);
-
+use base qw(blx::xsdsql::common_interfaces blx::xsdsql::log);
 
 our %_ATTRS_R=();
 our %_ATTRS_W=();
 
-
-sub _fusion_params {
-	my ($self,%params)=@_;
-	my %p=%$self;
-	for my $p(keys %params) {
-		$p{$p}=$params{$p};
-	}
-	return \%p;
-}
-
-sub _debug {
-	return $_[0] unless $_[0]->{DEBUG};
-	my ($self,$n,@l)=@_;
-	$n='<undef>' unless defined $n; 
-	print STDERR 'path_map (D ',$n,'): ',join(' ',grep(defined $_,@l)),"\n"; 
-	return $self;
-}
-
+sub _get_attrs_r {  return \%_ATTRS_R; }
+sub _get_attrs_w {  return \%_ATTRS_W; }
 
 sub _register_attribute {
 	my ($self,%params)=@_;
@@ -58,7 +41,6 @@ sub _register_path {
 		confess "(E $tag) ORIG_PATH_NAME not def for type table " if $params{T}->is_type;
 	}
 	unless ($path) {
-		$self->_debug(__LINE__,Dumper($params{C}));
 		confess "(E $tag) path not set\n";
 	}
 
@@ -82,10 +64,22 @@ sub _register_path {
 	}->();
 
 	if (my $tc=$params{PATH}->{$path}) {  #path is already register
-		if ($self->{DEBUG}) {  #check the consistenze $tc and $ret
+		if ($self->{DEBUG}) {  #check the consistence $tc and $ret
 			$self->_debug($tag,"$path: path already register");
-			confess "check consistence 1 failed " if ref($tc) eq 'ARRAY' && ref($ret) ne 'ARRAY';
+			if (ref($tc) eq 'ARRAY' && ref($ret) ne 'ARRAY') {
+				$self->_debug(__LINE__,$tc->[-1]->{T}->get_sql_name,$ret->{C}->get_full_name);
+				confess "check consistence 1 failed\n";
+			}
 			confess "check consistence 2 failed " if ref($tc) eq 'HASH' && ref($ret) ne 'HASH';
+			if (ref($tc) eq 'ARRAY' && $tc->[-1]->{T}->get_sql_name ne $ret->[-1]->{T}->get_sql_name) {
+				$self->_debug(__LINE__,$tc->[-1]->{T}->get_sql_name);
+				$self->_debug(__LINE__,$tc->[-1]->{T}->get_path);
+				$self->_debug(__LINE__,$ret->[-1]->{T}->get_sql_name);
+				$self->_debug(__LINE__,$ret->[-1]->{T}->get_path);
+			}
+
+
+
 			confess "check consistence 3 failed " if ref($tc) eq 'ARRAY' && $tc->[-1]->{T}->get_sql_name ne $ret->[-1]->{T}->get_sql_name;
 
 			if (ref($tc) eq 'HASH' && $tc->{C}->get_full_name ne $ret->{C}->get_full_name) {
@@ -122,18 +116,27 @@ sub _resolve_path_ref {
 	for my $child($table->get_child_tables) {
 		return $child if nvl($child->get_attrs_value('PATH'),'') eq $path_ref;
 	}
+	for my $t($params{ROOT_TABLE}->get_child_tables) {
+		return $t if nvl($t->get_path,'') eq $path_ref;
+	}
 	return undef;
+}
+
+sub _resolve_table_path {
+	my ($self,$t,%params)=@_;
+	my $x=-1; 
+	while(!$t->get_attrs_value qw(PATH)) {
+		$t=$params{STACK}->[$x--]->{T};
+	}
+	return $t;
 }
 
 sub _resolve_relative_path {
 	my ($self,$startpath,$table,$relative_path,%params)=@_;
-	my $tag=$params{TAG};
-	confess "(E $tag) null relative path\n" unless $relative_path;
-	my ($path,$x,$t)=($relative_path,-1,$table);
-	while(!$t->get_attrs_value qw(PATH)) {
-		$t=$params{STACK}->[$x--]->{T};
+	for my $i(1..3) {
+		confess "internal error - $i param not set\n" unless defined $_[$i];
 	}
-	$path=$startpath.substr($path,length($t->get_attrs_value qw(PATH)));
+	my $path=$startpath.substr($relative_path,length($self->_resolve_table_path($table,%params)->get_attrs_value qw(PATH)));
 	return $path;
 }
 
@@ -146,7 +149,7 @@ sub _mapping_path {
 	}
 
 	for my $col($table->get_columns) {
-		next if $col->is_pk;
+		next if $col->is_pk || $col->is_sys_attributes;
 		if ($col->is_attribute) {
 			$self->_register_attribute(%params,T => $table,C => $col,TAG => __LINE__);
 			next;
@@ -167,8 +170,9 @@ sub _mapping_path {
 					$self->_link_tables($table,$col,$table_ref);
 					my $orig_path_name=$params{ORIG_PATH_NAME};
 					if (my $path=$col->get_path) {
+
 						$orig_path_name=$self->_resolve_relative_path(
-							nvl($params{ORIG_PATH_NAME},$table->get_path)
+							nvl($params{ORIG_PATH_NAME},$self->_resolve_table_path($table,%params)->get_path)
 							,$table
 							,$path
 							,%params
@@ -212,28 +216,45 @@ sub _mapping_path {
 
 sub mapping_paths {
 	my ($self,$root_table,$type_paths,%params)=@_;
+	croak ref($root_table).": 1^ param must be a table\n" unless ref($root_table)=~/::table$/;
+	croak ref($type_paths).": 2^ param must be hash\n" unless ref($type_paths) eq 'HASH';
 	my %path_translate=();
 	my %attr_translate=();
 	my $p=$self->_fusion_params(%params);
 	my %savekey=%$self;
 	$self->{DEBUG}=$params{DEBUG} if exists $params{DEBUG};
-	$self->_mapping_path($root_table,%$p,PATH => \%path_translate,TYPE_PATHS => $type_paths,STACK => [],ATTRIBUTES => \%attr_translate);
+	$self->_mapping_path($root_table,%$p,PATH => \%path_translate,TYPE_PATHS => $type_paths,STACK => [],ATTRIBUTES => \%attr_translate,ROOT_TABLE => $root_table);
 	$self->set_attrs_value(TC => \%path_translate,ATTRS => \%attr_translate); 
 	$self->{DEBUG}=$savekey{DEBUG};
 	return $self;
 }
 
+
+
+sub _manip_path {
+	my ($self,$path,%params)=@_;
+	return $path unless $path=~/:/;  # no  namespace specificied 
+	my @p=map {
+		my $out=$_;
+		$out=$2 if /^([^:]+):(.*)$/;
+		$out;
+	}	grep(length($_),split('/',$path));
+	return  '/'.join('/',@p);
+}
+
 sub resolve_path { #return an array if resolve into tables otherwise an hash
 	my ($self,$path,%params)=@_;
 	croak "1^ arg not set" unless defined $path;
-	my $a=$self->{TC}->{$path};
-	croak "$path: path not resolved ".nvl($params{TAG}) unless defined $a;
+	my $p=$self->_manip_path($path,%params);
+	my $a=$self->{TC}->{$p};
+	confess "$p: path not resolved - orig path is '$path' " unless defined $a;
 	return $a;
 }
 
 
 sub resolve_attributes {
 	my ($self,$table_name,@attrnames)=@_;
+	$self->_debug(__LINE__,keys %{$self->{ATTRS}->{$table_name}});
 	my @cols=map { 	$self->{ATTRS}->{$table_name}->{$_} } @attrnames;
 	return @cols if wantarray;
 	return scalar(@cols) <= 1 ? $cols[0] : \@cols;
@@ -251,19 +272,12 @@ sub new {
 	my ($classname,%params)=@_;
 	my $self=bless {},$classname;
 	$self->set_attrs_value(%params);
+	my $r=ref($self);
+	$r=~s/^blx::xsdsql:://;
+	$self->{DEBUG_NAME}=$r;
 	return $self;
 }
 
-sub set_attrs_value {
-	my $self=shift;
-	blx::xsdsql::ut::set_attrs_value($self,\%_ATTRS_W,@_);
-	return $self;
-}
-
-sub get_attrs_value {
-	my $self=shift;
-	return blx::xsdsql::ut::get_attrs_value($self,\%_ATTRS_R,@_);
-}
 
 1;
 
@@ -271,106 +285,11 @@ __END__
 
 =head1  NAME
 
-blx::xsdsql::path_map - mapping a xml path to table/column 
+
+blx::xsdsql::xsd_parser::path_map  - internal class for parsing schema 
 
 =cut
 
-=head1 SYNOPSIS
-
-use blx::xsdsql::path_map
-
-=cut
-
-
-=head1 DESCRIPTION
-
-this package is a class - instance it with the method new
-
-
-=head1 FUNCTIONS
-
-this module defined the followed functions
-
-new - constructor   
-
-	params:
-		DEBUG - emit debug info 
-		
-
-mapping_paths - mapping the all path node to tables and columns
-
-	arguments
-		$root_table - the output of the parser
-		$type_paths - the output of the parser
-
-	params:
-		DEBUG - emit debug info 
-
-	the method return the self object
-
-
-resolve_path - return the table and the column associated  to the the pathnode
-				the method return an array ref if the path is associated to a tables
-				otherwise return an hash if the path is associated to a column
-
-	arguments
-		absolute node path 
-		
-	params:
-		DEBUG - emit debug info 
-
-
-
-resolve_column_link - return a column that link 2 tables
-
-	the arguments are  a parent table and a child tables
-	
-
-resolve_attributes - return columns that bind node attributes
-	
-	the arguments are a table name and a attribute node name list
-
-
-set_attrs_value   - set a value of attributes
-
-	the arguments are a pairs NAME => VALUE	
-	the method return a self object
-
-
-
-get_attrs_value  - return a list  of attributes values
-
-	the arguments are a list of attributes name
-
-
-=head1 EXPORT
-
-
-None by default.
-
-
-=head1 EXPORT_OK
-
-None
-
-=head1 SEE ALSO
-
-	blx::xsdsql::schema  - mapping an xsd into a objects grouped in a schema object
-
-=head1 AUTHOR
-
-lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
-
-=head1 COPYRIGHT AND LICENSE
-
-Copyright (C) 2011 by lorenzo.bellotti
-
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
-
-See http://www.perl.com/perl/misc/Artistic.html
-
-=cut
 
 
 	

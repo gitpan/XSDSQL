@@ -4,6 +4,10 @@ use warnings;
 use Carp;
 use base qw(blx::xsdsql::generator::sql::generic::handle::drop_sequence);
 
+sub _get_drop_prefix {
+	my ($self,%params)=@_;
+	return "drop sequence if exists";
+}
 
 1;
 

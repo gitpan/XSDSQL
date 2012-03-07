@@ -14,10 +14,11 @@ use blx::xsdsql::dbconn;
 use blx::xsdsql::ut qw(nvl);
 
 use constant {
-	DIR_PREFIX		=> 'xml_'
-	,STRCONN_FILE	=> '.strconn'
-	,APPLICATION	=> 'dbi'
-	,STEP_FILE		=> '.step'
+	DIR_PREFIX				=> 'xml_'
+	,STRCONN_FILE			=> '.strconn'
+	,APPLICATION			=> 'dbi'
+	,STEP_FILE				=> '.step'
+	,CUST_PARAMS_FILE		=> 'custom_params'
 };
 
 sub debug {
@@ -43,6 +44,7 @@ sub xsd2sql {
 		." -w '".$params{PREFIX_VIEWS}."'"
 		." -s '".$params{PREFIX_SEQUENCE}."'"
 		.($params{EXTRA_PARAMS} ? " -o '".$params{EXTRA_PARAMS}."'" : "")
+		."" 
 		." '".$params{SCHEMA_FILE}."'";
 	my @args=qw(drop_table create_table addpk drop_sequence create_sequence drop_view create_view drop_dictionary create_dictionary insert_dictionary);
 	unless ($params{XSD2SQL_ONE_PASS}) {
@@ -55,17 +57,17 @@ sub xsd2sql {
 		}				
 	}
 	else {
-		my $cmd=$pcmd.' '.join(' ',map { "'".$_."'" } grep(/^drop/,@args)).' > all_drops.sql ';
+		my $rinchi="";
+		my $cmd=$pcmd.' '.join(' ',map { "'".$_."'" } grep(/^drop/,@args)).' > all_drops'.$rinchi.'.sql';
 		debug(__LINE__,$cmd) if $params{DEBUG};
 		system($cmd);
 		return (%ret,ERR_MSG => "$cmd: execution error") if $?;
-		$cmd=$pcmd.' '.join(' ',map { "'".$_."'" } grep($_!~/^drop/,@args)).' > all_creates.sql ';
+		$cmd=$pcmd.' '.join(' ',map { "'".$_."'" } grep($_!~/^drop/,@args)).' > all_creates'.$rinchi.'.sql';
 		debug(__LINE__,$cmd) if $params{DEBUG};
 		system($cmd);
 		return (%ret,ERR_MSG => "$cmd: execution error") if $?;
 
 	}
-
 	return %ret;
 }
 
@@ -80,11 +82,11 @@ sub isql {
 	debug(__LINE__,$cmd) if $params{DEBUG};
 	system($cmd);
 	my $rc=$?;
-	return (ERR_MSG => "$cmd: execution error") if $rc == -1 || ($rc & 127);											
+	return (ERR_MSG => "$cmd: execution error (rc==$rc)") if $rc == -1 || ($rc & 127);											
 	$rc>>=8;
 	return  $rc  == 0 || $rc == 1 && $params{DROP} 
 		? () 
-		: (ERR_MSG => "$cmd: execution error");
+		: (ERR_MSG => "$cmd: execution error (rc==$rc)");
 }
 
 sub xml_load { #xml load & write & compare
@@ -98,10 +100,12 @@ sub xml_load { #xml load & write & compare
 							." -q '".$params{PREFIX_SEQUENCE}."' "
 							." -n '$typedb' "
 							." -t '".$params{TRANSACTION_MODE}."' "
+							.($params{ROOT_TAG_PARAMS} ? " -x ".$params{ROOT_TAG_PARAMS} : "")
 							.($params{DEBUG} ? " -d " : "")
 							.($params{WRITER_UTF8} ? " -u " : "")
 							.($params{EXECUTE_OBJECTS_PREFIX} ? " -b '".$params{EXECUTE_OBJECTS_PREFIX}."'" : '')
 							.($params{EXECUTE_OBJECTS_SUFFIX} ? " -a '".$params{EXECUTE_OBJECTS_SUFFIX}."'" : '')
+							.""
 							." $db_command  '".$params{SCHEMA_FILE}."' "
 							;
 	my @files=();
@@ -143,7 +147,7 @@ sub xml_load { #xml load & write & compare
 		$cmd=~s/\%f/$tmp/;
 		debug(__LINE__,$cmd) if $params{DEBUG};
 		system($cmd);
-		return (ERR_MSG => "$f: is not a valid xml file") if $?;
+		return (ERR_MSG => "$tmp: is not a valid xml file") if $?;
 		my $diff=$f.'.diff';
 		my $xmldiff=0;
 		if ($params{XMLDIFF}) {
@@ -162,13 +166,14 @@ sub xml_load { #xml load & write & compare
 		my $fd=xopen('<',$diff);
 		while(<$fd>) { xprint(*STDOUT,$_); }
 		close $fd;
-#		$rc>>=8;
-		if ($rc == 1) {
-			return (ERR_MSG => "the files diff") unless $params{IGNORE_DIFF};
-			print STDERR "(W) the files diff\n"; 
+		my $testrc=$params{OK_FOR_DIFF} ? 0 : 1;
+		if ($rc == $testrc) {
+			my $msg=$params{OK_FOR_DIFF} ? "the files equal" : "the files diff";
+			return (ERR_MSG => $msg) unless $params{IGNORE_DIFF};
+			print STDERR "(W) $msg\n"; 
 		}
-		else {
-			return (ERR_MSG => "$cmd: execution error") if $rc != 0;
+		elsif ($rc < 0 || $rc > 1) {
+			return (ERR_MSG => "$cmd: execution error (rc==$rc)");# if $rc != 0;
 		}
 	}
 	return ();
@@ -181,9 +186,11 @@ my @STEPS=(
 			my %params=@_;
 			my %ret=xsd2sql(%params);
 			return %ret unless $params{XSD2SQL_ONE_PASS};
-			%ret=isql(%params,FILE => 'all_drops.sql',DROP => 1);
+			return %ret if $ret{ERR_MSG};
+			my $rinchi="";
+			%ret=isql(%params,FILE => 'all_drops'.$rinchi.'.sql',DROP => 1);
 			return %ret if scalar(keys %ret);
-			return isql(%params,FILE => 'all_creates.sql');
+			return isql(%params,FILE => 'all_creates'.$rinchi.'.sql');
 		}
 	}
 	,{	#1
@@ -290,7 +297,7 @@ sub get_operations {
 }
 
 my %Opt=();
-unless (getopts ('hdrRcCTeiuo:f:t:b:a:p:v:XS',\%Opt)) {
+unless (getopts ('hdrRcCTeiuo:f:t:b:a:p:v:XSx:K',\%Opt)) {
 	 print STDERR "invalid option or option not set\n";
 	 exit 1;
 }
@@ -319,18 +326,19 @@ $0  [<options>] [<args>]..
             the default is 'xmllint -schema \%s \%f'
     -X  - do not use xmldiff for difference - use the normal diff command
     -S  - do not execute xsd2sql in one pass 
+    -x  - force the root_tag params in form name=value,... for xml.pl
+    -K  - ok for difference
     -p <name>=<value>[,<name>=<value>...]
-        set extra params for xsd2sql - valid names are:
+        set extra params for xsd2sql.pl - valid names are:
                 MAX_VIEW_COLUMNS     =>  produce view code only for views with columns number <= MAX_VIEW_COLUMNS - 
                     -1 is a system limit (database depend)
                     false is no limit (the default)
                 MAX_VIEW_JOINS         =>  produce view code only for views with join number <= MAX_VIEW_JOINS - 
                     -1 is a system limit (database depend)
-                    false is no limit (the default)                        
+                    false is no limit (the default)
     -o  - execute only the target operation
         <op> must be ".join("|",map { ($_->{NAME},$_->{SH_NAME}) } @STEPS)." 
-
-<arguments>:
+arguments>:
     <testnumber>|<testnumber>-<testnumber>...
     if <testnumber> is not spec all tests can be executed
 
@@ -617,8 +625,26 @@ my $only_files=sub {
 	return join(',',map {  my $f=$_; $f.='.xml' unless $f=~/\.xml$/i; $f; } @_);
 }->(defined $Opt{f} ? split(',',$Opt{f}) : ());
 
-$Opt{v}='xmllint --schema \'%s\' --noout \'%f\''
-	unless defined $Opt{v};
+$Opt{v}='xmllint --schema \'%s\' --noout \'%f\'' unless defined $Opt{v};
+
+my %not_store_params=(
+						DEBUG 							=> $Opt{d}
+						,RESET							=> $Opt{r} || $Opt{R}
+						,CLEAN							=> $Opt{T}
+						,NOT_EXECUTE					=> $Opt{NOT_EXECUTE}
+						,EXCLUDE_NOT_VALID_XML_FILES 	=> $Opt{e}
+						,IGNORE_DIFF 					=> $Opt{i}
+						,WRITER_UTF8					=> $Opt{u}
+						,TRANSACTION_MODE				=> $Opt{t} 
+						,EXECUTE_OBJECTS_PREFIX			=> $Opt{b}
+						,EXECUTE_OBJECTS_SUFFIX 		=> $Opt{a}
+						,ONLY_FILES						=> $only_files
+						,EXTRA_PARAMS					=> $Opt{p}
+						,XML_VALIDATOR  				=> $Opt{v}
+						,XMLDIFF						=> $Opt{X} ? 0 : 1
+						,XSD2SQL_ONE_PASS				=> $Opt{S} ? 0 : 1
+						,OK_FOR_DIFF					=> $Opt{K}
+);
 	
 for my $n(@testdirs) { 
 	my $testdir=DIR_PREFIX.$n;
@@ -629,33 +655,55 @@ for my $n(@testdirs) {
 	}
 
 	print STDERR get_message;
-	
-	do_test(
+	my %test_params=(
 		SCHEMA_FILE					=> 'schema.xsd'
 		,TEST_NUMBER 				=> $n
 		,DB_CONNECTION_STRING 		=> $strconn[0]
 		,PREFIX_VIEWS 				=> 'V'.$n.'_'
 		,PREFIX_TABLES 				=> 'T'.$n.'_'
 		,PREFIX_SEQUENCE			=> 'S'.$n.'_'
-		,NOT_STORE_PARAMS			=> {
-											DEBUG 							=> $Opt{d}
-											,RESET							=> $Opt{r} || $Opt{R}
-											,CLEAN							=> $Opt{T}
-											,NOT_EXECUTE					=> $Opt{NOT_EXECUTE}
-											,EXCLUDE_NOT_VALID_XML_FILES 	=> $Opt{e}
-											,IGNORE_DIFF 					=> $Opt{i}
-											,WRITER_UTF8					=> $Opt{u}
-											,TRANSACTION_MODE				=> $Opt{t} 
-											,EXECUTE_OBJECTS_PREFIX			=> $Opt{b}
-											,EXECUTE_OBJECTS_SUFFIX 		=> $Opt{a}
-											,ONLY_FILES						=> $only_files
-											,EXTRA_PARAMS					=> $Opt{p}
-											,XML_VALIDATOR  				=> $Opt{v}
-											,XMLDIFF						=> $Opt{X} ? 0 : 1
-											,XSD2SQL_ONE_PASS				=> $Opt{S} ? 0 : 1
-		}
+		,NOT_STORE_PARAMS			=> { %not_store_params }
 		,OPERATIONS					=> join(',',@operations)
+		,ROOT_TAG_PARAMS			=> $Opt{x}
 	);
+
+	if (-r CUST_PARAMS_FILE) {
+		if (open(my $fd,'<',CUST_PARAMS_FILE)) {
+			while(<$fd>) {
+				next if /^\s*#/;
+				next if /^\s*$/;
+				if (/^\s*(\w+)\s+(.*)$/) {
+					my $fl=1;
+					my ($k,$v)=($1,$2);
+					if (grep($_ eq $k,keys %test_params)) {
+						if ($k eq 'NOT_STORE_PARAMS') {
+							$fl=0;
+						}
+						else {
+							$test_params{$k}=$v;
+						}
+					}
+					elsif (grep($_ eq $k,keys %not_store_params)) { 
+						$test_params{NOT_STORE_PARAMS}->{$k}=$v;
+					}
+					else {
+						$fl=0;
+					}
+					print STDERR CUST_PARAMS_FILE,": (W) unknow  key $k in line $NR\n" unless $fl;
+				}
+				else {
+					print STDERR CUST_PARAMS_FILE,": (W) wrong  line $NR\n";
+				}
+			}
+			close $fd;
+		}
+		else {
+			print STDERR CUST_PARAMS_FILE,": (W) $!\n";
+		}
+	}
+	
+	do_test(%test_params);
+
 	unless (chdir $startdir) {
 		print STDERR "(W) $startdir: $!\n";
 		exit 1

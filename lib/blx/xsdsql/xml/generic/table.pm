@@ -3,11 +3,13 @@ package blx::xsdsql::xml::generic::table;
 use strict;
 use warnings;
 use integer;
-use blx::xsdsql::ut qw(nvl);
+use Carp;
 use File::Basename;
 
-use base qw(blx::xsdsql::xml::generic::catalog);
-use Carp;
+use blx::xsdsql::ut qw(nvl);
+#use base qw(blx::xsdsql::xml::generic::catalog);
+
+use base qw(blx::xsdsql::xml::generic::catalog blx::xsdsql::xml::generic::name_generator);
 
 use constant {
 		DEFAULT_ROOT_TABLE_NAME	=> 'ROOT'
@@ -46,64 +48,129 @@ our %_ATTRS_R=(
 			,MINOCCURS			=> sub { return nvl($_[0]->{MINOCCORS},0); }
 			,MAXOCCURS  		=> sub { return nvl($_[0]->{MAXOCCURS},1); }
 			,XSD_SEQ			=> sub { return nvl($_[0]->{XSD_SEQ},0); }
-#			,TABLE_IS_TYPE		=> sub { return $_[0]->{TABLE_IS_TYPE} ? 1 : 0; }
 			,TABLE_IS_TYPE		=> sub { _ob(__LINE__); my $t=$_[0]->get_attrs_value(qw(XSD_TYPE)); return defined $t ? 1 : 0; }
-#			,SIMPLE_TYPE		=> sub { return $_[0]->{SIMPLE_TYPE} ? 1 : 0; }
 			,SIMPLE_TYPE		=> sub { _ob(__LINE__); my $t=$_[0]->get_attrs_value(qw(XSD_TYPE)); return defined $t && $t eq XSD_TYPE_SIMPLE ? 1 : 0; }
 			,CHOICE				=> sub { return $_[0]->{CHOICE} ? 1 : 0; }
-#			,GROUP_TYPE			=> sub { return $_[0]->{GROUP_TYPE} ? 1 : 0; }
 			,GROUP_TYPE			=> sub { _ob(__LINE__); my $t=$_[0]->get_attrs_value(qw(XSD_TYPE)); return defined $t && $t eq XSD_TYPE_GROUP ? 1 : 0; }
 			,COMPLEX_TYPE		=> sub { _ob(__LINE__); my $t=$_[0]->get_attrs_value(qw(XSD_TYPE)); return defined $t && $t eq XSD_TYPE_COMPLEX ? 1 : 0; }
 			,SIMPLE_CONTENT_TYPE	=>	sub { _ob(__LINE__); my $t=$_[0]->get_attrs_value(qw(XSD_TYPE)); return defined $t && $t eq XSD_TYPE_SIMPLE_CONTENT ? 1 : 0; }
-			,SIMPLE_CONTENT	=> sub { _on(__LINE__); }
+			,SIMPLE_CONTENT		=> sub { _ob(__LINE__); }
 			,INTERNAL_REFERENCE => sub { return $_[0]->{INTERNAL_REFERENCE} ? 1 : 0; }
+			,DEEP_LEVEL			=> sub { 
+											if (defined (my $xpath=$_[0]->{PATH})) {
+												my @a=grep(length($_),split('/',$xpath));
+												return scalar(@a);
+											}
+											return undef;
+			}
 );
 
-our %_ATTRS_W=();
+our %_ATTRS_W=(
+		COLUMNS					=> sub {  croak " use add_columns method to add columns\n"; }
+		,SYSATTRS_COL			=> sub {  croak " use add_columns method to add system attributes column\n"; }
+);
 
-sub new {
-	my ($class,%params)=@_;
-	$params{COLUMNS}=[] unless  defined $params{COLUMNS};
-	$params{CHILD_TABLES}=[] unless defined $params{CHILD_TABLES}; 
-	$params{XSD_SEQ}=0 unless defined $params{XSD_SEQ};
-	my $self=bless(\%params,$class);
-	$self->_check_obsolete_params(keys %params);
-	return $self;
+sub _get_attrs_w { return \%_ATTRS_W; }
+sub _get_attrs_r { return \%_ATTRS_R; }
+
+sub _translate_path  {
+	my ($self,%params)=@_;
+	my $path=defined $self->{PATH} ? $self->{PATH} : $self->{NAME};
+	confess "internal error - path or name not set\n" unless defined $path;
+	$path=nvl($params{ROOT_TABLE_NAME},DEFAULT_ROOT_TABLE_NAME) if $path eq '/';
+	$path=~s/\//_/g;
+	$path=~s/^_//;
+	$path=~s/-/_/g;
+	$path=$params{VIEW_PREFIX}.'_'.$path if $params{VIEW_PREFIX};
+	$path=$params{TABLE_PREFIX}.'_'.$path if $params{TABLE_PREFIX};
+	return $path;
 }
 
-sub add_columns {
-	my $self=shift;
-	my $table_name=$self->get_sql_name;
-	my $cols=$self->get_attrs_value qw(COLUMNS);
-	my %cl=map {  (uc($_->get_sql_name),1); } @$cols;
-	my @newcols=();
-	for my $col(@_) {
-		$col->set_attrs_value(COLUMN_SEQUENCE => scalar(@$cols) + scalar(@newcols),TABLE_NAME => $table_name);
-		$col->get_sql_name(COLUMNNAME_LIST => \%cl,FORCE => 1); #resolve sql_name
-		push @newcols,$col;
+sub _resolve_invalid_name {
+	my ($self,$name,%params)=@_;
+	confess "abstract method\n";
+	return $name;
+}
+
+sub _reduce_sql_name {
+	my ($self,$name,$maxsize,%params)=@_;
+	my @s=split('_',$name);
+	for my $i(0..scalar(@s) - 1) {
+		next if $i == 0  && (defined $params{TABLE_PREFIX} || defined $params{VIEW_PREFIX}); # not reduce  the prefix
+		$s[$i]=~s/([A-Z])[a-z0-9]+/$1/g;
+		my $t=join('_',@s);
+		return $t if  length($t) <= $maxsize;
 	}
-	push @$cols,@newcols;
+	return substr(join('_',@s),0,$maxsize);
+}
+
+sub _set_sql_name {
+	my ($self,%params)=@_;
+	my $name=$self->_gen_name(
+				ROOT_TABLE_NAME	=> $params{ROOT_TABLE_NAME}
+				,TABLE_PREFIX	=> $params{TABLE_PREFIX}
+				,TY 	=> 't'
+				,LIST 	=> $params{TABLENAME_LIST}
+				,NAME 	=> $self->get_attrs_value qw(NAME)
+				,PATH	=> $self->get_attrs_value qw(PATH)
+	);
+	return $self->{SQL_NAME}=$name;
+}
+
+
+sub _set_constraint_name {
+	my ($self,$type,%params)=@_;
+	my $pk_suffix=$self->_get_constraint_suffix($type,%params);
+	my $table_name=$self->get_sql_name;
+	my $maxsize=$self->get_name_maxsize;
+	my $pt=substr($table_name,0,$maxsize - length($pk_suffix));
+
+	my $name=$self->_gen_name(
+				TY 				=> 't'
+				,LIST 			=> $params{TABLENAME_LIST}
+				,NAME 			=> $pt
+				,MAXSIZE 		=> $maxsize - length($pk_suffix)
+				,TABLE_PREFIX	=> $params{TABLE_PREFIX}
+	);
+	return $self->{SQL_CONSTRAINT}->{$type}=$name.$pk_suffix;
+}
+
+
+sub _set_sequence_name {
+	my ($self,%params)=@_;
+	my $name=$self->_gen_name(
+				TY 				=> 't'
+				,LIST 			=> $params{TABLENAME_LIST}
+				,PATH			=> $self->get_path
+				,TABLE_PREFIX 	=> $params{SEQUENCE_PREFIX}
+	);
+
+	return $self->{SEQ_SQL_NAME}=$name;
+}
+
+
+sub _set_view_sql_name {
+	my ($self,%params)=@_;
+
+	my $name=$self->_gen_name(
+				TY 				=> 't'
+				,LIST 			=> $params{TABLENAME_LIST}
+				,VIEW_PREFIX 	=> $params{VIEW_PREFIX}
+				,NAME 			=> $self->get_attrs_value qw(NAME)
+				,PATH			=> $self->get_attrs_value qw(PATH)
+	);
+	return $self->{VIEW_SQL_NAME}=$name;
+}
+
+sub _inc_xsd_seq {
+	my ($self,%params)=@_;
+	++$self->{XSD_SEQ};
 	return $self;
 }
 
-sub reset_columns {
-	my ($self,%params)=@_;
-	my $cols=[];
-	my $oldcols=defined wantarray ? $self->get_attrs_value('COLUMNS') : undef;
-	$self->set_attrs_value(COLUMNS => $cols);
-	return wantarray ? @$oldcols : $oldcols;
-}
-
-sub get_columns {
-	my ($self,%params)=@_;
-	my $v=$self->get_attrs_value qw(COLUMNS);
-	return wantarray ? @$v : $v;
-}
-
-sub add_child_tables {
-	my $self=shift;
-	push @{$self->{CHILD_TABLES}},@_;
-	return $self;
+sub _get_constraint_suffix { 
+	my ($self,$type,%params)=@_;
+	return '_'.$type;
 }
 
 sub _check_obsolete_params {
@@ -132,135 +199,127 @@ sub _is_column_group_ref {
 	return 0;
 }
 
-sub find_columns {
-	my ($self,%params)=@_;
-	my $cols=$self->get_columns;
-	return wantarray ? () : undef if scalar(keys %params) == 0;
-	my @r=map {
-		my $col=$_;
-		(grep {
-			my $r=undef;
-			my $param_value=$params{$_};
-			my $v=$col->get_attrs_value($_);
-			if (ref($param_value) eq '') {
-				$r=defined $v && defined $param_value && $v eq $param_value
-					|| !defined $v && !defined $param_value ? 1 : 0;
-			}
-			elsif (ref($param_value) eq 'CODE') {
-				$r=$param_value->($col,$cols);
-			}
-			else {
-				croak "param value must e scalar or a CODE";
-			}
-			$r;
-		}  keys %params) ? ($col) : (); 
-	} @$cols;
-	return @r if wantarray;
-	return scalar(@r) <= 1 ? $r[0] : \@r;
+
+sub _add_child_tables {
+	my $self=shift;
+	push @{$self->{CHILD_TABLES}},grep (defined $_,@_);
+	return $self;
 }
 
+sub _delete_child_tables {
+	my $self=shift;
+	for my $index(@_) {
+		croak "index not defined\n" unless defined $index;
+		croak "$index: index not numeric\n" unless $index=~/^[+-]{0,1}\d+$/;
+		$self->{CHILD_TABLES}->[$index]=undef;
+	}
+	my @childs=grep(defined $_,@{$self->{CHILD_TABLES}});
+	$self->{CHILD_TABLES}=\@childs;
+	return $self;
+}
+
+sub _add_columns {
+	my $self=shift;
+	confess "before add a column please set the table name\n" unless defined $self->get_attrs_value qw(SQL_NAME);
+	my $table_name=$self->get_sql_name;
+	my $cols=$self->get_attrs_value qw(COLUMNS);
+	my @newcols_notattrs=();
+	my @newcols_attrs=();
+	for my $col(@$cols) {
+		if ($col->get_attrs_value qw(ATTRIBUTE) || $col->get_attrs_value qw(SYS_ATTRIBUTES)) {
+			push @newcols_attrs,$col;
+		}
+		else {
+			push @newcols_notattrs,$col;
+		}
+	}
+	for my $col(@_) {
+		if ($col->get_attrs_value qw(ATTRIBUTE) || $col->get_attrs_value qw(SYS_ATTRIBUTES)) {
+			push @newcols_attrs,$col;
+			if ($col->get_attrs_value qw(SYS_ATTRIBUTES)) {
+				croak $self->get_sql_name.": multiply sysattrs column not allowed\n"
+					if defined $self->get_attrs_value qw(SYSATTRS_COL);
+				$self->{SYSATTRS_COL}=$col;
+			}
+		}
+		else {
+			push @newcols_notattrs,$col;
+		}
+	}
+	my @newcols_merge=();
+	my $col_seq=0;
+	my %cl=();
+	for my $col(@newcols_notattrs) {
+		$col->set_attrs_value(COLUMN_SEQUENCE => $col_seq++,TABLE_NAME => $table_name);
+		$col->_set_sql_name(COLUMNNAME_LIST => \%cl); #resolve sql_name
+		push @newcols_merge,$col;
+	}
+	for my $col(@newcols_attrs) {
+		$col->set_attrs_value(COLUMN_SEQUENCE => $col_seq++,TABLE_NAME => $table_name);
+		$col->_set_sql_name(COLUMNNAME_LIST => \%cl); #resolve sql_name
+		push @newcols_merge,$col;
+	}
+	$self->{COLUMNS}=\@newcols_merge;
+	return $self;
+}
+
+sub _reset_columns {
+	my ($self,%params)=@_;
+	my $oldcols=$self->{COLUMNS};
+	$self->{COLUMNS}=[];
+	delete $self->{SYSATTRS_COL};
+	return wantarray ? @$oldcols : $oldcols;
+}
+
+sub _new {
+	my ($class,%params)=@_;
+	for my $k 	qw(COLUMNS SYSATTRS_COL) {
+		croak "param $k not allowed in constructor\n" if defined $params{$k};
+	}
+	$params{CHILD_TABLES}=[] unless defined $params{CHILD_TABLES}; 
+	$params{XSD_SEQ}=0 unless defined $params{XSD_SEQ};
+	my $self=bless(\%params,$class);
+	$self->_check_obsolete_params(keys %params);
+	$self->{COLUMNS}=[];
+	return $self;
+}
+
+sub get_columns {
+	my ($self,%params)=@_;
+	my $v=$self->get_attrs_value qw(COLUMNS);
+	return wantarray ? @$v : $v;
+}
+
+	
 sub get_child_tables {
 	my $self=shift;
 	my $v=$self->get_attrs_value qw(CHILD_TABLES);
 	return wantarray ? @$v : $v;
 }
-	
-sub set_attrs_value {
-	my $self=shift;
-	my %h=@_;
-	$self->_check_obsolete_params(keys %h);
-	blx::xsdsql::ut::set_attrs_value($self,\%_ATTRS_W,@_);
-	return $self;
-}
-
-sub get_attrs_value {
-	my $self=shift;
-	$self->_check_obsolete_params(@_);
-	return blx::xsdsql::ut::get_attrs_value($self,\%_ATTRS_R,@_);
-}
-
-sub _adjdup_sql_name {
-	my ($self,$name,%params)=@_;
-	my $suff_digits=nvl($params{SUFF_DIGITS},1);
-	confess "$name: length <= $suff_digits\n" if length($name) <= $suff_digits;  
-	$name=substr($name,0,length($name) - $suff_digits).('0'x$suff_digits);
-	confess "param TABLENAME_LIST not defined" unless defined $params{TABLENAME_LIST}; 
-	my $l=$params{TABLENAME_LIST};
-	while(1) {
-		last unless exists $l->{uc($name)};
-		my ($suff)=$name=~/(\d{$suff_digits})$/;
-		++$suff;
-		return $self->_adjdup_sql_name($name,%params,SUFF_DIGITS => $suff_digits + 1) if $suff >= 10 ** $suff_digits;
-		$name=~s/\d{$suff_digits}$/$suff/;
-	}
-	return $name;
-}
-
-sub _translate_path  {
-	my ($self,%params)=@_;
-	my $path=defined $self->{PATH} ? $self->{PATH} : $self->{NAME};
-	$path=nvl($params{ROOT_TABLE_NAME},DEFAULT_ROOT_TABLE_NAME) if $path eq '/';
-	$path=~s/\//_/g;
-	$path=~s/^_//;
-	$path=~s/-/_/g;
-	$path=$params{VIEW_PREFIX}.'_'.$path if $params{VIEW_PREFIX};
-	$path=$params{TABLE_PREFIX}.'_'.$path if $params{TABLE_PREFIX};
-	return $path;
-}
-
-sub _resolve_invalid_name {
-	my ($self,$name,%params)=@_;
-	return $name;
-}
-
-sub _reduce_sql_name {
-	my ($self,$name,%params)=@_;
-	my $maxsize=$self->get_name_maxsize;
-	my @s=split('_',$name);
-	for my $i(0..scalar(@s) - 1) {
-		next if $i == 0 && $params{TABLE_PREFIX}; #not reduce the table prefix
-		next if $i == 0 && $params{VIEW_PREFIX}; #not reduce  the view prefix
-		$s[$i]=~s/([A-Z])[a-z0-9]+/$1/g;
-		my $t=join('_',@s);
-		return $t if  length($t) <= $maxsize;
-	}
-	return substr(join('_',@s),0,$maxsize);
-}
-
-sub _inc_xsd_seq {
-	my ($self,%params)=@_;
-	++$self->{XSD_SEQ};
-	return $self;
-}
 
 sub is_type {
 	my ($self,%params)=@_;
 	return $_[0]->get_attrs_value(qw(XSD_TYPE)) ? 1 : 0; 
-#	return $self->get_attrs_value qw(TABLE_IS_TYPE);
 }
 
 sub is_complex_type {
 	my ($self,%params)=@_;
 	return nvl($self->get_attrs_value(qw(XSD_TYPE))) eq XSD_TYPE_COMPLEX ? 1 : 0;
-#	return $self->get_attrs_value qw(COMPLEX_TYPE);
 }
 
 sub is_simple_type {
 	my ($self,%params)=@_;
 	return nvl($self->get_attrs_value(qw(XSD_TYPE))) eq XSD_TYPE_SIMPLE ? 1 : 0;
-#	return $self->get_attrs_value qw(SIMPLE_TYPE);
 }
 
 sub is_simple_content_type {
 	my ($self,%params)=@_;
 	return nvl($self->get_attrs_value(qw(XSD_TYPE))) eq XSD_TYPE_SIMPLE_CONTENT ? 1 : 0;
-#	return $self->get_attrs_value qw(SIMPLE_CONTENT_TYPE);
 }
 
 
 sub is_group_type {
 	my ($self,%params)=@_;
-#	return $self->get_attrs_value qw(GROUP_TYPE);
 	return nvl($self->get_attrs_value(qw(XSD_TYPE))) eq XSD_TYPE_GROUP ? 1 : 0;
 }
 
@@ -296,80 +355,26 @@ sub get_xsd_type {
 
 sub get_sql_name {
 	my ($self,%params)=@_;
-	return $self->{SQL_NAME} if defined $self->{SQL_NAME};
-	my $l=$params{TABLENAME_LIST};
-	croak "param TABLENAME_LIST not defined" unless defined $l;
-	delete $params{VIEW_PREFIX}; #only for views
-	my $name= $self->_translate_path(%params);
-	$name=$self->_reduce_sql_name($name,%params) if length($name) > $self->get_name_maxsize();
-	$name=$self->_resolve_invalid_name($name,%params);
-	if (exists $l->{uc($name)}) {
-		$name=$self->_adjdup_sql_name($name,%params);
-		confess "'$name' duplicate" if exists $l->{uc($name)};
-	}
-	$l->{uc($name)}=undef;
-	$self->{SQL_NAME}=$name;
-	return $name;
+	return $self->get_attrs_value qw(SQL_NAME);
 }
+
 
 sub get_view_sql_name {
 	my ($self,%params)=@_;
-	return $self->{VIEW_SQL_NAME} if defined $self->{VIEW_SQL_NAME};
-	my $l=$params{TABLENAME_LIST};
-	croak "param TABLENAME_LIST not defined" unless defined $l;
-	delete $params{TABLE_PREFIX};
-	my $name= $self->_translate_path(%params);
-	$name=$self->_reduce_sql_name($name,%params) if length($name) > $self->get_name_maxsize();
-	if (exists $l->{uc($name)}) {
-		$name=$self->_adjdup_sql_name($name,%params);
-		confess "'$name' duplicate" if exists $l->{uc($name)};
-	}
-	$l->{uc($name)}=undef;
-	$self->{VIEW_SQL_NAME}=$name;
-	return $name;
+	return $self->get_attrs_value qw(VIEW_SQL_NAME);
 }
 
-
-sub _get_constraint_suffix { 
-	my ($self,$type,%params)=@_;
-	return '_'.$type;
-}
 
 sub get_constraint_name {
 	my ($self,$type,%params)=@_;
-	return $self->{SQL_CONSTRAINT}->{$type} if defined $self->{SQL_CONSTRAINT}->{$type}; 
-	my $l=$params{CONSTRAINT_LIST};
-	croak "param CONSTRAINT_LIST not defined" unless defined $l;
-	my $pk_suffix=$self->_get_constraint_suffix($type,%params);
-	my $table_name=$self->get_sql_name(%params,TABLENAME_LIST => undef);
-	my $pt=substr($table_name,0,$self->get_name_maxsize - length($pk_suffix));
-	if (exists $l->{$type}->{uc($pt)}) {
-		$pt=$self->_adjdup_sql_name($pt,%params,TABLENAME_LIST => $l->{$type});
-		confess "'$pt' duplicate" if exists $l->{$type}->{uc($pt)};
-	}
-	$l->{$type}->{uc($pt)}=undef;
-	return $self->{SQL_CONSTRAINT}->{$type}=$pt.$pk_suffix;
+	return $self->{SQL_CONSTRAINT}->{$type};
 }
 
 
 sub get_sequence_name {
 	my ($self,%params)=@_;
-	return $self->{SEQ_SQL_NAME} if defined $self->{SEQ_SQL_NAME};
-	my $l=$params{TABLENAME_LIST};
-	croak "param TABLENAME_LIST not defined" unless defined $l;
-	delete $params{VIEW_PREFIX}; #only for views
-	$params{TABLE_PREFIX}=$params{SEQUENCE_PREFIX};
-	my $name= $self->_translate_path(%params);
-	$name=$self->_reduce_sql_name($name,%params) if length($name) > $self->get_name_maxsize();
-	if (exists $l->{uc($name)}) {
-		$name=$self->_adjdup_sql_name($name,%params);
-		confess "'$name' duplicate" if exists $l->{$name};
-	}
-	$l->{uc($name)}=undef;
-	$self->{SEQ_SQL_NAME}=$name;
-	return $name;
+	return $self->{SEQ_SQL_NAME}; 
 }
-
 
 sub get_deep_level {
 	my ($self,%params)=@_;
@@ -386,8 +391,11 @@ sub get_pk_columns {
 	my ($self,%params)=@_;
 	my $cols=$self->get_columns;
 	my @cols=($cols->[0]);
-	push @cols,$cols->[1] if $cols->[1]->is_pk;
-	confess "col not seq 0" unless  nvl($cols[0]->get_pk_seq,'-1') == 0;
+	push @cols,$cols->[1] if defined $cols->[1] && $cols->[1]->is_pk;
+	unless  (nvl($cols[0]->get_pk_seq,'-1') == 0) {
+		$self->_debug(__LINE__.'col without seq number == 0 for column ',$cols[0]->get_full_name,' ',$cols[0]);
+		confess "internal error\n";
+	}
 	confess "col not seq 1"  unless  !defined $cols[1] || nvl($cols[1]->get_pk_seq,'-1') == 1;
 	return wantarray ? @cols : \@cols;
 } 
@@ -410,32 +418,42 @@ sub get_parent_path {
 	return $self->is_unpath ? $self->get_attrs_value qw(PARENT_PATH) : undef;
 }
 
+sub get_URI { 
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(URI);
+} 
+
+sub get_sysattrs_column { 
+	my ($self,%params)=@_;
+	return $self->get_attrs_value qw(SYSATTRS_COL);
+}
+
 
 sub get_dictionary_data {
 	my ($self,$dictionary_type,%params)=@_;
 	croak "dictionary_type (1^ arg)  non defined" unless defined $dictionary_type;
+
 	if ($dictionary_type eq 'TABLE_DICTIONARY') {
 		my %data=(
-			TABLE_NAME 					=> $self->get_sql_name
-			,XSD_SEQ 					=> $self->get_xsd_seq
-#			,TYPE						=> ($self->is_simple_type ? 'S' : $self->is_type ? 'C' : undef)  
-#			,IS_CHOICE					=> ($self->is_choice ? 'Y' : undef)
-			,MIN_OCCURS					=> $self->get_min_occurs
-			,MAX_OCCURS					=> $self->get_max_occurs
-			,PATH_NAME					=> $self->get_path
-			,DEEP_LEVEL					=> $self->get_deep_level
-			,PARENT_PATH				=> $self->get_parent_path
-			,IS_ROOT_TABLE				=> ($self->is_root_table ? 'Y' : undef)
-			,IS_UNPATH					=> ($self->is_unpath   ? 'Y' : undef)
-			,IS_INTERNAL_REF			=> ($self->is_internal_reference ? 'Y' : undef)
-			,VIEW_NAME					=> $self->get_view_sql_name
-			,XSD_TYPE					=> $self->get_xsd_type 
-			,IS_GROUP_TYPE				=> ($self->is_group_type ? 'Y' : undef)
-			,IS_COMPLEX_TYPE			=> ($self->is_complex_type ? 'Y' : undef)
-			,IS_SIMPLE_TYPE				=> ($self->is_simple_type ? 'Y' : undef)
-			,IS_SIMPLE_CONTENT_TYPE		=> ($self->is_simple_content_type ? 'Y' : undef)
+			table_name 					=> $self->get_sql_name
+			,URI						=> $self->get_URI
+			,xsd_seq 					=> $self->get_xsd_seq
+			,min_occurs					=> $self->get_min_occurs
+			,max_occurs					=> $self->get_max_occurs
+			,path_name					=> $self->get_path
+			,deep_level					=> $self->get_deep_level
+			,parent_path				=> $self->get_parent_path
+			,is_root_table				=> ($self->is_root_table ? 'Y' : undef)
+			,is_unpath					=> ($self->is_unpath   ? 'Y' : undef)
+			,is_internal_ref			=> ($self->is_internal_reference ? 'Y' : undef)
+			,view_name					=> $self->get_view_sql_name
+			,xsd_type					=> $self->get_xsd_type 
+			,is_group_type				=> ($self->is_group_type ? 'Y' : undef)
+			,is_complex_type			=> ($self->is_complex_type ? 'Y' : undef)
+			,is_simple_type				=> ($self->is_simple_type ? 'Y' : undef)
+			,is_simple_content_type		=> ($self->is_simple_content_type ? 'Y' : undef)
 		);
-		return wantarray ? %data : \%data if scalar %data;
+		return wantarray ? %data : \%data; # if scalar %data;
 	}
 	
 	if ($dictionary_type eq 'RELATION_DICTIONARY') {
@@ -443,9 +461,9 @@ sub get_dictionary_data {
 		my $name=$self->get_sql_name;
 		my @data=map {
 			{
-				PARENT_TABLE_NAME	=> $name
-				,CHILD_SEQUENCE		=> ${count}++
-				,CHILD_TABLE_NAME	=> $_->get_sql_name
+				parent_table_name	=> $name
+				,child_sequence		=> ${count}++
+				,child_table_name	=> $_->get_sql_name
 				
 			}
 		} $self->get_child_tables;
@@ -453,7 +471,7 @@ sub get_dictionary_data {
 	}
 	
 	if ($dictionary_type eq 'COLUMN_DICTIONARY') {
-		my @data=map { my $data=$_->get_dictionary_data qw(COLUMN_DICTIONARY); $data->{TABLE_NAME}=$self->get_sql_name; $data } $self->get_columns;
+		my @data=map { my $data=$_->get_dictionary_data qw(COLUMN_DICTIONARY); $data->{table_name}=$self->get_sql_name; $data } $self->get_columns;
 		return wantarray ? @data : \@data;	 
 	}
 	
@@ -514,44 +532,11 @@ new  - contructor
 		RELATION_DICTIONARY - a pointer to a relation dictionary (only for root)
 
 		
-add_columns - add columns to a table
- 		
-	the params are a list of columns
-	the method return a self object
-
-
-reset_columns - reset the columns of the table
-
-	the method return  the columns
-
 
 get_columns - return an array of columns object
 
-
-add_child_tables - add child tables to a table
-
-	the params are a list of tables
-	the method return a self object
-
  
-find_columns  - find columns that  match the pairs attributes => value
-
-	the method return an array of columns object
-
-
 get_child_tables  - return an array of child tables
-
-	
-set_attrs_value   - set a value of attributes
-
-	the arguments are a pairs NAME => VALUE	
-	the method return a self object
-
-
-
-get_attrs_value  - return a list  of attributes values
-
-	the arguments are a list of attributes name
 
 
 get_sql_name  - return the sql name
@@ -632,7 +617,7 @@ none
 
 See blx::xsdsql::xml::generic::catalog, it's the base class
 
-See blx:.xsdsql::generator for generate the schema of the database and blx::xsdsql::parser 
+See blx:.xsdsql::generator for generate the schema of the database and blx::xsdsql::xsd_parser 
 for parse a xsd file (schema file)
 
 

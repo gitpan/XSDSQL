@@ -16,12 +16,13 @@ sub _get_drop_suffix {
 
 sub get_binding_objects  {
 	my ($self,$schema,%params)=@_;
-	my @t=map { $schema->get_dictionary_table($_,%params); } qw (TABLE_DICTIONARY COLUMN_DICTIONARY RELATION_DICTIONARY);
+	my @t=map { $schema->get_dictionary_table($_,%params); } qw (SCHEMA_DICTIONARY TABLE_DICTIONARY COLUMN_DICTIONARY RELATION_DICTIONARY);
 	return wantarray ? @t : \@t;
 }
 
 sub table_header {
 	my ($self,$table,%params)=@_;
+	croak "1^ param (table) not set\n" unless defined $table;
 	$self->{STREAMER}->put_line($self->_get_drop_prefix,' ',$table->get_sql_name,' ',$self->_get_drop_suffix,' ',$table->get_comment,$table->command_terminator);
 	return undef;
 }

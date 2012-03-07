@@ -8,7 +8,7 @@ use blx::xsdsql::ut qw(nvl);
 use Data::Dumper;
 
 use base qw(Exporter); 
-
+use base qw(blx::xsdsql::common_interfaces blx::xsdsql::log);
 
 my  %t=( overload => [ qw (
 	BINDING_TYPE_INSERT
@@ -31,13 +31,8 @@ use constant {
 our %_ATTRS_R=();
 our %_ATTRS_W=();
 
-sub _debug {
-	return $_[0] unless $_[0]->{DEBUG};
-	my ($self,$n,@l)=@_;
-	$n='<undef>' unless defined $n; 
-	print STDERR $self->{DEBUG_NAME},' (D ',$n,'): ',join(' ',grep(defined $_,@l)),"\n"; 
-	return $self;
-}
+sub _get_attrs_r {  return \%_ATTRS_R; }
+sub _get_attrs_w {  return \%_ATTRS_W; }
 
 sub _error {
 	my ($self,$n,@l)=@_;
@@ -59,17 +54,6 @@ sub new {
 sub get_connection {  return $_[0]->{DB_CONN}; }
 
 sub get_sth { return $_[0]->{STH}; }
-
-sub set_attrs_value {
-	my $self=shift;
-	blx::xsdsql::ut::set_attrs_value($self,\%_ATTRS_W,@_);
-	return $self;
-}
-
-sub get_attrs_value {
-	my $self=shift;
-	return blx::xsdsql::ut::get_attrs_value($self,\%_ATTRS_R,@_);
-}
 
 sub get_clone {
 	my ($self,%params)=@_;
@@ -110,15 +94,18 @@ sub bind_column {
 	croak Dumper($col).": the column is not a class"  unless ref($col) =~/::/;
 	my $name=$col->get_sql_name;
 	croak Dumper($value).'the bind value is not a scalar for column '.$name if ref($value) ne '';
-	$self->_debug($params{TAG},'BIND',$col->get_full_name,"with value '".nvl($value,'<undef>')."'"); 
 	croak $col->get_full_name." wrong binding - the bind is for table ".$self->get_binding_table->get_sql_name."\n"
 		if $self->get_binding_table->get_sql_name ne $col->get_table_name;
-	$self->{STH}->bind_param($col->get_column_sequence + 1,$value);
-#	my $pk_seq=$col->get_attrs_value qw(PK_SEQ);
-#	my $col_seq=$col->get_attrs_value(qw(COLUMN_SEQUENCE));
 	my ($pk_seq,$col_seq)=($col->get_pk_seq,$col->get_column_sequence);
-#	croak $col->get_attrs_value(qw(PATH)).": COLUMN_SEQUENCE attr non set\n" unless defined $col_seq;
-	croak $col->get_full_name.": COLUMN_SEQUENCE attr non set\n" unless defined $col_seq;
+	confess $col->get_full_name.": COLUMN_SEQUENCE attr non set\n" unless defined $col_seq;
+	if ($params{APPEND}) {
+		my $h=$self->{BINDING_VALUES}->[$col_seq];
+		my $currval=defined $h ? $h->{VALUE} : '';
+		$currval='' unless defined $currval;
+		$currval.=$params{SEP} if defined $params{SEP} && length($currval);
+		$value=$currval.$value;
+	}
+	$self->_debug($params{TAG},'BIND',$col->get_full_name,"with value '".nvl($value,'<undef>')."'"); 
 	$self->{STH}->bind_param($col_seq + 1,$value);
 	$self->{BINDING_VALUES}->[$col_seq]={ COL => $col,VALUE => $value };
 	$self->{EXECUTE_PENDING}=1;
@@ -384,18 +371,8 @@ get_connection - return the value of DB_CONN param
 get_sth  - return the handle of the prepared statement
 
 
-set_attrs_value   - set a value of attributes
-
-	the arguments are a pairs NAME => VALUE	
-	the method return a self object
-
-
-get_attrs_value  - return a list  of attributes values
-
-	the arguments are a list of attributes name
-
-
 get_clone - return the clone of the object
+
 
 get_next_sequence - return the next value of SEQUENCE_NAME
 

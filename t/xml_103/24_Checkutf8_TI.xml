@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListOfDataExchange>
+<DataExchangeFisso>  <!-- variazione WD da numero gia attivato con produzione file errore -->
+  <AccessoTelefonico>
+    <NumTel>
+      <NumTelCompl>0498600125</NumTelCompl>
+    </NumTel>
+    <CategAbbon>00</CategAbbon>
+    <CodLavoro>03</CodLavoro>
+    <Data>2006-10-18</Data>
+    <Time>14:29:40</Time>
+  </AccessoTelefonico>
+  <DatiUtente>
+    <Cognome>LONER BERTIGNOLL</Cognome>
+    <Nome>EVA</Nome>
+    <Professione>AREA F 4Ê PIANO CARDIOLOGIA</Professione>
+    <CodFiscale>LNRVEA59M41D392T</CodFiscale>
+    <FlagConsensi>52</FlagConsensi>
+    <FlagAggregCF>0</FlagAggregCF>
+    <FlagAltriCanali>0</FlagAltriCanali>
+    <CodiceOperatoreTLC>WD</CodiceOperatoreTLC>
+  </DatiUtente>
+  <Localita>
+    <CAP>39044</CAP>
+    <Provincia>BZ</Provincia>
+    <Comune>EGNA</Comune>
+    <Comune>NEUMARKT</Comune>
+    <PartTopon>V.</PartTopon>
+    <DescIndirizzo>GÄNSPLÄTZEN</DescIndirizzo>
+    <DescIndirizzo>GÄNSPLÄTZENSTR.</DescIndirizzo>
+    <NumCivico>21</NumCivico>
+  </Localita>
+  <DatiAccessori>
+    <CodProgressivo>1</CodProgressivo>
+  </DatiAccessori>
+  <GestioneScarti>
+    <PubblicazioneDatoScarto>0</PubblicazioneDatoScarto>
+  </GestioneScarti>
+</DataExchangeFisso>
+</ListOfDataExchange>
+

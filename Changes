@@ -81,7 +81,18 @@ Revision history for Perl extension blx::xsdsql
 
 0.07.1	- September 7 18:05 2011
 	- xsd2sql.pl -	correct warning parser command if $ARGV[0] is not set
-			add attribute EMIT_SCHEMA_DUMPER 
+					add attribute EMIT_SCHEMA_DUMPER 
 	- exclusion system attribute for nodes at level 1
 	- correct some tests because  not passed if is use diff command  
-	
+
+0.08 - <no_date> 
+    - internal version - not published
+
+0.09 - March 6 18:05 2012
+	- new algorithmics for schema parsing (RINCHI::Xmlschema removing)
+	- multiplies namespace support
+	- support for import,fractionDigit,attributes,custom_header,element_ref,attribute_ref
+    - better algorithm for generate names
+
+
+

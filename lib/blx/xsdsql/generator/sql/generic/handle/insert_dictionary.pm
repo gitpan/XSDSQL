@@ -24,7 +24,7 @@ sub _get_begin_value_constant {
 sub _get_value_data {
 	my ($self,$columns,$data,%params)=@_;
 	return join(',',map {
-							my $name=uc($_->get_sql_name);
+							my $name=$_->get_name;
 							confess "$name: column non defined in data " if !exists $data->{$name}; 
 							my $d=$data->{$name};
 							if (defined $d) {
@@ -52,12 +52,31 @@ sub get_binding_objects  {
 }
 
 
+sub first_pass {
+	my ($self,%params)=@_;
+	my $schema=$params{SCHEMA};
+	my $data=$schema->get_dictionary_data qw(SCHEMA_DICTIONARY);
+	return $self unless defined $data->{URI};
+	my $dic=$schema->get_dictionary_table qw(SCHEMA_DICTIONARY);
+	my $dic_columns=$dic->get_columns;
+	$self->{STREAMER}->put_line(
+			$self->_get_create_prefix
+			,$dic->get_sql_name
+			,$self->_get_columns_string_list($dic_columns)
+			,$self->_get_begin_value_constant
+			,$self->_get_value_data($dic_columns,$data)
+			,$self->_get_end_value_constant
+			,$schema->get_root_table->command_terminator
+	);
+	return $self;
+}
+
 sub table_header {
 	my ($self,$table,%params)=@_;
 	my $schema=$params{SCHEMA};
-
-	croak "param SCHEMA not defined " unless defined $schema;
+	croak "param SCHEMA not set " unless defined $schema;
 	my $dic=$schema->get_dictionary_table qw(TABLE_DICTIONARY);
+	confess "not attr TABLE_DICTIONARY set for schema ".$schema->get_attrs_value qw(URI)."\n" unless defined $dic;
 	my $data=$table->get_dictionary_data qw(TABLE_DICTIONARY);
 	my $dic_columns=$dic->get_columns;
 	$self->{STREAMER}->put_line(
@@ -98,9 +117,17 @@ sub table_header {
 			,$table->command_terminator
 		);		
 	}
+	$self->{STREAMER}->put_line;
 	return $self;
 }
 
+
+sub last_pass {
+	my ($self,%params)=@_;
+	my $schema=$params{SCHEMA};
+	$self->{STREAMER}->put_line($schema->get_root_table->comment(' end of insert dictionary '));
+	return $self;
+}
 
 1;
 

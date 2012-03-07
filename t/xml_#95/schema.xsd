@@ -1,0 +1,43 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified">
+
+	<xs:simpleType name="noLowerCase">
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[^:lower:]+"/>
+		</xs:restriction>
+	</xs:simpleType>
+
+	<xs:simpleType name="NLstrLn2">
+		<xs:restriction base="noLowerCase">
+			<xs:length value="2"/>
+		</xs:restriction>
+	</xs:simpleType>
+
+   <xs:complexType name="Referente">
+    <xs:sequence>
+      <xs:element name="QualificaRef">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="O" />
+            <xs:enumeration value="CF" />
+            <xs:maxLength value="2" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+    </xs:complexType>
+
+	<xs:simpleType name="Union">
+		<xs:union memberTypes="NLstrLn2 noLowerCase Referente"/>
+	</xs:simpleType>
+
+	<xs:element name="Types">
+		<xs:complexType>
+			<xs:sequence minOccurs="1" maxOccurs="1">
+<!-- numeric types -->
+        <xs:element name="complex" type="Referente"/>
+				<xs:element name="union" type="Union" minOccurs="0"/> 
+			</xs:sequence>	
+		</xs:complexType>
+	</xs:element>
+</xs:schema>

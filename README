@@ -25,7 +25,6 @@ DEPENDENCIES
 
 This module requires these other modules and libraries:
 
-	Rinchi::XMLSchema => '0.02' 
 	XML::Parser => '1.21' 
 	XML::Writer => '0.600'
 	DBI	    => '1.58'

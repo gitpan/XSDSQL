@@ -11,12 +11,16 @@ sub _get_create_prefix {
 
 sub get_binding_objects  {
 	my ($self,$schema,%params)=@_;
-	my @t=map { $schema->get_dictionary_table($_,%params); } qw (TABLE_DICTIONARY COLUMN_DICTIONARY RELATION_DICTIONARY);
+	my @t=map { $schema->get_dictionary_table($_,%params); } qw (SCHEMA_DICTIONARY TABLE_DICTIONARY COLUMN_DICTIONARY RELATION_DICTIONARY);
 	return wantarray ? @t : \@t;
 }
 
 sub table_header {
 	my ($self,$dic,%params)=@_;
+	croak "1^ param not set\n" unless defined $dic;
+	croak "param SCHEMA not set\n" unless defined $params{SCHEMA};
+	return undef if $params{SCHEMA}->get_attrs_value qw(CHILD_SCHEMA);
+	
 	$self->{STREAMER}->put_line($self->_get_create_prefix,' ',$dic->get_sql_name,"( ",$dic->get_comment);
 	for my $col($dic->get_columns) {
 		$self->_column($col);

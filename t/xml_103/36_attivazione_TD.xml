@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListOfDataExchange>
+	
+	<DataExchangeFisso>   <!-- ATTIVAZIONE TD   -->
+		<AccessoTelefonico>
+			<NumTel>
+				<NumTelCompl>0498600125</NumTelCompl>
+			</NumTel>
+			<CategAbbon>01</CategAbbon>
+			<CodLavoro>01</CodLavoro> 
+			<Data>2006-01-29</Data>
+			<Time>18:51:22</Time>
+		</AccessoTelefonico>
+		<DatiUtente>
+			<RagioneSociale>XXXXXXXX</RagioneSociale>
+			<TitoloStudio>AVVOCATO</TitoloStudio>
+			<!-- <Email>carta@tele2.it</Email> -->
+			<CodFiscale>PRNGDN40A22B345E</CodFiscale>
+			<FlagConsensi>80</FlagConsensi>  
+			<FlagAggregCF>0</FlagAggregCF>
+			<FlagAltriCanali>1</FlagAltriCanali>
+			<CodiceOperatoreTLC>TD</CodiceOperatoreTLC>
+		</DatiUtente>
+		<Localita>
+			<CAP>35134</CAP>
+			<Provincia>PD</Provincia>
+			<Comune>PADOVA</Comune>
+			<PartTopon>VIA</PartTopon>
+			<DescIndirizzo>PIETRO DANIELETTI</DescIndirizzo>
+			<NumCivico>2</NumCivico>
+		</Localita>
+		<DatiAccessori>
+			<CodProgressivo>1</CodProgressivo>
+			<NoteP>ID_TELE2:999:ACCOUNT_NUMBER:23520805579</NoteP>
+		</DatiAccessori>
+		<GestioneScarti>
+			<PubblicazioneDatoScarto>0</PubblicazioneDatoScarto>
+		</GestioneScarti>
+	</DataExchangeFisso>
+</ListOfDataExchange>
+

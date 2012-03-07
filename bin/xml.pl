@@ -14,7 +14,8 @@ use XML::Writer;
 use Getopt::Std;
 
 use blx::xsdsql::ut qw(:all);
-use blx::xsdsql::parser;
+#use blx::xsdsql::parser;
+use blx::xsdsql::xsd_parser;
 use blx::xsdsql::xml;
 use blx::xsdsql::dbconn;
 
@@ -95,7 +96,7 @@ my %CMD=();
 
 
 my %Opt=();
-unless (getopts ('hdut:n:s:c:r:p:w:i:q:b:a:',\%Opt)) {
+unless (getopts ('hdut:n:s:c:r:p:w:i:q:b:a:x:',\%Opt)) {
 	print STDERR "invalid option or option not set\n";
 	exit 1;
 }
@@ -125,8 +126,8 @@ $0  [<options>]  <command>  [<xsdfile>] [<xmlfile>|<root_id>]
     -b - set the execute prefix for db objects (Ex.   'scott.' in oracle)
          this option not influence database objects names
     -a - set the execute suffix for db objects (Ex: '\@dblink' in oracle)
-       this option not influence database objects names
-  
+         this option not influence database objects names
+    -x - force the root_tag params in form name=value,...
 <command>
     C      - test the connection to the database and exit
     r[ead] - read <xmlfile> and put into a database 
@@ -153,7 +154,7 @@ if (scalar(@ARGV) < 1) {
 }
 
 $Opt{n}='pg' unless $Opt{n};
-unless (grep($Opt{n} eq $_,blx::xsdsql::parser::get_db_namespaces)) {
+unless (grep($Opt{n} eq $_,blx::xsdsql::xsd_parser::get_db_namespaces)) {
 	print STDERR $Opt{n},": Can't locate db_namespace in \@INC\n";
 	exit 1;
 }
@@ -164,6 +165,20 @@ if (scalar(@dbi_params) == 0) {
 	print STDERR $Opt{c},": connection string is not correct\n";
 	exit 1;
 }
+
+if (defined $Opt{x}) {
+	my @h=();
+	for my $e(split(",",$Opt{x})) {
+		my ($name,$value)=$e=~/^([^=]+)=(.*)$/;
+		unless (defined $name) {
+			print STDERR $Opt{x},": option x is invalid - valid is <name>=<value>[,<name>=<value>...]\n";
+			exit 1;
+		}
+		push @h,($name,$value);
+	}
+	$Opt{x}=\@h;
+}
+
 
 if ($ARGV[0] eq 'C') {
 	my $conn=DBI->connect(@dbi_params);
@@ -183,7 +198,7 @@ unless (-r $ARGV[1]) {
 }
 
 
-my $p=blx::xsdsql::parser->new(DB_NAMESPACE => $Opt{n},DEBUG => $Opt{d}); 
+my $p=blx::xsdsql::xsd_parser->new(DB_NAMESPACE => $Opt{n},DEBUG => $Opt{d});
 
 my $cmd=$CMD{$ARGV[0]};
 unless (defined $cmd)  {
@@ -225,6 +240,7 @@ my $xml=blx::xsdsql::xml->new(
 	,EXECUTE_OBJECTS_PREFIX		=> $Opt{b} 
 	,EXECUTE_OBJECTS_SUFFIX		=> $Opt{a} 
 	,DB_TRANSACTION_MODE		=> $Opt{t}
+	,ROOT_TAG_PARAMS			=> $Opt{x}
 );
 
 

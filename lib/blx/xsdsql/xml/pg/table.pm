@@ -5,26 +5,26 @@ use warnings;
 use integer;
 use Carp;
 
-use base qw( blx::xsdsql::xml::pg::catalog blx::xsdsql::xml::generic::table   );
+use base qw( blx::xsdsql::xml::pg::catalog blx::xsdsql::xml::generic::table);
 
+my %INVALID_NAMES=();
 
 sub new {
 	my ($class,%params)=@_;
-	return bless(blx::xsdsql::xml::generic::table->new(%params),$class)
+	return bless(blx::xsdsql::xml::generic::table->_new(%params),$class);
 }
 
-sub set_attrs_value {
-	my $self=shift;
-	blx::xsdsql::ut::set_attrs_value($self,\%blx::xsdsql::xml::generic::table::_ATTRS_W,@_);
-	return $self;
+sub _get_attrs_w { return \%blx::xsdsql::xml::generic::table::_ATTRS_W; }
+sub _get_attrs_r { return \%blx::xsdsql::xml::generic::table::_ATTRS_R; }
+
+sub _resolve_invalid_name {
+	my ($self,$name,%params)=@_;
+	if (exists $INVALID_NAMES{uc($name)}) {
+		$name=substr($name,0,$self->get_name_maxsize - 1) if length($name) >= $self->get_name_maxsize;
+		$name.='_';
+	}
+	return $name;
 }
-
-sub get_attrs_value {
-	my $self=shift;
-	return blx::xsdsql::ut::get_attrs_value($self,\%blx::xsdsql::xml::generic::table::_ATTRS_R,@_);
-}
-
-
 
 1;
 

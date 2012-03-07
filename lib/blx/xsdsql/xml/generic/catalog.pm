@@ -3,54 +3,40 @@ package blx::xsdsql::xml::generic::catalog;
 use strict;
 use warnings;
 use Carp;
+use Data::Dumper;
 
-use blx::xsdsql::ut qw( nvl);
+use blx::xsdsql::ut qw(nvl);
+use base qw(blx::xsdsql::common_interfaces blx::xsdsql::log);
 
-use constant {
-				 DICTIONARY_NAME_MAXSIZE	=> 2048
-				,DICTIONARY_COMMENT_MAXSIZE	=> 2048
-				,BEGIN_COMMENT				=> '/*'
-				,END_COMMENT				=> '*/'
-				,COMMAND_TERMINATOR			=> ';'
-				,MAX_COLUMNS_VIEW			=> -1  #unlimited
-				,MAX_JOINS_VIEW				=> -1  #unlimited
-};
-
+sub _am { croak "abstract method\n"; }
 
 our %_ATTRS_R=();
 our %_ATTRS_W=();
 
-
-sub _debug {
-	return $_[0] unless $_[0]->{DEBUG};
-	my ($self,$n,@l)=@_;
-	$n='<undef>' unless defined $n; 
-	print STDERR 'xml (D ',$n,'): ',join(' ',map { ref($_) eq "" ? nvl($_) : Dumper($_); } @l),"\n"; 
-	return $self;
+sub _new {
+	my ($class,%params)=@_;
+	return bless \%params,$class;
 }
 
-sub new {
-	my ($classname,%params)=@_;
-	return bless(\%params,$classname);
-}
+sub get_name_maxsize { _am;  }
 
-sub get_name_maxsize { return DICTIONARY_NAME_MAXSIZE; }
+sub get_comment_maxsize { _am;  }
 
-sub get_comment_maxsize { return DICTIONARY_COMMENT_MAXSIZE; }
+sub get_begin_comment { _am; }
 
-sub get_begin_comment { return 	BEGIN_COMMENT; }
+sub get_end_comment {	_am;  }
 
-sub get_end_comment {	return END_COMMENT; }
+sub command_terminator { _am;  }
 
-sub command_terminator { return COMMAND_TERMINATOR; }
+sub get_max_columns_view { _am;  }
 
-sub get_max_columns_view { return MAX_COLUMNS_VIEW; }
+sub get_max_joins_view { _am; }
 
-sub get_max_joins_view { return MAX_JOINS_VIEW; }
+sub get_max_columns_table { _am; }
 
 sub comment {
 	my $self=shift;
-	my $c=join('',@_);
+	my $c=join('',grep(defined $_,@_));
 	return $c if $c eq '';
 	return $self->get_begin_comment().' '.substr($c,0,$self->get_comment_maxsize).' '.$self->get_end_comment();
 }
@@ -62,23 +48,7 @@ sub get_comment {
 	return $self->comment($c)
 }
 
-sub set_attrs_value {
-	my $self=shift;
-	blx::xsdsql::ut::set_attrs_value($self,\%_ATTRS_W,@_);
-	return $self;
-}
 
-sub get_attrs_value {
-	my $self=shift;
-	return blx::xsdsql::ut::get_attrs_value($self,\%_ATTRS_R,@_);
-}
-
-
-sub shallow_clone {
-	my ($self,%params)=@_;
-	my %newtable=%$self;	
-	return bless \%newtable,ref($self);
-}
 
 
 1;
@@ -143,20 +113,6 @@ comment  - return a text enclosed by  comment symbols
 get_comment - return a text value of the COMMENT attribute enclosed by comment characters
 
  
-set_attrs_value   - set a value of attributes
-
-	the arguments are a pairs NAME => VALUE	
-	the method return a self object
-
-
-get_attrs_value  - return a list  of attributes values
-
-	the arguments are a list of attributes name
-
-
-shallow_clone  - return a shallow copy of the object	
-	
-
 =head1 EXPORT
 
 None by default.

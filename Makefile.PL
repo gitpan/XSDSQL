@@ -24,8 +24,7 @@ WriteMakefile(
 	NAME              => 'blx::xsdsql'
 	,VERSION_FROM      => 'lib/blx/xsdsql/ut.pm'
 	,PREREQ_PM         => { 
-						'Rinchi::XMLSchema' => '0.02' 
-						, 'XML::Parser' => '1.21' 
+						  'XML::Parser' => '1.21' 
 						, 'XML::Writer' => '0.600'
 						, 'DBI'		=> '1.58'
 	}

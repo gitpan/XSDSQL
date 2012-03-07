@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListOfDataExchange>
+	
+	<DataExchangeFisso>   <!-- ATTIVAZIONE -->
+		<AccessoTelefonico>
+			<NumTel>
+				<Prefix>0131</Prefix>
+				<NumTel>226101</NumTel>
+			</NumTel>
+			<CategAbbon>00</CategAbbon>
+			<CodLavoro>01</CodLavoro> 
+			<Data>2006-01-13</Data>
+			<Time>18:51:18</Time>
+		</AccessoTelefonico>
+		<DatiUtente>
+			<Cognome>MAFALDA</Cognome>
+			<Nome>MAFÆLDA</Nome>
+			<!-- <Email>mafalda@tele2.it</Email> -->
+			<CodFiscale>PRNGDN40A22B345E</CodFiscale>
+			<FlagConsensi>51</FlagConsensi>
+			<FlagAggregCF>0</FlagAggregCF>
+			<FlagAltriCanali>1</FlagAltriCanali>
+			<CodiceOperatoreTLC>TD</CodiceOperatoreTLC>
+		</DatiUtente>
+		<Localita>
+			<CAP>15121</CAP>
+			<Provincia>AL</Provincia>
+			<Comune>ALESSANDRIA</Comune>
+			<PartTopon>VIA</PartTopon>
+			<DescIndirizzo>BENEDETTO CROCE</DescIndirizzo>
+			<NumCivico>8</NumCivico>
+		</Localita>
+		<DatiAccessori>
+			<CodProgressivo>1</CodProgressivo>
+			<NoteP>ID_TELE2:999:ACCOUNT_NUMBER:23520805579</NoteP>
+		</DatiAccessori>
+		<GestioneScarti>
+			<PubblicazioneDatoScarto>0</PubblicazioneDatoScarto>
+		</GestioneScarti>
+	</DataExchangeFisso>
+
+</ListOfDataExchange>
+

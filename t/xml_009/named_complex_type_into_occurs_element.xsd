@@ -10,7 +10,7 @@
 
 	<xs:element name="complexType">
 		<xs:complexType>
-			<xs:sequence>
+			<xs:sequence minOccurs="0" maxOccurs="1">
 				<xs:element name="c" type="ct0" minOccurs="0" maxOccurs="unbounded"/>
 				<xs:element name="d" type="ct0" minOccurs="0" maxOccurs="unbounded"/>
 				<xs:element name="e" type="ct1" minOccurs="0" maxOccurs="unbounded"/>

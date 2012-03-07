@@ -9,6 +9,7 @@ use constant {
 	STREAM_CLASS  => 'blx::xsdsql::OStream'
 };
 
+use base qw(blx::xsdsql::log);
 
 sub header {
 	my ($self,$table,%params)=@_;
@@ -18,6 +19,11 @@ sub header {
 	return $self;
 }
 
+
+sub first_pass {
+	my ($self,%params)=@_;
+	return $self;
+}
 
 sub table_header {
 	my ($self,$table,%params)=@_;
@@ -31,6 +37,11 @@ sub table_footer {
 
 sub column {
 	my ($self,$table,%params)=@_;
+	return $self;
+}
+
+sub last_pass {
+	my ($self,%params)=@_;
 	return $self;
 }
 
@@ -69,23 +80,9 @@ sub new {
 	$filter=sub { #recursive function
 		my ($col,$table,%params)=@_;
 		my $newcol=$col->shallow_clone;  #clone the column for add ALIAS_NAME attr
-		my $table_ref=$newcol->get_table_reference;
-
-#		if ((my $path_reference=$newcol->get_path_reference) && !$table_ref) {  #confess the error 
-#			if (ref($path_reference) =~/::table$/) {
-#				my $t=$path_reference;
-#				$path_reference=$t->get_attrs_value qw(PATH);
-#				$path_reference=$t->get_sql_name unless $path_reference;
-#			}
-#			confess $path_reference.": not a table ref\n";
-#		}
-#
-#		my $viewable= $newcol->get_path_reference && $table_ref->get_max_occurs <= 1   || $newcol->is_pk && !$params{START_TABLE} ? 0 : 1;
-#		my $join_table=defined $table_ref && $table_ref->get_max_occurs <= 1 ? $table_ref->shallow_clone : undef; #clone the table for add ALIAS_NAME attr
-		
-		my $viewable=$newcol->is_pk && !$params{START_TABLE} ? 0 : 1;
-		my $join_table=defined $table_ref && $table_ref->get_max_occurs <= 1 && $newcol->get_max_occurs <=1 ? $table_ref->shallow_clone : undef; #clone the table for add ALIAS_NAME attr
-
+		my $table_ref=$newcol->get_table_reference;		
+		my $viewable=$newcol->is_pk && !$params{START_TABLE} || $newcol->is_sys_attributes || $newcol->is_attribute ?  0 : 1;
+		my $join_table=defined $table_ref && $table_ref->get_max_occurs <= 1 && $newcol->get_max_occurs <=1 ? $table_ref->shallow_clone : undef; 
 
 		$newcol->set_attrs_value(
 			VIEWABLE 		=> $viewable
@@ -93,7 +90,7 @@ sub new {
 		);
 		if ($viewable) { #set the alias for view
 			my $sql_name=delete $newcol->{SQL_NAME};
-			my $alias_name=$newcol->get_sql_name(%params); #create a unique alias name
+			my $alias_name=$newcol->_set_sql_name(%params); #create a unique alias name
 			$newcol->set_attrs_value(SQL_NAME	=> $sql_name,ALIAS_NAME	=> $alias_name);
 		}		
 		my @ret=($newcol);
@@ -117,6 +114,7 @@ sub new {
 
 }
 
+
 sub get_view_columns {
 	my ($self,$table,%params)=@_;
 	my @cols=grep($_->{VIEWABLE},$self->_get_columns($table,%params));
@@ -129,6 +127,14 @@ sub get_join_columns {
 	return wantarray ? @cols : \@cols;
 }
 
+sub put_comment {
+	my ($self,$catalog,$comment,%params)=@_;
+	$self->{STREAMER}->put_line($catalog->comment($comment));
+	return $self;
+}
+
+
+sub get_streamer { return $_[0]->{STREAMER}; }
 1;
 
 
@@ -177,6 +183,7 @@ footer - emit on FD the footer lines
 
 	the first argument is a table object generate from blx::xsdsql::parser::parse
 
+first_pass - emit on FD the lines at first pass 
 
 table_header - emit on FD the table header (for example the 'create table' ) 
 
@@ -192,6 +199,16 @@ column - emit on FD the column line (for example  the line column_name column_ty
 
 	the first argument is a column object generate from blx::xsdsql::parser::parse
  
+last_pass - emit on FD the lines at last pass 
+
+
+put_comment - put a comment into  sql format 
+	
+	the first argument is a catalog object or a child object of this 
+
+
+get_streamer - return the output streamer object 
+
   
 =head1 EXPORT
 

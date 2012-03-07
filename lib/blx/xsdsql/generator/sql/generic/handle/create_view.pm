@@ -1,6 +1,5 @@
 package blx::xsdsql::generator::sql::generic::handle::create_view;
 
-
 use strict;
 use warnings;
 use Carp;
@@ -24,13 +23,20 @@ sub _alias_table {
 
 sub table_header {
 	my ($self,$table,%params)=@_;
+	return $self->_table_header($table,%params,STREAMER => $self->{STREAMER});
+}
+
+sub _table_header {
+	my ($self,$table,%params)=@_;
 	my $path=$table->get_attrs_value qw(PATH);
 	my $comm=defined  $path ? $table->comment('ROOTPATH: '.$path) : '';
-	$self->{STREAMER}->put_line($self->_get_create_prefix,' ',$table->get_view_sql_name," as select  $comm");
+	$params{STREAMER}->put_line($self->_get_create_prefix,' ',$table->get_view_sql_name," as select  $comm");
 	my @cols=$self->_get_columns($table,%params);
 	my $colseq=0;
 	for my $col(@cols) {
 		next unless $col->get_attrs_value qw(VIEWABLE);
+		next if $col->is_attribute;
+		next if $col->is_sys_attributes;
 		my $t=$col->get_attrs_value qw(TABLE);
 		my $sqlcomm=sub {
 			my $path=$col->get_attrs_value qw(PATH);
@@ -42,27 +48,27 @@ sub table_header {
 		}->();
 		my $table_alias=sprintf("A_%0".length(scalar(@cols))."d",$t->get_attrs_value(qw(ALIAS_COUNT)));
 		my $column_alias=$col->get_attrs_value qw(ALIAS_NAME);
-		$self->{STREAMER}->put_line("\t".($colseq == 0 ? '' : ',').$table_alias,'.',$col->get_sql_name,' as ',$column_alias,' ',$sqlcomm);
+		$params{STREAMER}->put_line("\t".($colseq == 0 ? '' : ',').$table_alias,'.',$col->get_sql_name,' as ',$column_alias,' ',$sqlcomm);
 		++$colseq;
 	}
-	$self->{STREAMER}->put_line(' from ');
+	$params{STREAMER}->put_line(' from ');
 	for my $col(@cols) {
 		my $t=$col->get_attrs_value qw(TABLE);
 		my $alias=sprintf("A_%0".length(scalar(@cols))."d",$col->get_attrs_value(qw(TABLE))->get_attrs_value(qw(ALIAS_COUNT)));
 
 		if ($t->get_sql_name eq $table->get_sql_name) { #the start table
-			$self->{STREAMER}->put_line("\t",$t->get_sql_name,$self->_alias_table,$alias) if $col->is_pk && $col->get_pk_seq == 0;
+			$params{STREAMER}->put_line("\t",$t->get_sql_name,$self->_alias_table,$alias) if $col->is_pk && $col->get_pk_seq == 0;
 		}
 		my $table_ref=$col->get_attrs_value qw(JOIN_TABLE);
 		next unless defined $table_ref;
 		my $alias_ref=sprintf("A_%0".length(scalar(@cols))."d",$table_ref->get_attrs_value(qw(ALIAS_COUNT)));
-		$self->{STREAMER}->put_chars("\t","left join ",$table_ref->get_sql_name,$self->_alias_table,$alias_ref,' on ');
+		$params{STREAMER}->put_chars("\t","left join ",$table_ref->get_sql_name,$self->_alias_table,$alias_ref,' on ');
 		my @pk=$table_ref->get_pk_columns;
-		$self->{STREAMER}->put_chars("\t",$alias,'.',$col->get_sql_name,'=',$alias_ref,'.',$pk[0]->get_sql_name);
-		$self->{STREAMER}->put_chars("\t\tand ",$alias_ref,'.',$pk[1]->get_sql_name,'=0') if scalar(@pk) > 1;
-		$self->{STREAMER}->put_line;
+		$params{STREAMER}->put_chars("\t",$alias,'.',$col->get_sql_name,'=',$alias_ref,'.',$pk[0]->get_sql_name);
+		$params{STREAMER}->put_chars("\t\tand ",$alias_ref,'.',$pk[1]->get_sql_name,'=0') if scalar(@pk) > 1;
+		$params{STREAMER}->put_line;
 	}
-	$self->{STREAMER}->put_line($table->command_terminator);
+	$params{STREAMER}->put_line($table->command_terminator);
 	return $self;
 }
 

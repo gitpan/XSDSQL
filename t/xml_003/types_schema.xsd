@@ -3,6 +3,7 @@
 
 	<xs:simpleType name="noLowerCase">
 		<xs:restriction base="xs:string">
+			<xs:length value="2"/>
 			<xs:pattern value="[^:lower:]+"/>
 		</xs:restriction>
 	</xs:simpleType>
@@ -10,6 +11,28 @@
 	<xs:simpleType name="NLstrLn2">
 		<xs:restriction base="noLowerCase">
 			<xs:length value="2"/>
+		</xs:restriction>
+	</xs:simpleType>
+
+	<xs:simpleType name="NLstrLnMx20">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="20"/>
+			<xs:minLength value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+
+
+	<xs:simpleType name="int3">
+		<xs:restriction base="xs:integer">
+	  		<xs:totalDigits value="3" />
+		</xs:restriction>
+	</xs:simpleType>
+
+	<xs:simpleType name="enum3">
+		<xs:restriction base="xs:string">
+	  		<xs:enumeration value="AAA" />
+	  		<xs:enumeration value="AA" />
+	  		<xs:enumeration value="A" />
 		</xs:restriction>
 	</xs:simpleType>
 
@@ -33,31 +56,32 @@
 				<xs:element name="unsignedShort" type="xs:unsignedShort" minOccurs="0" maxOccurs="1" />
 				<xs:element name="unsignedByte" type="xs:unsignedByte" minOccurs="0" maxOccurs="1" />
 				<xs:element name="positiveInteger" type="xs:positiveInteger" minOccurs="0" maxOccurs="1" />
-
 <!-- time datatypes -->
 				<xs:element name="dateTime" type="xs:dateTime" minOccurs="0" maxOccurs="1" />
 				<xs:element name="date" type="xs:date" minOccurs="0" maxOccurs="1" />
 				<xs:element name="time" type="xs:time" minOccurs="0" maxOccurs="1" />
 <!--				<xs:element name="gDay" type="xs:gDay" minOccurs="0" maxOccurs="1" />
 				<xs:element name="gMonth" type="xs:gMonth" minOccurs="0" maxOccurs="1" />
--->				<xs:element name="gYear" type="xs:gYear" minOccurs="0" maxOccurs="1" />
+				<xs:element name="gYear" type="xs:gYear" minOccurs="0" maxOccurs="1" />
 				<xs:element name="gYearMonth" type="xs:gYearMonth" minOccurs="0" maxOccurs="1" />
 				<xs:element name="gMonthDay" type="xs:gMonthDay" minOccurs="0" maxOccurs="1" />
-				<xs:element name="duration" type="xs:duration" minOccurs="0" maxOccurs="1" />
+-->				<xs:element name="duration" type="xs:duration" minOccurs="0" maxOccurs="1" />
 <!-- xml datatypes -->
 				<xs:element name="ID" type="xs:ID" minOccurs="0" maxOccurs="1" />
 				<xs:element name="IDREF" type="xs:IDREF" minOccurs="0" maxOccurs="1" />
 <!--				<xs:element name="ENTITY" type="xs:ENTITY" minOccurs="0" maxOccurs="1" />
 				<xs:element name="NOTATION" type="xs:NOTATION" minOccurs="0" maxOccurs="1" />
--->				<xs:element name="IDREFS" type="xs:IDREFS" minOccurs="0" maxOccurs="1" />
-
+-->	
+				<xs:element name="IDREFS" type="xs:IDREFS" minOccurs="0" maxOccurs="1" />
 <!--				<xs:element name="ENTITIES" type="xs:ENTITIES" minOccurs="0" maxOccurs="1" />
--->				<xs:element name="NMTOKEN" type="xs:NMTOKEN" minOccurs="0" maxOccurs="1" />
+-->
+				<xs:element name="NMTOKEN" type="xs:NMTOKEN" minOccurs="0" maxOccurs="1" />
 				<xs:element name="NMTOKENS" type="xs:NMTOKENS" minOccurs="0" maxOccurs="1" />
 				<xs:element name="language" type="xs:language" minOccurs="0" maxOccurs="1" />
 				<xs:element name="Name" type="xs:Name" minOccurs="0" maxOccurs="1" />
 				<xs:element name="QName" type="xs:QName" minOccurs="0" maxOccurs="1" />
 				<xs:element name="NCName" type="xs:NCName" minOccurs="0" maxOccurs="1" />
+
 <!-- string datatype -->
 				<xs:element name="string" type="xs:string" minOccurs="0" maxOccurs="1" />
 				<xs:element name="normalizedString" type="xs:normalizedString" minOccurs="0" maxOccurs="1" />
@@ -68,8 +92,16 @@
 <!-- misc types -->
 				<xs:element name="boolean" type="xs:boolean" minOccurs="0" maxOccurs="1" />
 				<xs:element name="anyURI" type="xs:anyURI" minOccurs="0" maxOccurs="1" />
-				<xs:element name="without_type" minOccurs="0" maxOccurs="1" />
+<!--			<xs:element name="without_type" minOccurs="0" maxOccurs="1" />
+
 				<xs:element name="customSimpleType" type="NLstrLn2" minOccurs="0" maxOccurs="1" />
+-->
+				<xs:element name="customSimpleType" type="noLowerCase" minOccurs="0" maxOccurs="1" />
+				<xs:element name="customSimpleType1" type="NLstrLn2" minOccurs="0" maxOccurs="1" />
+				<xs:element name="customSimpleType2" type="NLstrLnMx20" minOccurs="0" maxOccurs="1" />
+				<xs:element name="customSimpleType3" type="int3" minOccurs="0" maxOccurs="1" />
+				<xs:element name="customSimpleType4" type="enum3" minOccurs="0" maxOccurs="1" />
+				
 			</xs:sequence>	
 		</xs:complexType>
 	</xs:element>

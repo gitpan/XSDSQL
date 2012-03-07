@@ -15,7 +15,7 @@ my %Opt=();
 
 sub x {
 	my ($cmd,$expat,@r)=@_;
-	print STDERR "$cmd: ",Dumper(\@r),"\n";
+	print STDOUT "$cmd: ",Dumper(\@r),"\n";
 }
 
 

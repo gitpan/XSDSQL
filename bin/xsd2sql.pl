@@ -11,8 +11,8 @@ use File::Basename;
 use Data::Dumper;
 use Carp;
 
-use blx::xsdsql::ut qw(nvl);
-use blx::xsdsql::parser;
+use blx::xsdsql::ut qw(nvl ev);
+use blx::xsdsql::xsd_parser;
 use blx::xsdsql::generator;
 
 use constant {
@@ -78,7 +78,7 @@ $0  [<options>]  [<xsdfile>] [<command>...]
 
 
 my @cl_namespaces=blx::xsdsql::generator::get_namespaces;
-my @db_namespaces=blx::xsdsql::parser::get_db_namespaces;
+my @db_namespaces=blx::xsdsql::xsd_parser::get_db_namespaces;
 
 if (nvl($ARGV[0]) eq 'display_namespaces') {	
 	for my $n(sort @cl_namespaces) {
@@ -190,7 +190,7 @@ for my $cmd(@cmds) {
 }
 
 
-my $p=blx::xsdsql::parser->new(DB_NAMESPACE => $db_namespace,DEBUG => $Opt{d}); 
+my $p=blx::xsdsql::xsd_parser->new(DB_NAMESPACE => $db_namespace,DEBUG => $Opt{d});
 
 unless (grep($_ eq $Opt{n},blx::xsdsql::generator::get_namespaces)) {
 	print STDERR $Opt{n},": Can't locate namespace in \@INC\n";

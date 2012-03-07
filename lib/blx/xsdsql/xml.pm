@@ -9,15 +9,11 @@ use XML::Writer;
 use File::Basename;
 use Data::Dumper;
 use blx::xsdsql::ut qw( nvl ev);
+use base qw(blx::xsdsql::log blx::xsdsql::common_interfaces);
 
-
-sub _debug {
-	return $_[0] unless $_[0]->{DEBUG};
-	my ($self,$n,@l)=@_;
-	$n='<undef>' unless defined $n; 
-	print STDERR 'xml (D ',$n,'): ',join(' ',map { ref($_) eq "" ? nvl($_) : Dumper($_); } @l),"\n"; 
-	return $self;
-}
+use constant {
+					DEFAULT_NAMESPACE => ''
+};
 
 sub _debug_stack {
 	return $_[0] unless $_[0]->{DEBUG};
@@ -51,24 +47,24 @@ sub _debug_stack {
 	return $self;
 }
 
-sub _fusion_params {
+sub _fusion_params  {
 	my ($self,%p)=@_;
 	my %params=%$self;
 	for my $p(keys %p) {
 		$params{$p}=$p{$p};
 	}
-
-	$params{ROOT_TAG_PARAMS}=[] unless defined $params{ROOT_TAG_PARAMS};
-	$params{ROOT_TAG_PARAMS}=[  map { ($_,$params{ROOT_TAG_PARAMS}->{$_}) }  keys %{$params{ROOT_TAG_PARAMS}} ]
-		if ref($params{ROOT_TAG_PARAMS}) eq 'HASH';
-	$params{ROOT_TAG_PARAMS}=[ split(",",$params{ROOT_TAG_PARAMS}) ]
-		if ref($params{ROOT_TAG_PARAMS}) eq '';
-	croak "ROOT_TAG_PARAMS param wrong type\n" unless ref($params{ROOT_TAG_PARAMS}) eq 'ARRAY';
-	push @{$params{ROOT_TAG_PARAMS}},('xmlns:xsi',$params{SCHEMA_INSTANCE}) 
-		if defined $params{SCHEMA_INSTANCE};
-	push @{$params{ROOT_TAG_PARAMS}},('xsi:noNamespaceSchemaLocation',$params{SCHEMA_NAME}) 
-		if defined $params{SCHEMA_NAME};
-
+	if (defined (my $p=$params{ROOT_TAG_PARAMS})) {		
+		$p=[] unless defined $params{ROOT_TAG_PARAMS};
+		$p=[  map { ($_,$p->{$_}) }  keys %$p ]
+			if ref($p) eq 'HASH';
+		$p=[ split(",",$p) ] if ref($p) eq '';
+		croak "ROOT_TAG_PARAMS param wrong type\n" unless ref($p) eq 'ARRAY';
+		push @$p,('xmlns:xsi',$params{SCHEMA_INSTANCE}) 
+			if defined $params{SCHEMA_INSTANCE};
+		push @$p,('xsi:noNamespaceSchemaLocation',$params{SCHEMA_NAME}) 
+			if defined $params{SCHEMA_NAME};
+		$params{ROOT_TAG_PARAMS}=$p;
+	}
 	return \%params;
 }
 
@@ -141,7 +137,7 @@ sub _read {
 	$self->{_PARAMS}=$p;
 	$p->{SQL_BINDING}->set_attrs_value(SEQUENCE_NAME => $schema->get_sequence_name)
 		unless defined $p->{SQL_BINDING}->get_attrs_value qw(SEQUENCE_NAME); 
-	$self->{PARSER}->setHandlers($self->get_handler);
+	$self->{PARSER}->setHandlers($self->_get_handler);
 	my $root=$schema->get_root_table;
 	my $insert=$self->_prepared_insert($root,TAG => __LINE__);
 	$self->{STACK}=[ { TABLE => $root,PREPARED =>  $insert } ];
@@ -170,7 +166,7 @@ sub _write {
 	return undef unless $root_id=~/^\d+$/;
 	my $root_row=$self->_prepared_query($root_table,ID => $root_id,TAG => __LINE__)->fetchrow_arrayref;
 	if (defined $root_row) {
-		$self->_write_xml(LEVEL => 0,ROOT_ROW => $root_row,TABLE => $root_table);
+		$self->_write_xml_start(LEVEL => 0,ROOT_ROW => $root_row,TABLE => $root_table);
 	}
 	$self->finish(('QUERY',$p->{DELETE} ? 'DELETE' : ())) if defined $params{SCHEMA} || defined $params{ROOT_ID};
 	return defined $root_row ? $self : undef;
@@ -314,14 +310,19 @@ sub _resolve_link {
 sub _bind_node_attrs {
 	my ($self,$prep,$attrs,%params)=@_;
 	my $table=$prep->get_binding_table;
-	my @keys=grep($table->get_deep_level > 1 || $_ ne 'xmlns:xsi',keys %$attrs);
+	my @keys=keys %$attrs;
 	my $tname=$table->get_sql_name;
 	my @cols=$self->{_PARAMS}->{SCHEMA}->resolve_attributes($tname,@keys);
 	for my $i(0..scalar(@cols) - 1) {
 		my $col=$cols[$i];
-		confess $attrs->{$keys[$i]}.": no such column for this attribute in node '".$table->get_path."' - table '$tname'\n"
-			unless defined $col;
-		$prep->bind_column($col,$attrs->{$keys[$i]},%params);
+		if (defined $col) {
+			$prep->bind_column($col,$attrs->{$keys[$i]},%params);
+		}
+		else { # is system attribute
+			my $col=$table->get_sysattrs_column;
+			my $v=$keys[$i].'="'.$attrs->{$keys[$i]}.'"';
+			$prep->bind_column($col,$v,%params,APPEND => 1,SEP => ' ');			
+		}
 	}
 	return $self;
 }
@@ -509,7 +510,6 @@ my %H=(
 				
 				if ($parent_table->is_unpath) {
 					if (my $p=$stack->{UNPATH_PREPARED}->{$parent_tag}) {
-						#confess "not implemented\n";
 						if 	($stack->{UNPATH_COLSEQ}->{$parent_tag} >= $parent_column->get_xsd_seq) {
 							$p->execute(TAG => __LINE__);
 							_insert_seq_inc($p,TAG => __LINE__);
@@ -533,7 +533,7 @@ my %H=(
 						_insert_seq_inc($stack->{PREPARED},TAG => __LINE__);
 					}
 					else {
-							confess "not implemented\n";
+						confess "internal error - not implemented\n";
 					}
 				}
 				else {
@@ -558,7 +558,7 @@ my %H=(
 				}
 			}
 			else {
-				confess $self->{_CURRENT_PATH}.": tc return < 2 or > 3 elements \n";				
+				confess $self->{_CURRENT_PATH}.": internal error - tc return < 2 or > 3 elements \n";				
 			}
 		}
 		elsif ($tc->{C}->is_internal_reference) { #the column is an occurs of simple types
@@ -613,6 +613,7 @@ my %H=(
 			else {
 					#empty
 			}
+			$self->_bind_node_attrs($stack->{PREPARED},\%node_attrs,TAG => __LINE__) if scalar keys %node_attrs;
 		}
 	}  # Start
 	,End	=>  sub {
@@ -688,7 +689,7 @@ my %H=(
 
 );
 
-sub get_handler {
+sub _get_handler {
 	my $self=shift;
 	return %H;
 }
@@ -700,162 +701,351 @@ sub _decode {
 	return @_;
 }
 
-
 sub _tag_with_ns {
-	my $ns=shift;
-	$ns=$ns->[0] if ref($ns) eq 'ARRAY';
-	$ns='' unless defined $ns;
-	$ns=$ns.':' if length($ns) && $ns!~/:$/;
-	return $ns;
+	my ($ns,$col,$xpath,%params)=@_;
+	confess "internal error - 1^ param not set\n" unless defined $ns;
+	confess "internal error - 2^ param not set\n" unless defined $col;
+	confess "internal error - 3^ param not set\n" unless defined $xpath;
+	my $form=ref($col) eq '' ? $col : $col->get_element_form;
+	confess "element form not set for column ".$col->get_full_name."\n" unless defined $form;
+	confess "form must be Q|U\n" unless $form=~/^[QU]$/;
+	my $node_name=basename($xpath);
+	return $form eq 'U' || $ns eq '' ? $node_name : $ns.':'.$node_name;
 }
-	
+
+sub _split_sysattrs {
+	my $v=shift;
+	return () unless defined $v;
+	my @a=();
+	while(1) {
+		my @m=$v=~/^\s*([^=]+)="([^"]+)"(.*)$/;
+		last unless scalar(@m);
+		push @a,@m[0..1];
+		$v=$m[2];
+	}
+	return @a;
+}
+
 sub _resolve_attrs {
 	my ($self,$r,$columns,%params)=@_;
-	my @attrs=map {  $columns->[$_]->is_attribute && defined $r->[$_] ? ($columns->[$_]->get_name,$r->[$_]) : ()  } (0..scalar(@$r) - 1);
+	my @attrs=map {
+		my @out=();
+		if ($columns->[$_]->is_attribute) {
+			push @out,($columns->[$_]->get_name,$r->[$_]) if defined $r->[$_];
+		}
+		elsif ($columns->[$_]->is_sys_attributes) {
+			push @out,_split_sysattrs($r->[$_]);
+		}
+		@out;
+	} (0..scalar(@$r) - 1);
 	return @attrs;
 }
+
+
+sub _split_attrs_and_namespaces {
+	my ($self,%params)=@_;
+	my $p=$params{ROOT_TAG_PARAMS};
+	$p=[ $self->_resolve_attrs($params{ROW},$params{COLUMNS}) ] unless defined $p;
+	my @root_tag_params=@$p;
+	confess  join(",",@root_tag_params).": internal error - not an array of pairs key,value\n" 
+		if scalar(@root_tag_params) % 2;
+	my %root_tag_params=@root_tag_params;
+	my %namespace_prefix=map {  my @out=(/^xmlns:(\w+)/ ? ($root_tag_params{$_},$1) : ()); @out; } keys %root_tag_params; 
+#	$self->_debug(__LINE__,\%root_tag_params,\%namespace_prefix);
+	if (defined (my $xmlns=$root_tag_params{xmlns})) {
+		$namespace_prefix{&DEFAULT_NAMESPACE}=$xmlns;
+	}
+	return ($p,\%namespace_prefix);
+}
+
+sub _get_current_namespace_prefix {
+	my ($self,$ns_prefixes,$uri,%params)=@_;
+	return '' if length(nvl($uri)) == 0;
+	if (ref(my $nss=$ns_prefixes) eq 'HASH') {
+		my $ns=$nss->{$uri};
+		$ns='' if !defined $ns && $uri eq nvl($ns_prefixes->{&DEFAULT_NAMESPACE});  
+		unless (defined  $ns) {
+			$self->_debug($params{TAG},": (W) not namespace prefix from uri '$uri' ");
+			$ns='';
+		}
+		$self->_debug($params{TAG},"translate URI '$uri' into nsprefix '$ns'");
+		return $ns;
+	}
+	confess "internal error - param NAMESPACE_PREFIX not scalar or not HASH ".Dumper($ns_prefixes)."\n";
+}
+
+
+
+sub _xml_decl {
+	my ($self,%params)=@_;
+	for my $k qw(OUTPUT_STREAM TAG) { 
+		confess "param $k not set\n" unless defined  $params{$k};
+	}
+	my ($hb,$ha)=map { delete $params{$_}  }  qw(HANDLE_BEFORE_XMLDECL HANDLE_AFTER_XMLDECL);
+	if (ref($hb) eq 'CODE') {
+		$hb->(%params) || return 0;
+	}
+	unless ($params{NO_WRITE_HEADER}) {
+		$self->_debug($params{TAG},': xmlDecl');
+		$params{OUTPUT_STREAM}->xmlDecl($params{ENCODING},$params{STANDALONE}) 
+	}
+	if (ref($ha) eq 'CODE') {
+		$ha->(%params) || return 0;
+	}
+	return 1;
+}
+
+sub _start_tag {
+	my ($self,$tag,%params)=@_;
+	for my $k qw(XPATH OUTPUT_STREAM TAG) {
+		confess "param $k not set\n" unless defined  $params{$k};
+	}
+	$params{XPATH_ARRAY}=[grep(length($_),split("/",$params{XPATH}))];
+	$params{XPATH_LEVEL}=scalar(@{$params{XPATH_ARRAY}});
+	my ($hb,$ha)=map { delete $params{$_}  }  qw(HANDLE_BEFORE_START_NODE HANDLE_AFTER_START_NODE);
+	if (ref($hb) eq 'CODE') {
+		$hb->($tag,%params) || return 0;
+	}
+
+	if ($params{XPATH_LEVEL} != 1 ||  !$params{NO_WRITE_HEADER}) { 
+		$self->_debug($params{TAG}," (start_node) > '$tag'");
+		$params{OUTPUT_STREAM}->startTag($tag,ref($params{ATTRIBUTES}) eq 'ARRAY' ? @{$params{ATTRIBUTES}} : ())
+	}
+
+	if (ref($ha) eq 'CODE') {
+		$ha->($tag,%params) || return 0;
+	}
+	return 1;
+}
+
+sub _end_tag {
+	my ($self,$tag,%params)=@_;
+	for my $k qw(XPATH OUTPUT_STREAM TAG) {
+		confess "param $k not set\n" unless defined  $params{$k};
+	}
+	$params{XPATH_ARRAY}=[grep(length($_),split("/",$params{XPATH}))];
+	$params{XPATH_LEVEL}=scalar(@{$params{XPATH_ARRAY}});
+	my ($hb,$ha)=map { delete $params{$_}  }  qw(HANDLE_BEFORE_END_NODE HANDLE_AFTER_END_NODE);
+	if (ref($hb) eq 'CODE') {
+		$hb->($tag,%params) || return 0;
+	}
+	if ($params{XPATH_LEVEL} != 1 ||  !$params{NO_WRITE_FOOTER}) { 
+		$self->_debug($params{TAG}," (end_node) < '/$tag'"); 
+		$params{OUTPUT_STREAM}->endTag($tag);
+	}
+	if (ref($ha) eq 'CODE') {
+		$ha->($tag,%params) || return 0;
+	}
+	return 1;
+}
+
+
+sub _data_element {
+	my ($self,$tag,$value,%params)=@_;
+	for my $k qw(XPATH OUTPUT_STREAM TAG) {
+		confess "param $k not set\n" unless defined  $params{$k};
+	}
+	$params{XPATH_ARRAY}=[grep(length($_),split("/",$params{XPATH}))];
+	$params{XPATH_LEVEL}=scalar(@{$params{XPATH_ARRAY}});
+	my ($hb,$ha)=map { delete $params{$_}  }  qw(HANDLE_BEFORE_DATA_ELEMENT HANDLE_AFTER_DATA_ELEMENT);
+	$hb->($tag,$value,%params) if ref($hb) eq 'CODE';
+	if (ref($hb) eq 'CODE') {
+		$hb->($tag,$value,%params) || return 0;
+	}
+	$self->_debug($params{TAG}," (data element) '$tag' with  value '$value'");
+	$params{OUTPUT_STREAM}->dataElement($tag,$value);
+	if (ref($ha) eq 'CODE') {
+		$ha->($tag,$value,%params) || return 0;
+	}
+	return 1;
+}
+
+sub _end {
+	my ($self,%params)=@_;
+	for my $k qw(OUTPUT_STREAM TAG) {
+		confess "param $k not set\n" unless defined  $params{$k};
+	}
+	my ($hb,$ha)=map { delete $params{$_}  }  qw(HANDLE_BEFORE_END HANDLE_AFTER_END);
+	if (ref($hb) eq 'CODE') {
+		$hb->(%params) || return 0;
+	}
+	$self->_debug($params{TAG},' end document ');
+	$params{OUTPUT_STREAM}->end;
+	if (ref($ha) eq 'CODE') {
+		$ha->(%params) || return 0;
+	}
+	return 1;
+}
+
+sub _write_xml_start {
+	my ($self,%params)=@_;
+	my $p=$self->{_PARAMS};
+	$self->_xml_decl(%$p,TAG => __LINE__);
+	my $row=$params{ROOT_ROW};
+	my $root=$p->{SCHEMA}->get_root_table;
+	my @cols=$root->get_columns;
+	$self->_prepared_delete($root,ID => $row->[0],TAG => __LINE__) if $p->{DELETE_ROWS};
+
+	for my $i(1..scalar(@$row) - 1) {
+		next unless defined $row->[$i];
+		my $col=$cols[$i];
+		if (my $table=$col->get_table_reference) {
+			if ($table->is_simple_content_type) {
+				my $xpath=$col->get_attrs_value('PATH');
+				$self->_write_xml(ID => $row->[$i],TABLE	=> $table,LEVEL	=> 1,START_TAG => $xpath,END_TAG => $xpath,ROOT_TAG_PARAMS => $p->{ROOT_TAG_PARAMS},XPATH => $xpath);
+			}
+			else {
+				my $xpath=$table->get_attrs_value('PATH');
+				$self->_write_xml(ID => $row->[$i],TABLE	=> $table,LEVEL	=> 1,START_TAG => $xpath,END_TAG => $xpath,ROOT_TAG_PARAMS => $p->{ROOT_TAG_PARAMS},XPATH => $xpath);
+			}
+		}
+		else {
+			$self->_write_xml(ROW_FOR_ID => $row,TABLE	=> $root,LEVEL	=> 1,SIMPLE_ROOT_NODE => 1,ROOT_TAG_PARAMS => $p->{ROOT_TAG_PARAMS});
+		}
+		$self->_end(%$p,TAG => __LINE__);
+		return $self;
+	}
+	croak "no such column for xml root";
+}
+
 
 sub _write_xml {
 	my ($self,%params)=@_;
 	my $p=$self->{_PARAMS};
 	my $ostr=$p->{OUTPUT_STREAM};
-	if (defined $params{ROOT_ROW}) {
-		$ostr->xmlDecl($p->{ENCODING},$p->{STANDALONE});
-		my $row=$params{ROOT_ROW};
-		my $root=$p->{SCHEMA}->get_root_table;
-		my @cols=$root->get_columns;
-		$self->_prepared_delete($root,ID => $row->[0],TAG => __LINE__) if $p->{DELETE_ROWS};
-
-		for my $i(1..scalar(@$row) - 1) {
-			next unless defined $row->[$i];
-			my $col=$cols[$i];
-			if (my $table=$col->get_table_reference) {
-				my @root_tag_params=@{$p->{ROOT_TAG_PARAMS}};
-				croak join(",",@root_tag_params).": param ROOT_TAG_PARAMS is not an array of pairs key,value\n" 
-					if scalar(@root_tag_params) % 2;
-				my %root_tag_params=@root_tag_params;
-				my @namespace_prefix=map {  my @out=(/^xmlns:(\w+)/ && $1 ne 'xsi' ? ($1) : ()); @out; } keys(%root_tag_params); 				
-				croak join(",",@namespace_prefix).": multiple xml namespaces are not suppported\n" if scalar(@namespace_prefix) > 1;
-
-				if ($table->is_simple_content_type) {
-					my $tag=basename($col->get_attrs_value('PATH'));
-					$self->_write_xml(ID => $row->[$i],TABLE	=> $table,LEVEL	=> 1,NAMESPACE_PREFIX => \@namespace_prefix,START_TAG => $tag,END_TAG => $tag);
-				}
-				else {
-					my $tag=basename($table->get_attrs_value('PATH'));
-					$tag=_tag_with_ns(\@namespace_prefix).$tag;
-					$ostr->startTag($tag,@root_tag_params);
-					$self->_write_xml(ID => $row->[$i],TABLE	=> $table,LEVEL	=> 1,NAMESPACE_PREFIX => \@namespace_prefix);
-					$ostr->endTag($tag);
-				}
-			}
-			else { 
-				$self->_write_xml(ROW_FOR_ID => $row,TABLE	=> $root,LEVEL	=> 1);
-			}
-			$ostr->end;
-			return $self;
-		}
-		croak "no such column for xml root";
-	}
-
 	my $table=$params{TABLE};
 	my $r=$params{ROW_FOR_ID};
 	$r=$self->_prepared_query($table,ID => $params{ID},TAG => __LINE__)->fetchrow_arrayref unless defined $r;
 	confess nvl($params{ID}).": no such id\n" unless defined $r;
 	$self->_prepared_delete($table,ID => $r->[0],TAG => __LINE__) if $p->{DELETE_ROWS};
-	my $ns=_tag_with_ns($params{NAMESPACE_PREFIX});
-	my $columns=$table->get_columns;	
-
-	if (defined (my $tag=$params{START_TAG})) {
+	my $columns=$table->get_columns;
+	my $flag_start_tag=1;
+	if ($params{LEVEL} == 1) {   # the table is the header of the xml
+		if (defined (my $start_tag=$params{START_TAG})) {
+			my ($attrs,$ns_prefixes)=$self->_split_attrs_and_namespaces(ROOT_TAG_PARAMS => $params{ROOT_TAG_PARAMS},ROW => $r,COLUMNS => $columns);
+			my $ns=$self->_get_current_namespace_prefix($ns_prefixes,$table->get_URI,TAG => __LINE__);
+			my $tag=_tag_with_ns($ns,'Q',$start_tag);
+			$flag_start_tag=$self->_start_tag($tag,%$p,ATTRIBUTES => $attrs,XPATH => $params{XPATH},TAG => __LINE__);
+			$params{NS_PREFIXES}=$ns_prefixes;
+			$params{END_TAG}=$tag;
+		} 
+		elsif (!$params{SIMPLE_ROOT_NODE}) {
+			confess "param START_TAG or SIMPLE_ROOT_NODE not set\n";
+		}
+	}
+	elsif (defined (my $tag=$params{START_TAG})) {
 		my @attrs=$self->_resolve_attrs($r,$columns);
-		$ostr->startTag($tag,@attrs);
+		$flag_start_tag=$self->_start_tag($tag,%$p,ATTRIBUTES => \@attrs,XPATH => $params{XPATH},TAG => __LINE__);
+		
 	}
 
-
-	for my $i(1..scalar(@$r) - 1) {
-		my $col=$columns->[$i];
-		next if $col->is_attribute;
-		my $value=$r->[$i];
-		if (my $table=$col->get_table_reference) {
-			next unless defined $value;
-			next unless defined  $col->get_xsd_seq;
-			if ($table->is_simple_content_type) {
-				my $tag=basename($col->get_attrs_value('PATH'));
-				if ($col->get_max_occurs > 1) {
-					my $cur=$self->_prepared_query($table,ID => $value,TAG => __LINE__);
-					$self->_prepared_delete($table,ID => $value,TAG => __LINE__) if $p->{DELETE_ROWS};
-					while(my $r=$cur->fetchrow_arrayref) {
-						$self->_write_xml(TABLE	=> $table,LEVEL	=> $params{LEVEL},ROW_FOR_ID	=> $r,NAMESPACE_PREFIX => $ns,START_TAG => $tag,END_TAG => $tag);	
-					}
-					$cur->finish;
-				}
-				else {
-					$self->_write_xml(ID => $value,TABLE	=> $table,LEVEL	=> $params{LEVEL} + 1,NAMESPACE_PREFIX => $ns,START_TAG => $tag,END_TAG => $tag);
-				}
-			}
-			elsif (!$col->is_internal_reference) {
-				if (defined $table->get_attrs_value qw(PATH)) {
-					if (!$table->is_type) { 
-						my $tag=$ns.basename($table->get_attrs_value qw(PATH));
-						$self->_write_xml(ID => $value,TABLE	=> $table,LEVEL	=> $params{LEVEL} + 1,NAMESPACE_PREFIX => $ns,START_TAG => $tag,END_TAG => $tag);
-					}
-					else {  #the column reference a complex type
+	if ($flag_start_tag) {
+		for my $i(1..scalar(@$r) - 1) {
+			my $col=$columns->[$i];
+			next if $col->is_attribute;
+			my $value=$r->[$i];
+			if (my $table=$col->get_table_reference) {
+				next unless defined $value;
+				next unless defined  $col->get_xsd_seq;
+				if ($table->is_simple_content_type) {
+					my $xpath=$col->get_attrs_value('PATH');
+					my $ns=$self->_get_current_namespace_prefix($params{NS_PREFIXES},$params{TABLE}->get_URI,TAG => __LINE__);
+					my $tag=_tag_with_ns($ns,$col,$xpath);
+					if ($col->get_max_occurs > 1) {
 						my $cur=$self->_prepared_query($table,ID => $value,TAG => __LINE__);
-						my $tag=$ns.basename($col->get_attrs_value qw(PATH));
 						$self->_prepared_delete($table,ID => $value,TAG => __LINE__) if $p->{DELETE_ROWS};
- 						while(my $r=$cur->fetchrow_arrayref()) {
-							if ($col->is_group_reference) {
-								$self->_write_xml(TABLE	=> $table,LEVEL	=> $params{LEVEL},ROW_FOR_ID	=> $r,NAMESPACE_PREFIX => $ns);										
+						while(my $r=$cur->fetchrow_arrayref) {
+							$self->_write_xml(TABLE	=> $table,LEVEL	=> $params{LEVEL},ROW_FOR_ID	=> $r,NS_PREFIXES => $params{NS_PREFIXES},START_TAG => $tag,END_TAG => $tag,XPATH => $xpath);
+						}
+						$cur->finish;
+					}
+					else {
+						$self->_write_xml(ID => $value,TABLE	=> $table,LEVEL	=> $params{LEVEL} + 1,NS_PREFIXES => $params{NS_PREFIXES},START_TAG => $tag,END_TAG => $tag,XPATH => $xpath);
+					}
+				}
+				elsif (!$col->is_internal_reference) {
+					if (defined $table->get_attrs_value qw(PATH)) {
+						if (!$table->is_type) { 
+							my $xpath=$table->get_attrs_value qw(PATH);
+							my $ns=$self->_get_current_namespace_prefix($params{NS_PREFIXES},$params{TABLE}->get_URI,TAG => __LINE__);
+							my $tag=_tag_with_ns($ns,$col,$xpath);
+							$self->_write_xml(ID => $value,TABLE	=> $table,LEVEL	=> $params{LEVEL} + 1,NS_PREFIXES => $params{NS_PREFIXES},START_TAG => $tag,END_TAG => $tag,XPATH => $xpath);
+						}
+						else {  #the column reference a complex type
+							my $cur=$self->_prepared_query($table,ID => $value,TAG => __LINE__);
+							my $xpath=$col->get_attrs_value qw(PATH);
+							my $ns=$self->_get_current_namespace_prefix($params{NS_PREFIXES},$params{TABLE}->get_URI,TAG => __LINE__);
+							my $tag=_tag_with_ns($ns,$col,$xpath);
+							$self->_prepared_delete($table,ID => $value,TAG => __LINE__) if $p->{DELETE_ROWS};
+							while(my $r=$cur->fetchrow_arrayref()) {
+								if ($col->is_group_reference) {
+									$self->_write_xml(TABLE	=> $table,LEVEL	=> $params{LEVEL},ROW_FOR_ID	=> $r,SIMPLE_ROOT_NODE => 1,NS_PREFIXES => $params{NS_PREFIXES});										
+								}
+								else {
+									my $columns=$table->get_columns;
+									my @attrs=$self->_resolve_attrs($r,$columns);
+									if ($self->_start_tag($tag,%$p,ATTRIBUTES => \@attrs,XPATH => $xpath,TAG => __LINE__)) {
+#										$ostr->startTag($tag,@attrs);
+										$self->_write_xml(TABLE	=> $table,LEVEL	=> $params{LEVEL} + 1,ROW_FOR_ID	=> $r,NS_PREFIXES => $params{NS_PREFIXES});	
+									}
+									$self->_end_tag($tag,%$p,XPATH => $xpath,TAG => __LINE__);
+#									$ostr->endTag($tag);
+								}
 							}
-							else {
-								my $columns=$table->get_columns;
-								my @attrs=$self->_resolve_attrs($r,$columns);
-								$ostr->startTag($tag,@attrs);
-								$self->_write_xml(TABLE	=> $table,LEVEL	=> $params{LEVEL} + 1,ROW_FOR_ID	=> $r,NAMESPACE_PREFIX => $ns);	
-								$ostr->endTag($tag);
-							}
+							$cur->finish;
+						}
+					}
+					else {	# is a sequence table
+						my $cur=$self->_prepared_query($table,ID => $value,TAG => __LINE__);
+						$self->_prepared_delete($table,ID => $value,TAG => __LINE__) if $p->{DELETE_ROWS};
+						while(my $r=$cur->fetchrow_arrayref) {
+							$self->_write_xml(TABLE	=> $table,LEVEL	=> $params{LEVEL},ROW_FOR_ID	=> $r,SIMPLE_ROOT_NODE => 1,NS_PREFIXES => $params{NS_PREFIXES});	
 						}
 						$cur->finish;
 					}
 				}
-				else {	# is a sequence table
+				else   { #the column reference a simple type
 					my $cur=$self->_prepared_query($table,ID => $value,TAG => __LINE__);
-					$self->_prepared_delete($table,ID => $value,TAG => __LINE__) if $p->{DELETE_ROWS};
-					while(my $r=$cur->fetchrow_arrayref) {
-						$self->_write_xml(TABLE	=> $table,LEVEL	=> $params{LEVEL},ROW_FOR_ID	=> $r,NAMESPACE_PREFIX => $ns);	
+					my $xpath=$col->get_attrs_value qw(PATH);
+					my $ns=$self->_get_current_namespace_prefix($params{NS_PREFIXES},$params{TABLE}->get_URI,TAG => __LINE__);
+					my $tag=_tag_with_ns($ns,$col,$xpath);
+					while (my $r=$cur->fetchrow_arrayref) {
+						$self->_data_element($tag,$r->[2],%$p,XPATH => $xpath,TAG => __LINE__);                      
 					}
 					$cur->finish;
+					$self->_prepared_delete($table,ID => $value,TAG => __LINE__) if $p->{DELETE_ROWS};
 				}
 			}
-			else   { #the column reference a simple type
-				my $cur=$self->_prepared_query($table,ID => $value,TAG => __LINE__);
-				my $tag=$ns.basename($col->get_attrs_value qw(PATH));
-				while (my $r=$cur->fetchrow_arrayref) {
-					$ostr->dataElement($tag,$r->[2]);                              
+			else {  #normal data column
+				if (defined (my $xpath=$col->get_attrs_value(qw(PATH)))) {
+					if (defined $value || $col->get_min_occurs > 0) {
+						if ($params{LEVEL} == 1 && $params{SIMPLE_ROOT_NODE}) {   # the table is the header of the xml
+							my ($attrs,$ns_prefixes)=$self->_split_attrs_and_namespaces(ROOT_TAG_PARAMS => $params{ROOT_TAG_PARAMS},ROW => $r,COLUMNS => $columns);
+							my $ns=$self->_get_current_namespace_prefix($ns_prefixes,$params{TABLE}->get_URI,TAG => __LINE__);
+							my $tag=_tag_with_ns($ns,'Q',$xpath);
+							$value='' unless defined $value;
+							$self->_data_element($tag,$value,%$p,ATTRIBUTES => $attrs,XPATH => $xpath,TAG => __LINE__);
+						}
+						else {
+							my $ns=$self->_get_current_namespace_prefix($params{NS_PREFIXES},$params{TABLE}->get_URI,TAG => __LINE__);
+							my $tag=_tag_with_ns($ns,$col,$xpath);
+							$value='' unless defined $value;
+							$self->_data_element($tag,$value,%$p,XPATH => $xpath,TAG => __LINE__);
+						}
+					}
 				}
-				$cur->finish;
-				$self->_prepared_delete($table,ID => $value,TAG => __LINE__) if $p->{DELETE_ROWS};
-			}
-		}
-		else {  #normal data column
-			if (my $path=$col->get_attrs_value(qw(PATH))) {
-				if (defined $value || $col->get_min_occurs > 0) {
-					my $tag=$ns.basename($path);
-					$value='' unless defined $value;
-					$ostr->dataElement($tag,$value);                              
+				elsif ($params{TABLE}->is_simple_content_type && $col->get_attrs_value('VALUE_COL')) {
+					if (defined $value) {
+						$value='' unless defined $value;
+						$ostr->characters($value);                              
+					}
 				}
 			}
-			elsif ($params{TABLE}->is_simple_content_type && $col->get_attrs_value('VALUE_COL')) {
-				if (defined $value) {
-					my $tag=$params{START_TAG};
-					$value='' unless defined $value;
-					$ostr->characters($value);                              
-				}
-			}
-		}
-	}  # for columns 
+		}  # for columns 
+	} #flag_start_tag
+
 	if (defined (my $tag=$params{END_TAG})) {
-		$ostr->endTag($tag);
+		$self->_end_tag($tag,%$p,XPATH => $params{XPATH},TAG => __LINE__);
 	}
 	return  $self;
 }
@@ -961,10 +1151,22 @@ read - read a xml file and put into the database
 write - write a xml file from database
 
 	PARAMS:
-		FD 						=>  output file descriptor (default stdout)
-		ROOT_ID    				=> root_id - the result of the method read
-		DELETE_ROWS     		=> if true write to FD and delete the rows from the database
-		ROOT_TAG_PARAMS   		=> force a hash or array of key/value for root tag in write xml 
+		FD 							=>  output file descriptor (default stdout)
+		ROOT_ID    					=> root_id - the result of the method read
+		DELETE_ROWS     			=> if true write to FD and delete the rows from the database
+		ROOT_TAG_PARAMS   			=> force a hash or array of key/value for root tag in write xml 
+		HANDLE_BEFORE_XMLDECL		=> pointer sub called before xmlDecl 
+		HANDLE_AFTER_XMLDECL		=> pointer sub called after xmlDecl
+		HANDLE_BEFORE_START_NODE    => pointer sub called before a start node is write
+		HANDLE_AFTER_START_NODE     => pointer sub called after a start node  is write
+		HANDLE_BEFORE_END_NODE      => pointer sub called before a end node is write
+		HANDLE_AFTER_END_NODE       => pointer sub called after a end node  is write
+		HANDLE_BEFORE_DATA_ELEMENT	=> pointer sub called before write dataElement
+		HANDLE_AFTER_DATA_ELEMENT	=> pointer sub called after write dataElement
+		HANDLE_BEFORE_END  			=> pointer sub called before end of document
+		HANDLE_AFTER_END  			=> pointer sub called after end of document
+		NO_WRITE_HEADER				=> if true not write the xml header
+		NO_WRITE_FOOTER				=> if true not write the xml footer
 
 	the method return the self object if root_id exist in the database else return undef
 

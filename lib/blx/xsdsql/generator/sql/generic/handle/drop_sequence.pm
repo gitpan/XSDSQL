@@ -5,6 +5,11 @@ use Carp;
 use base qw(blx::xsdsql::generator::sql::generic::handle);
 use blx::xsdsql::ut qw(nvl);
 
+sub _get_drop_prefix {
+	my ($self,%params)=@_;
+	return "drop sequence ";
+}
+
 sub get_binding_objects  {
 	my ($self,$schema,%params)=@_;
 	my $table=$schema->get_root_table;
@@ -13,8 +18,9 @@ sub get_binding_objects  {
 
 sub table_header {
 	my ($self,$table,%params)=@_;
+	return $self unless $table->is_root_table;
 	my $name=$table->get_sequence_name(%params);
-	$self->{STREAMER}->put_line("drop sequence $name ",$table->command_terminator);
+	$self->{STREAMER}->put_line($self->_get_drop_prefix,' ',$name,$table->command_terminator);
 	return undef;
 }
 

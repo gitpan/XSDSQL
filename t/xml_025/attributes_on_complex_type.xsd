@@ -36,7 +36,7 @@
 		<xs:complexType>
 			<xs:sequence>
 				<xs:element name="c1" type="c"/>
-				<xs:element name="d1" type="d"/>
+				<xs:element name="d1" type="d" minOccurs="0" maxOccurs="1"/>
 				<xs:element name="d2" type="d" minOccurs="0" maxOccurs="10" />
 			</xs:sequence>
 		</xs:complexType>

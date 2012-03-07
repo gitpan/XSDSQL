@@ -1,0 +1,828 @@
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified">
+	<xs:simpleType name="enum-1">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="00"/>
+			<xs:enumeration value="01"/>
+			<xs:enumeration value="02"/>
+			<xs:enumeration value="03"/>
+			<xs:enumeration value="04"/>
+			<xs:enumeration value="05"/>
+			<xs:enumeration value="06"/>
+			<xs:enumeration value="07"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="enum-2">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="51"/>
+			<xs:enumeration value="52"/>
+			<xs:enumeration value="55"/>
+			<xs:enumeration value="56"/>
+			<xs:enumeration value="60"/>
+			<xs:enumeration value="64"/>
+			<xs:enumeration value="68"/>
+			<xs:enumeration value="72"/>
+			<xs:enumeration value="76"/>
+			<xs:enumeration value="80"/>
+			<xs:enumeration value="81"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="enum-3">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="0"/>
+			<xs:enumeration value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="enum-4">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="AA"/> <!-- ALBACOM -->
+			<xs:enumeration value="AC"/> <!-- AEM.COM -->
+			<xs:enumeration value="AE"/> <!-- AMTEL -->
+			<xs:enumeration value="AG"/> <!-- AGESCOM -->
+			<xs:enumeration value="AI"/> <!-- ADAPTOIP -->
+			<xs:enumeration value="AK"/> <!-- ALPIKOM -->
+			<xs:enumeration value="AL"/> <!-- ATLANET -->
+			<xs:enumeration value="AM"/> <!-- AGSM TELECOMUNICAZIONI -->
+			<xs:enumeration value="AN"/> <!-- ACANTHO -->
+			<xs:enumeration value="AO"/> <!-- ALCOTEK -->
+			<xs:enumeration value="AR"/> <!-- ADR TEL -->
+			<xs:enumeration value="AS"/> <!-- ALBACOM AMPS TELECOMUNICAZIONI-->
+			<xs:enumeration value="AT"/> <!-- ACAMTEL -->
+			<xs:enumeration value="AW"/> <!-- ATTIWAY -->
+			<xs:enumeration value="BA"/> <!-- BASICTEL -->
+			<xs:enumeration value="BG"/> <!-- BIG TLC -->
+			<xs:enumeration value="BN"/> <!-- BRENNERCOM -->
+			<xs:enumeration value="CA"/> <!-- CABLE & WIRELESS -->
+			<xs:enumeration value="CO"/> <!-- CONSIAGNET -->
+			<xs:enumeration value="CS"/> <!-- CSINFO -->
+			<xs:enumeration value="CT"/> <!-- COLT TELECOM -->
+			<xs:enumeration value="CV"/> <!-- CONVERGENZE -->
+			<xs:enumeration value="DE"/> <!-- DECATEL -->
+			<xs:enumeration value="DI"/> <!-- DIGITEL ITALIA -->
+			<xs:enumeration value="EE"/> <!-- EUTELIA -->
+			<xs:enumeration value="EI"/> <!-- ELINET -->
+			<xs:enumeration value="EL"/> <!-- ELEMEDIA -->
+			<xs:enumeration value="EN"/> <!-- ENERG.IT -->
+			<xs:enumeration value="EQ"/> <!-- EQUANT ITALY -->
+			<xs:enumeration value="ER"/> <!-- ENTER -->
+			<xs:enumeration value="ES"/> <!-- EUROSTRADA -->
+			<xs:enumeration value="ET"/> <!-- EUROPEAN TELECOMMUNICATIONS SOURCING -->
+			<xs:enumeration value="FM"/> <!-- FASTWEB MEDITERRANEA -->
+			<xs:enumeration value="FN"/> <!-- FLY NET -->
+			<xs:enumeration value="FO"/> <!-- FONIA.COM -->
+			<xs:enumeration value="FR"/> <!-- FREEWAY -->
+			<xs:enumeration value="FT"/> <!-- FASTWEB -->
+			<xs:enumeration value="GE"/> <!-- GRAPES NETWORK SERVICES -->
+			<xs:enumeration value="HG"/> <!-- H3G -->
+			<xs:enumeration value="IC"/> <!-- ICTEAM -->
+			<xs:enumeration value="II"/> <!-- INFRACOM ITALIA -->
+			<xs:enumeration value="IN"/> <!-- INTERMATICA -->
+			<xs:enumeration value="IP"/> <!-- IPSE 2000 -->
+			<xs:enumeration value="KA"/> <!-- KARUPA -->
+			<xs:enumeration value="KC"/> <!-- KING.COM -->
+			<xs:enumeration value="KP"/> <!-- KPN TELECOM -->
+			<xs:enumeration value="MA"/> <!-- METROPOL ACCESS ITALIA -->
+			<xs:enumeration value="MC"/> <!-- MCI ITALIA -->
+			<xs:enumeration value="MT"/> <!-- MULTILINK -->
+			<xs:enumeration value="MX"/> <!-- MOMAX -->
+			<xs:enumeration value="NC"/> <!-- NOICOM -->
+			<xs:enumeration value="NO"/> <!-- NODALIS -->
+			<xs:enumeration value="NT"/> <!-- NEW TELECOMMUNICATION NETWORK ITALIA -->
+			<xs:enumeration value="OK"/> <!-- OKCOM -->
+			<xs:enumeration value="OR"/> <!-- OROBIACOM -->
+			<xs:enumeration value="PA"/> <!-- PARLA.IT -->
+			<xs:enumeration value="PH"/> <!-- PHONICA -->
+			<xs:enumeration value="PL"/> <!-- PLANETEL -->
+			<xs:enumeration value="PM"/> <!-- POSTEMOBILE -->
+			<xs:enumeration value="PR"/> <!-- PRIMUS TELECOMMUNICATIONS -->
+			<xs:enumeration value="PW"/> <!-- PLANETWORK -->
+			<xs:enumeration value="QC"/> <!-- QCOM -->
+			<xs:enumeration value="QU"/> <!-- QUIDEX -->
+			<xs:enumeration value="RI"/> <!-- RETE ITALIANA ASSICURATIVA DI TLC -->
+			<xs:enumeration value="SC"/> <!-- SATCOM -->
+			<xs:enumeration value="SD"/> <!-- SIENA DIGITALE -->
+			<xs:enumeration value="SI"/> <!-- SINERGIE -->
+			<xs:enumeration value="ST"/> <!-- SOCIETA' TRASPORTO TELEMATICO -->
+			<xs:enumeration value="SY"/> <!-- SYFIN -->
+			<xs:enumeration value="TA"/> <!-- TISCALI -->
+			<xs:enumeration value="TC"/> <!-- TERRECABLATE -->
+			<xs:enumeration value="TD"/> <!-- TELE2 ITALIA -->
+			<xs:enumeration value="TG"/> <!-- TELEGATE ITALIA -->
+			<xs:enumeration value="TH"/> <!-- THUNDER -->
+			<xs:enumeration value="TI"/> <!-- TELECOM ITALIA -->
+			<xs:enumeration value="TL"/> <!-- TELESPAZIO -->
+			<xs:enumeration value="TM"/> <!-- TIM ITALIA -->
+			<xs:enumeration value="TN"/> <!-- TEX 97 -->
+			<xs:enumeration value="TS"/> <!-- TELECOM ITALIA SPARKLE -->
+			<xs:enumeration value="TT"/> <!-- 3U TELECOM -->
+			<xs:enumeration value="TU"/> <!-- TELEUNIT -->
+			<xs:enumeration value="TV"/> <!-- TRIVENET -->
+			<xs:enumeration value="TW"/> <!-- TRANS WORLD COMMUNICATIONS -->
+			<xs:enumeration value="TY"/> <!-- T-SYSTEMS -->
+			<xs:enumeration value="TX"/> <!-- TAG COMUNICAZIONI -->
+			<xs:enumeration value="UC"/> <!-- UNO COMMUNICATIONS -->
+			<xs:enumeration value="UD"/> <!-- UNIDATA -->
+			<xs:enumeration value="VN"/> <!-- VODAFONE -->
+			<xs:enumeration value="VO"/> <!-- VOXTEL -->
+			<xs:enumeration value="WA"/> <!-- WAVECREST ITALIA -->
+			<xs:enumeration value="WD"/> <!-- WIND TELECOMUNICAZIONI -->
+			<xs:enumeration value="WI"/> <!-- WELCOME ITALIA -->
+			<!-- CODICI GSI -->
+			<xs:enumeration value="00"/>
+			<xs:enumeration value="01"/>
+			<xs:enumeration value="02"/>
+			<xs:enumeration value="03"/>
+			<xs:enumeration value="04"/>
+			<xs:enumeration value="05"/>
+			<xs:enumeration value="06"/>
+			<xs:enumeration value="07"/>
+			<xs:enumeration value="08"/>
+			<xs:enumeration value="09"/>
+			<xs:enumeration value="0A"/>
+			<xs:enumeration value="0B"/>
+			<xs:enumeration value="0C"/>
+			<xs:enumeration value="0D"/>
+			<xs:enumeration value="0E"/>
+			<xs:enumeration value="0F"/>
+			<xs:enumeration value="0G"/>
+			<xs:enumeration value="0H"/>
+			<xs:enumeration value="0I"/>
+			<xs:enumeration value="0J"/>
+			<xs:enumeration value="0K"/>
+			<xs:enumeration value="0L"/>
+			<xs:enumeration value="0M"/>
+			<xs:enumeration value="0N"/>
+			<xs:enumeration value="0O"/>
+			<xs:enumeration value="0P"/>
+			<xs:enumeration value="0Q"/>
+			<xs:enumeration value="0R"/>
+			<xs:enumeration value="0S"/>
+			<xs:enumeration value="0T"/>
+			<xs:enumeration value="0U"/>
+			<xs:enumeration value="0V"/>
+			<xs:enumeration value="0W"/>
+			<xs:enumeration value="0X"/>
+			<xs:enumeration value="0Y"/>
+			<xs:enumeration value="0Z"/>
+			<xs:enumeration value="10"/>
+			<xs:enumeration value="11"/>
+			<xs:enumeration value="12"/>
+			<xs:enumeration value="13"/>
+			<xs:enumeration value="14"/>
+			<xs:enumeration value="15"/>
+			<xs:enumeration value="16"/>
+			<xs:enumeration value="17"/>
+			<xs:enumeration value="18"/>
+			<xs:enumeration value="19"/>
+			<xs:enumeration value="1A"/>
+			<xs:enumeration value="1B"/>
+			<xs:enumeration value="1C"/>
+			<xs:enumeration value="1D"/>
+			<xs:enumeration value="1E"/>
+			<xs:enumeration value="1F"/>
+			<xs:enumeration value="1G"/>
+			<xs:enumeration value="1H"/>
+			<xs:enumeration value="1I"/>
+			<xs:enumeration value="1J"/>
+			<xs:enumeration value="1K"/>
+			<xs:enumeration value="1L"/>
+			<xs:enumeration value="1M"/>
+			<xs:enumeration value="1N"/>
+			<xs:enumeration value="1O"/>
+			<xs:enumeration value="1P"/>
+			<xs:enumeration value="1Q"/>
+			<xs:enumeration value="1R"/>
+			<xs:enumeration value="1S"/>
+			<xs:enumeration value="1T"/>
+			<xs:enumeration value="1U"/>
+			<xs:enumeration value="1V"/>
+			<xs:enumeration value="1W"/>
+			<xs:enumeration value="1X"/>
+			<xs:enumeration value="1Y"/>
+			<xs:enumeration value="1Z"/>
+			<xs:enumeration value="20"/>
+			<xs:enumeration value="21"/>
+			<xs:enumeration value="22"/>
+			<xs:enumeration value="23"/>
+			<xs:enumeration value="24"/>
+			<xs:enumeration value="25"/>
+			<xs:enumeration value="26"/>
+			<xs:enumeration value="27"/>
+			<xs:enumeration value="28"/>
+			<xs:enumeration value="29"/>
+			<xs:enumeration value="2A"/>
+			<xs:enumeration value="2B"/>
+			<xs:enumeration value="2C"/>
+			<xs:enumeration value="2D"/>
+			<xs:enumeration value="2E"/>
+			<xs:enumeration value="2F"/>
+			<xs:enumeration value="2G"/>
+			<xs:enumeration value="2H"/>
+			<xs:enumeration value="2I"/>
+			<xs:enumeration value="2J"/>
+			<xs:enumeration value="2K"/>
+			<xs:enumeration value="2L"/>
+			<xs:enumeration value="2M"/>
+			<xs:enumeration value="2N"/>
+			<xs:enumeration value="2O"/>
+			<xs:enumeration value="2P"/>
+			<xs:enumeration value="2Q"/>
+			<xs:enumeration value="2R"/>
+			<xs:enumeration value="2S"/>
+			<xs:enumeration value="2T"/>
+			<xs:enumeration value="2U"/>
+			<xs:enumeration value="2V"/>
+			<xs:enumeration value="2W"/>
+			<xs:enumeration value="2X"/>
+			<xs:enumeration value="2Y"/>
+			<xs:enumeration value="2Z"/>
+			<xs:enumeration value="30"/>
+			<xs:enumeration value="31"/>
+			<xs:enumeration value="32"/>
+			<xs:enumeration value="33"/>
+			<xs:enumeration value="34"/>
+			<xs:enumeration value="35"/>
+			<xs:enumeration value="36"/>
+			<xs:enumeration value="37"/>
+			<xs:enumeration value="38"/>
+			<xs:enumeration value="39"/>
+			<xs:enumeration value="3A"/>
+			<xs:enumeration value="3B"/>
+			<xs:enumeration value="3C"/>
+			<xs:enumeration value="3D"/>
+			<xs:enumeration value="3E"/>
+			<xs:enumeration value="3F"/>
+			<xs:enumeration value="3G"/>
+			<xs:enumeration value="3H"/>
+			<xs:enumeration value="3I"/>
+			<xs:enumeration value="3J"/>
+			<xs:enumeration value="3K"/>
+			<xs:enumeration value="3L"/>
+			<xs:enumeration value="3M"/>
+			<xs:enumeration value="3N"/>
+			<xs:enumeration value="3O"/>
+			<xs:enumeration value="3P"/>
+			<xs:enumeration value="3Q"/>
+			<xs:enumeration value="3R"/>
+			<xs:enumeration value="3S"/>
+			<xs:enumeration value="3T"/>
+			<xs:enumeration value="3U"/>
+			<xs:enumeration value="3V"/>
+			<xs:enumeration value="3W"/>
+			<xs:enumeration value="3X"/>
+			<xs:enumeration value="3Y"/>
+			<xs:enumeration value="3Z"/>
+			<xs:enumeration value="40"/>
+			<xs:enumeration value="41"/>
+			<xs:enumeration value="42"/>
+			<xs:enumeration value="43"/>
+			<xs:enumeration value="44"/>
+			<xs:enumeration value="45"/>
+			<xs:enumeration value="46"/>
+			<xs:enumeration value="47"/>
+			<xs:enumeration value="48"/>
+			<xs:enumeration value="49"/>
+			<xs:enumeration value="4A"/>
+			<xs:enumeration value="4B"/>
+			<xs:enumeration value="4C"/>
+			<xs:enumeration value="4D"/>
+			<xs:enumeration value="4E"/>
+			<xs:enumeration value="4F"/>
+			<xs:enumeration value="4G"/>
+			<xs:enumeration value="4H"/>
+			<xs:enumeration value="4I"/>
+			<xs:enumeration value="4J"/>
+			<xs:enumeration value="4K"/>
+			<xs:enumeration value="4L"/>
+			<xs:enumeration value="4M"/>
+			<xs:enumeration value="4N"/>
+			<xs:enumeration value="4O"/>
+			<xs:enumeration value="4P"/>
+			<xs:enumeration value="4Q"/>
+			<xs:enumeration value="4R"/>
+			<xs:enumeration value="4S"/>
+			<xs:enumeration value="4T"/>
+			<xs:enumeration value="4U"/>
+			<xs:enumeration value="4V"/>
+			<xs:enumeration value="4W"/>
+			<xs:enumeration value="4X"/>
+			<xs:enumeration value="4Y"/>
+			<xs:enumeration value="4Z"/>
+			<xs:enumeration value="50"/>
+			<xs:enumeration value="51"/>
+			<xs:enumeration value="52"/>
+			<xs:enumeration value="53"/>
+			<xs:enumeration value="54"/>
+			<xs:enumeration value="55"/>
+			<xs:enumeration value="56"/>
+			<xs:enumeration value="57"/>
+			<xs:enumeration value="58"/>
+			<xs:enumeration value="59"/>
+			<xs:enumeration value="5A"/>
+			<xs:enumeration value="5B"/>
+			<xs:enumeration value="5C"/>
+			<xs:enumeration value="5D"/>
+			<xs:enumeration value="5E"/>
+			<xs:enumeration value="5F"/>
+			<xs:enumeration value="5G"/>
+			<xs:enumeration value="5H"/>
+			<xs:enumeration value="5I"/>
+			<xs:enumeration value="5J"/>
+			<xs:enumeration value="5K"/>
+			<xs:enumeration value="5L"/>
+			<xs:enumeration value="5M"/>
+			<xs:enumeration value="5N"/>
+			<xs:enumeration value="5O"/>
+			<xs:enumeration value="5P"/>
+			<xs:enumeration value="5Q"/>
+			<xs:enumeration value="5R"/>
+			<xs:enumeration value="5S"/>
+			<xs:enumeration value="5T"/>
+			<xs:enumeration value="5U"/>
+			<xs:enumeration value="5V"/>
+			<xs:enumeration value="5W"/>
+			<xs:enumeration value="5X"/>
+			<xs:enumeration value="5Y"/>
+			<xs:enumeration value="5Z"/>
+			<xs:enumeration value="60"/>
+			<xs:enumeration value="61"/>
+			<xs:enumeration value="62"/>
+			<xs:enumeration value="63"/>
+			<xs:enumeration value="64"/>
+			<xs:enumeration value="65"/>
+			<xs:enumeration value="66"/>
+			<xs:enumeration value="67"/>
+			<xs:enumeration value="68"/>
+			<xs:enumeration value="69"/>
+			<xs:enumeration value="6A"/>
+			<xs:enumeration value="6B"/>
+			<xs:enumeration value="6C"/>
+			<xs:enumeration value="6D"/>
+			<xs:enumeration value="6E"/>
+			<xs:enumeration value="6F"/>
+			<xs:enumeration value="6G"/>
+			<xs:enumeration value="6H"/>
+			<xs:enumeration value="6I"/>
+			<xs:enumeration value="6J"/>
+			<xs:enumeration value="6K"/>
+			<xs:enumeration value="6L"/>
+			<xs:enumeration value="6M"/>
+			<xs:enumeration value="6N"/>
+			<xs:enumeration value="6O"/>
+			<xs:enumeration value="6P"/>
+			<xs:enumeration value="6Q"/>
+			<xs:enumeration value="6R"/>
+			<xs:enumeration value="6S"/>
+			<xs:enumeration value="6T"/>
+			<xs:enumeration value="6U"/>
+			<xs:enumeration value="6V"/>
+			<xs:enumeration value="6W"/>
+			<xs:enumeration value="6X"/>
+			<xs:enumeration value="6Y"/>
+			<xs:enumeration value="6Z"/>
+			<xs:enumeration value="70"/>
+			<xs:enumeration value="71"/>
+			<xs:enumeration value="72"/>
+			<xs:enumeration value="73"/>
+			<xs:enumeration value="74"/>
+			<xs:enumeration value="75"/>
+			<xs:enumeration value="76"/>
+			<xs:enumeration value="77"/>
+			<xs:enumeration value="78"/>
+			<xs:enumeration value="79"/>
+			<xs:enumeration value="7A"/>
+			<xs:enumeration value="7B"/>
+			<xs:enumeration value="7C"/>
+			<xs:enumeration value="7D"/>
+			<xs:enumeration value="7E"/>
+			<xs:enumeration value="7F"/>
+			<xs:enumeration value="7G"/>
+			<xs:enumeration value="7H"/>
+			<xs:enumeration value="7I"/>
+			<xs:enumeration value="7J"/>
+			<xs:enumeration value="7K"/>
+			<xs:enumeration value="7L"/>
+			<xs:enumeration value="7M"/>
+			<xs:enumeration value="7N"/>
+			<xs:enumeration value="7O"/>
+			<xs:enumeration value="7P"/>
+			<xs:enumeration value="7Q"/>
+			<xs:enumeration value="7R"/>
+			<xs:enumeration value="7S"/>
+			<xs:enumeration value="7T"/>
+			<xs:enumeration value="7U"/>
+			<xs:enumeration value="7V"/>
+			<xs:enumeration value="7W"/>
+			<xs:enumeration value="7X"/>
+			<xs:enumeration value="7Y"/>
+			<xs:enumeration value="7Z"/>
+			<xs:enumeration value="80"/>
+			<xs:enumeration value="81"/>
+			<xs:enumeration value="82"/>
+			<xs:enumeration value="83"/>
+			<xs:enumeration value="84"/>
+			<xs:enumeration value="85"/>
+			<xs:enumeration value="86"/>
+			<xs:enumeration value="87"/>
+			<xs:enumeration value="88"/>
+			<xs:enumeration value="89"/>
+			<xs:enumeration value="8A"/>
+			<xs:enumeration value="8B"/>
+			<xs:enumeration value="8C"/>
+			<xs:enumeration value="8D"/>
+			<xs:enumeration value="8E"/>
+			<xs:enumeration value="8F"/>
+			<xs:enumeration value="8G"/>
+			<xs:enumeration value="8H"/>
+			<xs:enumeration value="8I"/>
+			<xs:enumeration value="8J"/>
+			<xs:enumeration value="8K"/>
+			<xs:enumeration value="8L"/>
+			<xs:enumeration value="8M"/>
+			<xs:enumeration value="8N"/>
+			<xs:enumeration value="8O"/>
+			<xs:enumeration value="8P"/>
+			<xs:enumeration value="8Q"/>
+			<xs:enumeration value="8R"/>
+			<xs:enumeration value="8S"/>
+			<xs:enumeration value="8T"/>
+			<xs:enumeration value="8U"/>
+			<xs:enumeration value="8V"/>
+			<xs:enumeration value="8W"/>
+			<xs:enumeration value="8X"/>
+			<xs:enumeration value="8Y"/>
+			<xs:enumeration value="8Z"/>
+			<xs:enumeration value="90"/>
+			<xs:enumeration value="91"/>
+			<xs:enumeration value="92"/>
+			<xs:enumeration value="93"/>
+			<xs:enumeration value="94"/>
+			<xs:enumeration value="95"/>
+			<xs:enumeration value="96"/>
+			<xs:enumeration value="97"/>
+			<xs:enumeration value="98"/>
+			<xs:enumeration value="99"/>
+			<xs:enumeration value="9A"/>
+			<xs:enumeration value="9B"/>
+			<xs:enumeration value="9C"/>
+			<xs:enumeration value="9D"/>
+			<xs:enumeration value="9E"/>
+			<xs:enumeration value="9F"/>
+			<xs:enumeration value="9G"/>
+			<xs:enumeration value="9H"/>
+			<xs:enumeration value="9I"/>
+			<xs:enumeration value="9J"/>
+			<xs:enumeration value="9K"/>
+			<xs:enumeration value="9L"/>
+			<xs:enumeration value="9M"/>
+			<xs:enumeration value="9N"/>
+			<xs:enumeration value="9O"/>
+			<xs:enumeration value="9P"/>
+			<xs:enumeration value="9Q"/>
+			<xs:enumeration value="9R"/>
+			<xs:enumeration value="9S"/>
+			<xs:enumeration value="9T"/>
+			<xs:enumeration value="9U"/>
+			<xs:enumeration value="9V"/>
+			<xs:enumeration value="9W"/>
+			<xs:enumeration value="9X"/>
+			<xs:enumeration value="9Y"/>
+			<xs:enumeration value="9Z"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="enum-5">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="0"/>
+			<xs:enumeration value="1"/>
+			<xs:enumeration value="2"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="enum-6">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="0"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="enum-7">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="001"/>
+			<xs:enumeration value="002"/>
+			<xs:enumeration value="003"/>
+			<xs:enumeration value="004"/>
+			<xs:enumeration value="005"/>
+			<xs:enumeration value="006"/>
+			<xs:enumeration value="007"/>
+			<xs:enumeration value="008"/>
+			<xs:enumeration value="009"/>
+			<xs:enumeration value="010"/>
+			<xs:enumeration value="011"/>
+			<xs:enumeration value="012"/>
+			<xs:enumeration value="501"/>
+			<xs:enumeration value="502"/>
+			<xs:enumeration value="503"/>
+			<xs:enumeration value="504"/>
+			<xs:enumeration value="505"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="enum-8">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="Record duplicato"/>
+			<xs:enumeration value="Record non leggibile"/>
+			<xs:enumeration value="Carattere non ammesso"/>
+			<xs:enumeration value="Errore formale"/>
+			<xs:enumeration value="Campo vuoto"/>
+			<xs:enumeration value="Valore non ammesso"/>
+			<xs:enumeration value="Numero non esistente"/>
+			<xs:enumeration value="Azione non consentita"/>
+			<xs:enumeration value="Gestore non di competenza"/>
+			<xs:enumeration value="Errore valore inesistente"/>
+			<xs:enumeration value="Conflitto di data"/>
+			<xs:enumeration value="Conflitto di operatori"/>
+			<xs:enumeration value="Record duplicato"/>
+			<xs:enumeration value="Identificativo duplicato"/>
+			<xs:enumeration value="Record non inviato"/>
+			<xs:enumeration value="Record aggiornato"/>
+			<xs:enumeration value="Errore non di competenza"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="enum-9">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="00"/>
+			<xs:enumeration value="01"/>
+			<xs:enumeration value="02"/>
+			<xs:enumeration value="03"/>
+			<xs:enumeration value="04"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="int0-99999">
+		<xs:restriction base="xs:unsignedInt">
+			<xs:maxInclusive value="99999"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="int0-999999999">
+		<xs:restriction base="xs:unsignedInt">
+			<xs:maxInclusive value="999999999"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="noLowerCase">
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[\P{Ll}]+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="noUpperCase">
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[\P{Lu}]+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="nopoint-NLstrMxLn50">
+		<xs:restriction base="NLstrMxLn50">
+			<xs:pattern value="[^.]+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="onlyUpperCase">
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[\p{Lu} '\-]+"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="restrictedTimeType">
+		<xs:restriction base="xs:time">
+			<xs:pattern value="\d{2}:\d{2}:\d{2}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="rgxp00000">
+		<xs:restriction base="xs:string">
+			<xs:pattern value="\d{5}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="rgxp00000000000">
+		<xs:restriction base="xs:string">
+			<xs:pattern value="\d{11}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="rgxp00-00000">
+		<xs:restriction base="xs:string">
+			<xs:pattern value="\d{2,5}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="rgxp00-00000000">
+		<xs:restriction base="xs:string">
+			<xs:pattern value="\d{2,8}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="rgxp00-0000000000000">
+		<xs:restriction base="xs:string">
+			<xs:pattern value="\d{2,13}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="NLstrLn2">
+		<xs:restriction base="noLowerCase">
+			<xs:length value="2"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="NLstrLn16">
+		<xs:restriction base="noLowerCase">
+			<xs:length value="16"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="NLstrLn16strNum11">
+		<xs:union memberTypes="NLstrLn16 rgxp00000000000"/>
+	</xs:simpleType>
+	<xs:simpleType name="NLstrMxLn10">
+		<xs:restriction base="noLowerCase">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="10"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="NLstrMxLn30">
+		<xs:restriction base="noLowerCase">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="30"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="NLstrMxLn50">
+		<xs:restriction base="noLowerCase">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="50"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="NLstrMxLn70">
+		<xs:restriction base="noLowerCase">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="70"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="NLstrMxLn100">
+		<xs:restriction base="noLowerCase">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="100"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="NLstrMxLn200">
+		<xs:restriction base="noLowerCase">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="200"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="NUstrMxLn50">
+		<xs:restriction base="noUpperCase">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="50"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="OUstrMxLn100">
+		<xs:restriction base="onlyUpperCase">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="100"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:group name="ErroriRifiutoEflag">
+		<xs:sequence>
+			<xs:element name="CorrezioneErroreRifiuto" type="enum-5"/>
+			<xs:element name="ErroriRifiuti" type="ErroriRifiutiType"/>
+		</xs:sequence>
+	</xs:group>
+	<xs:group name="Indirizzo">
+		<xs:sequence>
+			<xs:element name="PartTopon" type="NLstrMxLn30" maxOccurs="2"/>
+			<xs:element name="DescIndirizzo" type="NLstrMxLn70" maxOccurs="2"/>
+			<xs:element name="NumCivico" type="NLstrMxLn10" minOccurs="0"/>
+		</xs:sequence>
+	</xs:group>
+	<xs:group name="Nome-Cognome">
+		<xs:sequence>
+			<xs:element name="Cognome" type="OUstrMxLn100"/>
+			<xs:element name="Nome" type="nopoint-NLstrMxLn50"/>
+		</xs:sequence>
+	</xs:group>
+	<xs:group name="NumTelSplitted">
+		<xs:sequence>
+			<xs:element name="Prefix" type="rgxp00-00000"/>
+			<xs:element name="NumTel" type="rgxp00-00000000"/>
+		</xs:sequence>
+	</xs:group>
+	<xs:group name="Piva-CodFiscOpz">
+		<xs:sequence>
+			<xs:element name="PartitaIVA" type="rgxp00000000000"/>
+			<xs:element name="CodFiscale" type="NLstrLn16strNum11" minOccurs="0"/>
+		</xs:sequence>
+	</xs:group>
+	<xs:group name="ProvCom-Indirizzo">
+		<xs:sequence>
+			<xs:element name="Provincia" type="NLstrLn2"/>
+			<xs:element name="Comune" type="NLstrMxLn70" maxOccurs="2"/>
+			<xs:group ref="Indirizzo" minOccurs="0"/>
+		</xs:sequence>
+	</xs:group>
+	<xs:complexType name="NumTelType">
+		<xs:choice>
+			<xs:group ref="NumTelSplitted"/>
+			<xs:element name="NumTelCompl" type="rgxp00-0000000000000"/>
+		</xs:choice>
+	</xs:complexType>
+	<xs:complexType name="AccessoTelefonicoFissoType">
+		<xs:sequence>
+			<xs:element name="NumTel" type="NumTelType"/>
+			<xs:element name="NumTelPrecedente" type="NumTelType" minOccurs="0"/>
+			<xs:element name="CategAbbon" type="enum-9" minOccurs="0"/>
+			<xs:element name="CodLavoro" type="enum-1"/>
+			<xs:element name="Data" type="xs:date"/>
+			<xs:element name="Time" type="restrictedTimeType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="AccessoTelefonicoMobileType">
+		<xs:sequence>
+			<xs:element name="NumTel" type="NumTelType"/>
+			<xs:element name="CodLavoro" type="enum-1"/>
+			<xs:element name="Data" type="xs:date"/>
+			<xs:element name="Time" type="restrictedTimeType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="DatiAccessoriType">
+		<xs:sequence>
+			<xs:element name="CodProgressivo" type="int0-999999999"/>
+			<xs:element name="NoteP" type="NLstrMxLn50" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="DatiUtenteType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:group ref="Nome-Cognome"/>
+				<xs:element name="RagioneSociale" type="NLstrMxLn100" maxOccurs="2"/>
+			</xs:choice>
+			<xs:element name="TitoloStudio" type="NLstrMxLn100" minOccurs="0" maxOccurs="2"/>
+			<xs:element name="Professione" type="NLstrMxLn100" minOccurs="0" maxOccurs="2"/>
+			<xs:element name="Email" type="NUstrMxLn50" minOccurs="0"/>
+			<xs:element name="UlterioreIndirizzo" type="NLstrMxLn200" minOccurs="0" maxOccurs="2"/>
+			<xs:choice>
+				<xs:element name="CodFiscale" type="NLstrLn16strNum11"/>
+				<xs:group ref="Piva-CodFiscOpz"/>
+			</xs:choice>
+			<xs:element name="FlagConsensi" type="enum-2"/>
+			<xs:element name="FlagAggregCF" type="enum-3"/>
+			<xs:element name="FlagAltriCanali" type="enum-3"/>
+			<xs:element name="CodiceOperatoreTLC" type="enum-4"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ErroriRifiutiType">
+		<xs:sequence>
+			<xs:element name="CodProgressivo" type="int0-999999999"/>
+			<xs:element name="OpRichiedente" type="enum-4"/>
+			<xs:element name="OpOriginante" type="enum-4"/>
+			<xs:element name="NomeFile" type="NLstrMxLn50"/>
+			<xs:element name="OpCoinvolto" type="enum-4" minOccurs="0"/>
+			<xs:element name="CampoErrato" type="NLstrMxLn100" minOccurs="0"/>
+			<xs:element name="CodCausaleErroreRifiuto" type="enum-7"/>
+			<xs:element name="DescErroreRifiuto" type="enum-8"/>
+			<xs:element name="Note" type="NLstrMxLn100" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="GestioneScartiType">
+		<xs:sequence>
+			<xs:choice>
+				<xs:element name="PubblicazioneDatoScarto" type="enum-6"/>
+				<xs:group ref="ErroriRifiutoEflag"/>
+			</xs:choice>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="LocalitaFissoType">
+		<xs:sequence>
+			<xs:element name="CAP" type="rgxp00000" minOccurs="0"/>
+			<xs:element name="Frazione" type="NLstrMxLn70" minOccurs="0" maxOccurs="2"/>
+			<xs:group ref="ProvCom-Indirizzo"/>
+			<xs:element name="Note" type="NLstrMxLn50" minOccurs="0" maxOccurs="2"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="LocalitaMobileType">
+		<xs:sequence>
+			<xs:element name="CAP" type="rgxp00000" minOccurs="0"/>
+			<xs:element name="Frazione" type="NLstrMxLn70" minOccurs="0" maxOccurs="2"/>
+			<xs:group ref="ProvCom-Indirizzo" minOccurs="0"/>
+			<xs:element name="Note" type="NLstrMxLn50" minOccurs="0" maxOccurs="2"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="DataExchangeFisso">
+		<xs:sequence>
+			<xs:element name="AccessoTelefonico" type="AccessoTelefonicoFissoType"/>
+			<xs:element name="DatiUtente" type="DatiUtenteType"/>
+			<xs:element name="Localita" type="LocalitaFissoType"/>
+			<xs:element name="DatiAccessori" type="DatiAccessoriType"/>
+			<xs:element name="GestioneScarti" type="GestioneScartiType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="DataExchangeMobile">
+		<xs:sequence>
+			<xs:element name="AccessoTelefonico" type="AccessoTelefonicoMobileType"/>
+			<xs:element name="DatiUtente" type="DatiUtenteType"/>
+			<xs:element name="Localita" type="LocalitaMobileType" minOccurs="0"/>
+			<xs:element name="DatiAccessori" type="DatiAccessoriType"/>
+			<xs:element name="GestioneScarti" type="GestioneScartiType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:element name="ListOfDataExchange">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="DataExchangeFisso" type="DataExchangeFisso" minOccurs="0" maxOccurs="unbounded"/>
+				<xs:element name="DataExchangeMobile" type="DataExchangeMobile" minOccurs="0" maxOccurs="unbounded"/>
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+</xs:schema>

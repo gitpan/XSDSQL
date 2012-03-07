@@ -13,6 +13,7 @@ sub get_binding_objects  {
 
 sub table_header {
 	my ($self,$table,%params)=@_;
+	return $self unless $table->is_root_table;
 	my $name=$table->get_sequence_name(%params);
 	$self->{STREAMER}->put_line("create sequence $name ",$table->command_terminator);
 	return undef;

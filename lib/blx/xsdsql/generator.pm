@@ -2,21 +2,14 @@ package blx::xsdsql::generator;
 use strict;
 use warnings;
 use Carp;
+use Data::Dumper;
+
 use blx::xsdsql::ut qw(nvl ev);
+use base qw(blx::xsdsql::log blx::xsdsql::common_interfaces);
 
 use constant {
 	STREAM_CLASS => 'blx::xsdsql::OStream'
 };
-
-
-sub _fusion_params {
-	my ($self,%params)=@_;
-	my %p=%$self;
-	for my $p(keys %params) {
-		$p{$p}=$params{$p};
-	}
-	return \%p;
-}
 
 sub _check_table_filter {
 	my ($self,$table,$level,%params)=@_;
@@ -37,30 +30,36 @@ sub _check_view_limits {
 	my ($self,$table,%params)=@_;
 	my $p=$self->{_PARAMS};
 	return 1 unless grep($_ eq $p->{COMMAND},qw( create_view drop_view));	
-	return 1 unless $p->{MAX_VIEW_COLUMNS} || $p->{MAX_VIEW_JOINS};
 	my $handle=$p->{HANDLE_OBJECT};
-	if ($p->{MAX_VIEW_COLUMNS}) {
-		return 1 if $p->{MAX_VIEW_COLUMNS} == -1; #no limit
-		my @a=$handle->get_view_columns($table,%params);
-		return 0 if scalar(@a) > $p->{MAX_VIEW_COLUMNS};
-	}
-	if ($p->{MAX_JOIN_COLUMNS}) {
-		return 1 if $p->{MAX_VIEW_JOINS} == -1; #no limit
-		my @a=$handle->get_join_columns($table,%params); 
-		return 0 if scalar(@a) > $p->{MAX_VIEW_JOINS};
-	}
+	return 1 if $p->{MAX_VIEW_COLUMNS} == -1 && $p->{MAX_VIEW_JOINS} == -1; #no limit
+	my @a=$handle->get_view_columns($table,%params);
+	return 0 if $p->{MAX_VIEW_COLUMNS} > -1 && scalar(@a) > $p->{MAX_VIEW_COLUMNS};
+	@a=$handle->get_join_columns($table,%params); 
+	return 0 if $p->{MAX_VIEW_JOINS} > -1 && scalar(@a) > $p->{MAX_VIEW_JOINS};
 	return 1;
 }
 
 sub _cross {
 	my ($self,$table,%params)=@_;
+	confess "1^ param not set\n" unless defined $table;
 	my $handle=$self->{_PARAMS}->{HANDLE_OBJECT};
-	if ($self->_check_table_filter($table,$params{LEVEL}) && $self->_check_view_limits($table)) {
-		$handle->table_header($table,%params) || return undef;
-		for my $col($table->get_columns) {
-			$handle->column($col,%params,TABLE => $table) || return undef;
+	if ($self->_check_table_filter($table,$params{LEVEL})) {
+		if ($self->_check_view_limits($table)) {
+			if (!$params{NO_GENERATE_ROOT_TABLE} || !$table->is_root_table) {
+				$handle->table_header($table,%params) || return undef;
+				for my $col($table->get_columns) {
+					$handle->column($col,%params,TABLE => $table) || return undef;
+				}
+				$handle->table_footer($table,%params) || return undef;
+			}
 		}
-		$handle->table_footer($table,%params) || return undef;
+		else {
+			if (!$params{NO_GENERATE_ROOT_TABLE} || !$table->is_root_table) {
+				$handle->get_streamer->put_line;
+				$handle->put_comment($table,"view '".$table->get_view_sql_name."' is not generate  because overflow the database limits"); 
+				$handle->get_streamer->put_line;
+			}
+		}
 	}
 	for my $t($table->get_child_tables) {
 		$self->_cross($t,%params,LEVEL => $params{LEVEL} + 1) || last;
@@ -97,24 +96,37 @@ sub generate {
 	}
 	
 
-	if ($p->{MAX_VIEW_COLUMNS} || $p->{MAX_VIEW_JOINS}) {
+#	if (defined $p->{MAX_VIEW_COLUMNS} || defined $p->{MAX_VIEW_JOINS}) {
+	{
 		my $catalog_class="blx::xsdsql::xml::".$p->{DB_NAMESPACE}."::catalog";
 		ev('use',$catalog_class);
 		my $catalog=$catalog_class->new;
-		
-		if (my $x=$p->{MAX_VIEW_COLUMNS}) {
-			croak "param MAX_VIEW_COLUMNS not valid - must be a number > 0 or -1\n"	
-				unless ref($x) eq '' && $x=~/^[+\-]{0,1}\d+$/ && $x >= -1;
-			$p->{MAX_VIEW_COLUMNS}=$catalog->get_max_columns_view
-				if $x == -1;
-		}
+		$p->{MAX_VIEW_COLUMNS}=$catalog->get_max_columns_view unless defined $p->{MAX_VIEW_COLUMNS};
+		$p->{MAX_VIEW_JOINS}=$catalog->get_max_joins_view unless defined $p->{MAX_VIEW_JOINS};
 
-		if (my $x=$p->{MAX_VIEW_JOINS}) {
-			croak "param MAX_VIEW_JOINS not valid - must be a number > 0 or -1\n"	
-				unless ref($x) eq '' && $x=~/^[+\-]{0,1}\d+$/ && $x >= -1;
-			$p->{MAX_VIEW_JOINS}=$catalog->get_max_joins_view
-				if $x == -1;
-		}
+		croak "param MAX_VIEW_COLUMNS not valid - must be a number > 0 or -1\n"	
+			unless ref($p->{MAX_VIEW_COLUMNS}) eq '' && $p->{MAX_VIEW_COLUMNS}=~/^[+\-]{0,1}\d+$/;
+
+		croak "param MAX_VIEW_JOINS not valid - must be a number > 0 or -1\n"	
+				unless ref($p->{MAX_VIEW_JOINS}) eq '' && $p->{MAX_VIEW_JOINS}=~/^[+\-]{0,1}\d+$/;
+
+# 
+# 		if (defined (my $x=$p->{MAX_VIEW_COLUMNS})) {
+# 			croak "param MAX_VIEW_COLUMNS not valid - must be a number > 0 or -1\n"	
+# 				unless ref($x) eq '' && $x=~/^[+\-]{0,1}\d+$/ && $x >= -1;
+# 			$p->{MAX_VIEW_COLUMNS}=$catalog->get_max_columns_view
+# 				if $x == -1;
+# 		}
+# 		else {
+# 			$p->{MAX_VIEW_COLUMNS}=$catalog->get_max_columns_view;
+# 		}
+
+# 		if (my $x=$p->{MAX_VIEW_JOINS}) {
+# 			croak "param MAX_VIEW_JOINS not valid - must be a number > 0 or -1\n"	
+# 				unless ref($x) eq '' && $x=~/^[+\-]{0,1}\d+$/ && $x >= -1;
+# 			$p->{MAX_VIEW_JOINS}=$catalog->get_max_joins_view
+# 				if $x == -1;
+# 		}
 	}
 	
 	my $fd=nvl($p->{FD},*STDOUT);
@@ -133,11 +145,23 @@ sub generate {
 	if (defined $objs->[0]) {
 		$p->{HANDLE_OBJECT}->header($objs->[0],%params) unless $p->{NO_HEADER_COMMENT};
 	}
-	my @tablename_list=();  #generate tables
-
+	
+	$p->{HANDLE_OBJECT}->first_pass(%$p);
 	for my $t(@$objs) {
 		$self->_cross($t,%$p,LEVEL => 0);
 	}
+
+	for my $h($p->{SCHEMA}->get_childs_schema) {
+		my $schema=$h->{SCHEMA};
+
+		my $objs=$p->{HANDLE_OBJECT}->get_binding_objects($schema,%$p);
+		for my $t(@$objs) {
+			next unless defined $t;
+			$self->_cross($t,%$p,LEVEL => 0,NO_GENERATE_ROOT_TABLE => 1,SCHEMA => $schema);
+		}
+	}
+	$p->{HANDLE_OBJECT}->last_pass(%$p);
+
 	return $self;
 }
 

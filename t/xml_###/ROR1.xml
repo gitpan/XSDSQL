@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<RichiestaOloRegolatorio>
+	<Richiesta>
+		<Testata>
+			<CodiceOlo>TL2</CodiceOlo>
+			<CodiceOrdineOlo>A1031707610</CodiceOrdineOlo>
+		</Testata>
+		<Ordine>
+			<Attivazione>
+				<ULLLineaAttivaNP>
+					<DN>040822861</DN>
+					<POTS>
+						<simplex>0</simplex>
+					</POTS>
+					<DestinazioneUso>
+						<fonia>1</fonia>
+					</DestinazioneUso>
+					<FlagMantenimentoProdotti>0</FlagMantenimentoProdotti>
+					<DataDAC>09/03/2010</DataDAC>
+					<DatiCliente>
+						<CognomeRagSoc>VEGLIA</CognomeRagSoc>
+						<Nome>SERGIO</Nome>
+						<CF>VGLSRG45A02L424Z</CF>
+					</DatiCliente>
+					<Sede>
+						<ParticellaToponomastica>V.</ParticellaToponomastica>
+						<Via>LUCIO SALA</Via>
+						<Civico>13</Civico>
+						<Localita>TRIESTE</Localita>
+						<CodiceComune>06032006</CodiceComune>
+					</Sede>
+					<Referente>
+						<QualificaRef>O</QualificaRef>
+						<CognomeReferente>CognomeReferent</CognomeReferente>
+					</Referente>
+					<IdUllCo>C000004643</IdUllCo>
+					<PosizionePermutatore1>F12021H00090102</PosizionePermutatore1>
+					<RoutingNumber>C60040988</RoutingNumber>
+					<FlagAggiuntivi></FlagAggiuntivi>
+				</ULLLineaAttivaNP>
+			</Attivazione>
+		</Ordine>
+	</Richiesta>
+</RichiestaOloRegolatorio>

@@ -5,13 +5,13 @@ use warnings;
 use base qw(Exporter);
 use Carp;
 
-our %EXPORT_TAGS = ( 'all' => [ qw( nvl ev get_attrs_value set_attrs_value ) ] );
+our %EXPORT_TAGS = ( 'all' => [ qw( nvl ev ) ] );
 
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
 our @EXPORT = qw( );
 
-our $VERSION = '0.007001';
+our $VERSION = '0.009000';
 
 sub  nvl {
 	return '' if scalar(@_) == 0;
@@ -27,73 +27,6 @@ sub ev {
 	croak $@ if $@;
 	return $r;
 }
-
-sub get_attrs_value {
-	my $obj=shift;
-	my $h=shift;
-	my @out=();
-	for my $attr(@_) {
-		my $f=$h->{$attr};
-		if (!defined $f) {
-			push @out,$obj->{$attr};
-		}
-		elsif (ref($f) eq 'CODE') {
-			push @out,$f->($obj,$attr);
-		}
-		else {
-			push @out,$f;
-		}
-	}
-	return @out if wantarray;
-	return \@out if scalar(@out) > 1;
-	return $out[0] if scalar(@out) == 1;
-	return undef;
-}
-
-sub set_attrs_value {
-	my $obj=shift;
-	my $h=shift;
-	my %params=@_;
-	my @out=();
-	for my $attr(keys %params) {
-		my $f=$h->{$attr};
-		if (!defined $f) {
-			$obj->{$attr}=$params{$attr};
-			push @out,$obj->{$attr};
-		}
-		else {
-			my $r = ref($f) eq 'CODE' ?  $f->($obj,$params{$attr}) : $f;
-			if (ref($r) eq '') {
-				$obj->{$attr}=$r;
-				push @out,$obj->{$attr};
-			}
-			elsif (ref($r) eq 'HASH') {
-				for my $k(keys %$r) {
-					$obj->{$k}=$r->{$k};
-					push @out,$obj->{$k};
-				}
-			}
-			elsif (ref($r) eq 'ARRAY') {
-				for my $k(keys %$r) {
-					$obj->{$k}=$r->{$k};
-					push @out,$obj->{$k};
-				}
-			}
-			elsif (ref($r) =~/::/) { #assume object
-				push @out,$r->set_attr_value($attr => $params{$attr});
-			}
-			else {
-				$obj->{$attr}=$r;
-				push @out,$obj->{$attr};
-			}
-		}
-	}
-	return @out if wantarray;
-	return \@out if scalar(@out) > 1;
-	return $out[0] if scalar(@out) == 1;
-	return undef;
-}
-
 
 1;
 
@@ -133,21 +66,6 @@ nvl(arg1,arg2,arg3,argn..) - equivalent to:  (nvl(arg1,arg2,arg3),argn..)
 
 ev(args) -  eval the join of args and return the result or throw $@ on error
 
- 
-get_attrs_value    -  generic method for  return value of  attribute
-
-	the first param is an instance of object 
-	the second param is an hash of subroutines for compute the values  
-	the others params is a list of attributes name
-	the method return a list of values 
- 
-
-set_attrs_value  - generic method for set a value of attribute
-	
-	the first param is an instance of object 
-	the second param is an hash of subroutines for compute the values  
-	the other params are a pair of NAME => VALUE
-	the method return a list of values after the manipulation  
 
 
 =head1 EXPORT

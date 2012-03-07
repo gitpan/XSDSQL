@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListOfDataExchange>
+
+	<DataExchangeFisso>   <!-- ATTIVAZIONE FLAGCONSENSO -->
+		<AccessoTelefonico>
+			<NumTel>
+				<NumTelCompl>0131226101</NumTelCompl>
+			</NumTel>
+			<CategAbbon>00</CategAbbon>
+			<CodLavoro>01</CodLavoro> 
+			<Data>2006-01-16</Data>
+			<Time>18:51:18</Time>
+		</AccessoTelefonico>
+		<DatiUtente>
+			<Cognome>DI'MUFFI</Cognome>
+			<Nome>MAFFIA</Nome>
+			<TitoloStudio>DOTT. INFO</TitoloStudio>
+			<Professione>PERDITEMPO</Professione>
+			<Email>muffi@telecom.it</Email>
+			<CodFiscale>PRNGDN40A22B345E</CodFiscale>
+			<FlagConsensi>51</FlagConsensi>
+			<FlagAggregCF>0</FlagAggregCF>
+			<FlagAltriCanali>1</FlagAltriCanali>
+			<CodiceOperatoreTLC>TI</CodiceOperatoreTLC>
+		</DatiUtente>
+		<Localita>
+			<CAP>15121</CAP>
+			<Provincia>AL</Provincia>
+			<Comune>ALESSANDRIA</Comune>
+			<PartTopon>VIA</PartTopon>
+			<DescIndirizzo>BENEDETTO CROCE</DescIndirizzo>
+			<NumCivico>5</NumCivico>
+		</Localita>
+		<DatiAccessori>
+			<CodProgressivo>1</CodProgressivo>
+		</DatiAccessori>
+		<GestioneScarti>
+			<PubblicazioneDatoScarto>0</PubblicazioneDatoScarto>
+		</GestioneScarti>
+	</DataExchangeFisso>
+
+</ListOfDataExchange>
+

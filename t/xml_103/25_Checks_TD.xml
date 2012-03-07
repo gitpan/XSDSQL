@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListOfDataExchange>
+		
+	<DataExchangeFisso>   <!-- incongruenza cap comune -->
+		<AccessoTelefonico>
+			<NumTel>
+				<NumTelCompl>0131226128</NumTelCompl>
+			</NumTel>
+			<CategAbbon>01</CategAbbon>
+			<CodLavoro>01</CodLavoro> 
+			<Data>2006-01-19</Data>
+			<Time>18:51:23</Time>
+		</AccessoTelefonico>
+		<DatiUtente>
+			<RagioneSociale>CARTA STRACCI INC</RagioneSociale>
+			<CodFiscale>PRNGDN40A22B345E</CodFiscale>
+			<FlagConsensi>80</FlagConsensi>
+			<FlagAggregCF>0</FlagAggregCF>
+			<FlagAltriCanali>1</FlagAltriCanali>
+			<CodiceOperatoreTLC>TD</CodiceOperatoreTLC>
+		</DatiUtente>
+		<Localita>
+			<CAP>99999</CAP>
+			<Provincia>AL</Provincia>
+			<Comune>ALESSANDRIA</Comune>
+			<PartTopon>V.</PartTopon>
+			<DescIndirizzo>BELZONI</DescIndirizzo>
+			<NumCivico>2</NumCivico>
+		</Localita>
+		<DatiAccessori>
+			<CodProgressivo>1</CodProgressivo>
+			<NoteP>ID_TELE2:1682:ACCOUNT_NUMBER:0:LINE_TYPE:WRL</NoteP>
+		</DatiAccessori>
+		<GestioneScarti>
+			<PubblicazioneDatoScarto>0</PubblicazioneDatoScarto>
+		</GestioneScarti>
+	</DataExchangeFisso>
+
+
+	<DataExchangeFisso>   <!-- incongruenza  provincia comune  -->
+		<AccessoTelefonico>
+			<NumTel>
+				<NumTelCompl>0131226128</NumTelCompl>
+			</NumTel>
+			<CategAbbon>01</CategAbbon>
+			<CodLavoro>01</CodLavoro> 
+			<Data>2006-01-19</Data>
+			<Time>18:51:24</Time>
+		</AccessoTelefonico>
+		<DatiUtente>
+			<RagioneSociale>CARTA STRACCI INC</RagioneSociale>
+			<CodFiscale>PRNGDN40A22B345E</CodFiscale>
+			<FlagConsensi>80</FlagConsensi>
+			<FlagAggregCF>0</FlagAggregCF>
+			<FlagAltriCanali>1</FlagAltriCanali>
+			<CodiceOperatoreTLC>TD</CodiceOperatoreTLC>
+		</DatiUtente>
+		<Localita>
+			<CAP>15121</CAP>
+			<Provincia>AT</Provincia>
+			<Comune>ALESSANDRIA</Comune>
+			<PartTopon>V.</PartTopon>
+			<DescIndirizzo>BELZONI</DescIndirizzo>
+			<NumCivico>2</NumCivico>
+		</Localita>
+		<DatiAccessori>
+			<CodProgressivo>1</CodProgressivo>
+			<NoteP>ID_TELE2:1682:ACCOUNT_NUMBER:0:LINE_TYPE:WRL</NoteP>
+		</DatiAccessori>
+		<GestioneScarti>
+			<PubblicazioneDatoScarto>0</PubblicazioneDatoScarto>
+		</GestioneScarti>
+	</DataExchangeFisso>
+
+
+	<DataExchangeFisso>   <!-- incongruenza  numtel comune  -->
+		<AccessoTelefonico>
+			<NumTel>
+				<NumTelCompl>0131210806</NumTelCompl>
+			</NumTel>
+			<CategAbbon>01</CategAbbon>
+			<CodLavoro>01</CodLavoro> 
+			<Data>2006-01-19</Data>
+			<Time>18:51:24</Time>
+		</AccessoTelefonico>
+		<DatiUtente>
+			<RagioneSociale>CARTA STRACCI INC</RagioneSociale>
+			<CodFiscale>PRNGDN40A22B345E</CodFiscale>
+			<FlagConsensi>80</FlagConsensi>
+			<FlagAggregCF>0</FlagAggregCF>
+			<FlagAltriCanali>1</FlagAltriCanali>
+			<CodiceOperatoreTLC>TD</CodiceOperatoreTLC>
+		</DatiUtente>
+		<Localita>
+			<CAP>15121</CAP>
+			<Provincia>AL</Provincia>
+			<Comune>ALESSANDRIA</Comune>
+			<PartTopon>V.</PartTopon>
+			<DescIndirizzo>BELZONI</DescIndirizzo>
+			<NumCivico>2</NumCivico>
+		</Localita>
+		<DatiAccessori>
+			<CodProgressivo>1</CodProgressivo>
+			<NoteP>ID_TELE2:1682:ACCOUNT_NUMBER:0:LINE_TYPE:WRL</NoteP>
+		</DatiAccessori>
+		<GestioneScarti>
+			<PubblicazioneDatoScarto>0</PubblicazioneDatoScarto>
+		</GestioneScarti>
+	</DataExchangeFisso>
+
+	<DataExchangeFisso>   <!-- incongruenza  PartTopon  -->
+		<AccessoTelefonico>
+			<NumTel>
+				<NumTelCompl>0131210806</NumTelCompl>
+			</NumTel>
+			<CategAbbon>01</CategAbbon>
+			<CodLavoro>01</CodLavoro> 
+			<Data>2006-01-19</Data>
+			<Time>18:51:24</Time>
+		</AccessoTelefonico>
+		<DatiUtente>
+			<RagioneSociale>CARTA STRACCI INC</RagioneSociale>
+			<CodFiscale>PRNGDN40A22B345E</CodFiscale>
+			<FlagConsensi>80</FlagConsensi>
+			<FlagAggregCF>0</FlagAggregCF>
+			<FlagAltriCanali>1</FlagAltriCanali>
+			<CodiceOperatoreTLC>TD</CodiceOperatoreTLC>
+		</DatiUtente>
+		<Localita>
+			<CAP>15121</CAP>
+			<Provincia>AL</Provincia>
+			<Comune>ALESSANDRIA</Comune>
+			<PartTopon>XXX</PartTopon>
+			<DescIndirizzo>BELZONI</DescIndirizzo>
+			<NumCivico>2</NumCivico>
+		</Localita>
+		<DatiAccessori>
+			<CodProgressivo>1</CodProgressivo>
+			<NoteP>ID_TELE2:1682:ACCOUNT_NUMBER:0:LINE_TYPE:WRL</NoteP>
+		</DatiAccessori>
+		<GestioneScarti>
+			<PubblicazioneDatoScarto>0</PubblicazioneDatoScarto>
+		</GestioneScarti>
+	</DataExchangeFisso>
+
+	<DataExchangeFisso>   <!-- incongruenza comune con frazione -->
+		<AccessoTelefonico>
+			<NumTel>
+				<NumTelCompl>0131226100</NumTelCompl>
+			</NumTel>
+			<CategAbbon>01</CategAbbon>
+			<CodLavoro>01</CodLavoro> 
+			<Data>2006-01-19</Data>
+			<Time>18:51:24</Time>
+		</AccessoTelefonico>
+		<DatiUtente>
+			<RagioneSociale>CARTA STRACCI INC</RagioneSociale>
+			<CodFiscale>PRNGDN40A22B345E</CodFiscale>
+			<FlagConsensi>80</FlagConsensi>
+			<FlagAggregCF>0</FlagAggregCF>
+			<FlagAltriCanali>1</FlagAltriCanali>
+			<CodiceOperatoreTLC>TD</CodiceOperatoreTLC>
+		</DatiUtente>
+		<Localita>
+			<CAP>15121</CAP>
+			<Frazione>REPPIA</Frazione>
+			<Provincia>AL</Provincia>
+			<Comune>ALESSANDRIA</Comune>
+			<PartTopon>V.</PartTopon>
+			<DescIndirizzo>BELZONI</DescIndirizzo>
+			<NumCivico>2</NumCivico>
+		</Localita>
+		<DatiAccessori>
+			<CodProgressivo>1</CodProgressivo>
+			<NoteP>ID_TELE2:1682:ACCOUNT_NUMBER:0:LINE_TYPE:WRL</NoteP>
+		</DatiAccessori>
+		<GestioneScarti>
+			<PubblicazioneDatoScarto>0</PubblicazioneDatoScarto>
+		</GestioneScarti>
+	</DataExchangeFisso>
+
+	<DataExchangeFisso>   <!-- cap errato in comune multicap -->
+		<AccessoTelefonico>
+			<NumTel>
+				<NumTelCompl>0458000712</NumTelCompl>
+			</NumTel>
+			<CategAbbon>01</CategAbbon>
+			<CodLavoro>01</CodLavoro> 
+			<Data>2006-01-19</Data>
+			<Time>18:51:24</Time>
+		</AccessoTelefonico>
+		<DatiUtente>
+			<RagioneSociale>CARTA STRACCI INC</RagioneSociale>
+			<CodFiscale>PRNGDN40A22B345E</CodFiscale>
+			<FlagConsensi>80</FlagConsensi>
+			<FlagAggregCF>0</FlagAggregCF>
+			<FlagAltriCanali>1</FlagAltriCanali>
+			<CodiceOperatoreTLC>TD</CodiceOperatoreTLC>
+		</DatiUtente>
+		<Localita>
+			<CAP>37134</CAP>
+			<Provincia>VR</Provincia>
+			<Comune>VERONA</Comune>
+			<PartTopon>VIA</PartTopon>
+			<DescIndirizzo>GIANFRANCO FEDRIGONI</DescIndirizzo>
+			<NumCivico>2</NumCivico>
+		</Localita>
+		<DatiAccessori>
+			<CodProgressivo>1</CodProgressivo>
+			<NoteP>ID_TELE2:1682:ACCOUNT_NUMBER:0:LINE_TYPE:WRL</NoteP>
+		</DatiAccessori>
+		<GestioneScarti>
+			<PubblicazioneDatoScarto>0</PubblicazioneDatoScarto>
+		</GestioneScarti>
+	</DataExchangeFisso>
+
+	<DataExchangeFisso>   <!-- cap errato in comune con via multicap -->
+		<AccessoTelefonico>
+			<NumTel>
+				<NumTelCompl>0458000712</NumTelCompl>
+			</NumTel>
+			<CategAbbon>01</CategAbbon>
+			<CodLavoro>01</CodLavoro> 
+			<Data>2006-01-19</Data>
+			<Time>18:51:24</Time>
+		</AccessoTelefonico>
+		<DatiUtente>
+			<RagioneSociale>CARTA STRACCI INC</RagioneSociale>
+			<CodFiscale>PRNGDN40A22B345E</CodFiscale>
+			<FlagConsensi>80</FlagConsensi>
+			<FlagAggregCF>0</FlagAggregCF>
+			<FlagAltriCanali>1</FlagAltriCanali>
+			<CodiceOperatoreTLC>TD</CodiceOperatoreTLC>
+		</DatiUtente>
+		<Localita>
+			<CAP>37134</CAP>
+			<Provincia>VR</Provincia>
+			<Comune>VERONA</Comune>
+			<PartTopon>STRADONE</PartTopon>
+			<DescIndirizzo>SANTA LUCIA</DescIndirizzo>
+			<NumCivico>2</NumCivico>
+		</Localita>
+		<DatiAccessori>
+			<CodProgressivo>1</CodProgressivo>
+			<NoteP>ID_TELE2:1682:ACCOUNT_NUMBER:0:LINE_TYPE:WRL</NoteP>
+		</DatiAccessori>
+		<GestioneScarti>
+			<PubblicazioneDatoScarto>0</PubblicazioneDatoScarto>
+		</GestioneScarti>
+	</DataExchangeFisso>
+
+
+	<DataExchangeFisso>   <!-- num civico non esistente in via muticap -->
+		<AccessoTelefonico>
+			<NumTel>
+				<NumTelCompl>0458000712</NumTelCompl>
+			</NumTel>
+			<CategAbbon>01</CategAbbon>
+			<CodLavoro>01</CodLavoro> 
+			<Data>2006-01-19</Data>
+			<Time>18:51:24</Time>
+		</AccessoTelefonico>
+		<DatiUtente>
+			<RagioneSociale>CARTA STRACCI INC</RagioneSociale>
+			<CodFiscale>PRNGDN40A22B345E</CodFiscale>
+			<FlagConsensi>80</FlagConsensi>
+			<FlagAggregCF>0</FlagAggregCF>
+			<FlagAltriCanali>1</FlagAltriCanali>
+			<CodiceOperatoreTLC>TD</CodiceOperatoreTLC>
+		</DatiUtente>
+		<Localita>
+			<CAP>37134</CAP>
+			<Provincia>VR</Provincia>
+			<Comune>VERONA</Comune>
+			<PartTopon>STRADONE</PartTopon>
+			<DescIndirizzo>SANTA LUCIA</DescIndirizzo>
+			<NumCivico>46</NumCivico>
+		</Localita>
+		<DatiAccessori>
+			<CodProgressivo>1</CodProgressivo>
+			<NoteP>ID_TELE2:1682:ACCOUNT_NUMBER:0:LINE_TYPE:WRL</NoteP>
+		</DatiAccessori>
+		<GestioneScarti>
+			<PubblicazioneDatoScarto>0</PubblicazioneDatoScarto>
+		</GestioneScarti>
+	</DataExchangeFisso>
+
+</ListOfDataExchange>
