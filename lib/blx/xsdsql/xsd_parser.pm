@@ -76,9 +76,9 @@ my %H=(
 			my $self=$expect->{LOAD_INSTANCE};
 			my @params=(%{$expect->{PARAMS}},ATTRIBUTES => \%attrs);
 			push @params,map {  ($_,$self->{$_}) } grep(ref($self->{$_}) eq '',keys %$self);
-			my $stack=$self->get_attrs_value qw(STACK);
+			my $stack=$self->get_attrs_value(qw(STACK));
 			my $obj=$self->_to_obj($node,@params,STACK => $stack);
-			$self->_debug(__LINE__,'> (start path)',$obj->get_attrs_value qw(PATH)," with type ",ref($obj));
+			$self->_debug(__LINE__,'> (start path)',$obj->get_attrs_value(qw(PATH))," with type ",ref($obj));
 			$obj->trigger_at_start_node(%{$expect->{PARAMS}},PARSER => $self);
 			if (ref($obj) =~/::schema$/) {
 				$stack->[1]=$obj;
@@ -92,18 +92,18 @@ my %H=(
 			my ($expect,$node,%attrs)=@_;
 			my $self=$expect->{LOAD_INSTANCE};
 			my $obj=$self->_get_stack;
-			$self->_debug(__LINE__,'< (end path)',$obj->get_attrs_value qw(PATH)," with type ",ref($obj));
+			$self->_debug(__LINE__,'< (end path)',$obj->get_attrs_value(qw(PATH))," with type ",ref($obj));
 			$obj->trigger_at_end_node;
 			if (ref($obj) =~ /::schema$/) {
 				$obj->set_attrs_value(
-							XMLDECL  => $self->get_attrs_value qw(STACK)->[0]
+							XMLDECL  => $self->get_attrs_value(qw(STACK))->[0]
 				);
 				$self->{SCHEMA_OBJECT}=$obj;
 			}
 			else {
-				if (ref($obj)=~/Type$/ && (defined (my $name=$obj->get_attrs_value qw(name)))) {
+				if (ref($obj)=~/Type$/ && (defined (my $name=$obj->get_attrs_value(qw(name))))) {
 					$self->_debug(__LINE__,"type '$name' add to know types"); 
-					$self->get_attrs_value qw(STACK)->[1]->add_types($obj);
+					$self->get_attrs_value(qw(STACK))->[1]->add_types($obj);
 				}
 
 				$self->_pop;
@@ -134,7 +134,7 @@ my %H=(
 	
 sub _set_childs_schema {
 	my ($self,%params)=@_;
-	for my $c(@{$self->get_attrs_value qw(CHILDS_SCHEMA)}) {
+	for my $c(@{$self->get_attrs_value(qw(CHILDS_SCHEMA))}) {
 		my ($schema,$sl,$ns,$params)=@$c;
 		my $parser=blx::xsdsql::xsd_parser->new(DB_NAMESPACE => $params->{DB_NAMESPACE});
 		$self->_debug(__LINE__,"parsing location '$sl' with namespace '$ns'"); 
@@ -153,12 +153,12 @@ sub _resolve_postposted_types {
 		$self->_resolve_postposted_types($child_tables,$types,%params);
 		for my $c($t->get_columns) {
 			next if $c->is_pk || $c->is_sys_attributes;
-			if (defined  (my $ctype=$c->get_attrs_value qw(TYPE))) {
+			if (defined  (my $ctype=$c->get_attrs_value(qw(TYPE)))) {
 				next if defined $ctype->resolve_type($types);
-				my $type_fullname=$ctype->get_attrs_value qw(FULLNAME);
+				my $type_fullname=$ctype->get_attrs_value(qw(FULLNAME));
 				$self->_debug(__LINE__,'column  ',$c->get_full_name,' with type ',$type_fullname);
 				if (defined (my $new_ctype=$ctype->resolve_external_type($params{SCHEMA}))) {
-					$new_ctype->link_to_column($c,%params,TABLE => $t,DEBUG => $self->get_attrs_value qw(DEBUG));
+					$new_ctype->link_to_column($c,%params,TABLE => $t,DEBUG => $self->get_attrs_value(qw(DEBUG)));
 				}
 				else {
 					confess "$type_fullname: failed the external resolution\n";
@@ -185,10 +185,10 @@ sub _parse {
 sub parsefile {
 	my ($self,$file_name,%params)=@_;
 	my $p=$self->_fusion_params(%params);
-	for my $k qw(ID_SQL_TYPE TABLE_CLASS COLUMN_CLASS) {
+	for my $k(qw(ID_SQL_TYPE TABLE_CLASS COLUMN_CLASS)) {
 		$p->{$k}=$self->{$k};
 	}
-	for my $k qw(TABLE_PREFIX VIEW_PREFIX SEQUENCE_PREFIX) {
+	for my $k(qw(TABLE_PREFIX VIEW_PREFIX SEQUENCE_PREFIX)) {
 		$p->{$k}='' unless defined $p->{$k};
 	}
 
@@ -227,7 +227,7 @@ sub new {
 	my $namespace=$params{DB_NAMESPACE};
 	croak "no param DB_NAMESPACE spec" unless defined $namespace;
 
-	for my $cl qw(catalog table column) {
+	for my $cl(qw(catalog table column)) {
 		my $class=uc($cl).'_CLASS';
 		$params{$class}='blx::xsdsql::xml::'.$namespace.'::'.$cl;
 		ev('use',$params{$class});

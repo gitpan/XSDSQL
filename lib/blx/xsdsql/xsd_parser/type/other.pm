@@ -1,10 +1,10 @@
 package blx::xsdsql::xsd_parser::type::other;
 use strict;
-use warnings;
+use warnings FATAL => 'all';
 use integer;
 use Carp;
 
-use base qw(blx::xsdsql::xsd_parser::type);
+use base(qw(blx::xsdsql::xsd_parser::type));
 
 
 sub _new {
@@ -32,8 +32,8 @@ sub resolve_external_type {
 	my ($self,$schema,%params)=@_;
 	my ($ns,$name)=($self->{NAMESPACE},$self->{NAME});
 	if (defined (my $s=$schema->find_schema_by_namespace_abbr($ns))) {
-		my $types=$s->get_attrs_value qw(TYPES);
-		my %type_node_names=map  {  ($_->get_attrs_value qw(name),$_); } @$types;
+		my $types=$s->get_attrs_value(qw(TYPES));
+		my %type_node_names=map  {  ($_->get_attrs_value(qw(name)),$_); } @$types;
 		if (defined (my $t=$type_node_names{$name})) {
 			$self->_debug(__LINE__,'factory type from object type ',ref($t));
 			return $t->factory_type($t,\%type_node_names,%params);

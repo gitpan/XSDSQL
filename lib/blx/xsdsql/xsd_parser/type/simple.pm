@@ -1,11 +1,11 @@
 package blx::xsdsql::xsd_parser::type::simple;
 use strict;
-use warnings;
+use warnings FATAL => 'all';
 use integer;
 use Carp;
-use blx::xsdsql::ut qw(nvl);
+use blx::xsdsql::ut(qw(nvl));
 
-use base qw(blx::xsdsql::xsd_parser::type);
+use base(qw(blx::xsdsql::xsd_parser::type));
 
 
 sub _new {
@@ -80,23 +80,23 @@ sub link_to_column {
 		return $self if defined $c->get_table_reference;
 		my $parent_table=$params{TABLE};
 		my $schema=$params{SCHEMA};
-		my $table = $schema->get_attrs_value qw(TABLE_CLASS)->new(
+		my $table = $schema->get_attrs_value(qw(TABLE_CLASS))->new(
 			PATH		    	=> $c->get_path
 			,INTERNAL_REFERENCE => 1
 		);
 		$schema->set_table_names($table);
-		my $value_col=$schema->get_attrs_value qw(ANONYMOUS_COLUMN)->_factory_column(qw(VALUE));
+		my $value_col=$schema->get_attrs_value(qw(ANONYMOUS_COLUMN))->_factory_column(qw(VALUE));
 		$value_col->set_attrs_value(TYPE => $self,PATH => $c->get_path);
 
 		$table->_add_columns(
-			$schema->get_attrs_value qw(ANONYMOUS_COLUMN)->_factory_column(qw(ID))
-			,$schema->get_attrs_value qw(ANONYMOUS_COLUMN)->_factory_column(qw(SEQ))
-			,$schema->get_attrs_value qw(ANONYMOUS_COLUMN)->_factory_column(qw(VALUE))->set_attrs_value(TYPE => $self,PATH => $c->get_path)
+			$schema->get_attrs_value(qw(ANONYMOUS_COLUMN))->_factory_column(qw(ID))
+			,$schema->get_attrs_value(qw(ANONYMOUS_COLUMN))->_factory_column(qw(SEQ))
+			,$schema->get_attrs_value(qw(ANONYMOUS_COLUMN))->_factory_column(qw(VALUE))->set_attrs_value(TYPE => $self,PATH => $c->get_path)
 		);
 		$c->set_attrs_value(
 			PATH_REFERENCE 			=> $table->get_path
 			,INTERNAL_REFERENCE 	=> 1
-			,TYPE 					=> $schema->get_attrs_value qw(ID_SQL_TYPE)
+			,TYPE 					=> $schema->get_attrs_value(qw(ID_SQL_TYPE))
 			,TABLE_REFERENCE 		=> $table
 		);
 		$parent_table->_add_child_tables($table);

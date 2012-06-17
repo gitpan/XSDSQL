@@ -2,7 +2,7 @@ package blx::xsdsql::generator::sql::generic::handle::create_dictionary;
 use strict;
 use warnings;
 use Carp;
-use base qw(blx::xsdsql::generator::sql::generic::handle);
+use base(qw(blx::xsdsql::generator::sql::generic::handle));
 
 sub _get_create_prefix {
 	my ($self,%params)=@_;
@@ -19,7 +19,7 @@ sub table_header {
 	my ($self,$dic,%params)=@_;
 	croak "1^ param not set\n" unless defined $dic;
 	croak "param SCHEMA not set\n" unless defined $params{SCHEMA};
-	return undef if $params{SCHEMA}->get_attrs_value qw(CHILD_SCHEMA);
+	return undef if $params{SCHEMA}->get_attrs_value(qw(CHILD_SCHEMA));
 	
 	$self->{STREAMER}->put_line($self->_get_create_prefix,' ',$dic->get_sql_name,"( ",$dic->get_comment);
 	for my $col($dic->get_columns) {
@@ -37,7 +37,7 @@ sub table_header {
 
 sub _column {
 	my ($self,$col,%params)=@_;
-	my $first_column=$col->get_attrs_value qw(COLUMN_SEQUENCE) == 0 ? 1 : 0;
+	my $first_column=$col->get_attrs_value(qw(COLUMN_SEQUENCE)) == 0 ? 1 : 0;
 	$self->{STREAMER}->put_line("\t".($first_column ? '' : ',').$col->get_sql_name."\t".$col->get_sql_type."\t".$col->get_comment);
 	return $self;
 }

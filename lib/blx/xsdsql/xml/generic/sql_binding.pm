@@ -4,11 +4,11 @@ use strict;
 use warnings FATAL => 'all';
 use integer;
 use Carp;
-use blx::xsdsql::ut qw(nvl);
+use blx::xsdsql::ut(qw(nvl));
 use Data::Dumper;
 
-use base qw(Exporter); 
-use base qw(blx::xsdsql::common_interfaces blx::xsdsql::log);
+use base(qw(Exporter)); 
+use base(qw(blx::xsdsql::common_interfaces blx::xsdsql::log));
 
 my  %t=( overload => [ qw (
 	BINDING_TYPE_INSERT
@@ -45,7 +45,7 @@ sub new {
 	my %p=map {  ($_,$params{$_}) }  qw (DB_CONN SEQUENCE_NAME DEBUG DEBUG_NAME EXECUTE_OBJECTS_PREFIX EXECUTE_OBJECTS_SUFFIX); 
 	croak "no DB_CONN " unless defined $p{DB_CONN};
 	$p{DEBUG_NAME}='undef_caller' unless defined $p{DEBUG_NAME}; 
-	for my $i qw(EXECUTE_OBJECTS_PREFIX EXECUTE_OBJECTS_SUFFIX) {
+	for my $i(qw(EXECUTE_OBJECTS_PREFIX EXECUTE_OBJECTS_SUFFIX)) {
 		$p{$i}='' unless defined $p{$i};
 	}
 	return bless \%p,$class;
@@ -114,7 +114,7 @@ sub bind_column {
 
 sub _get_column_value_init {
 	my ($self,$table,$col,%params)=@_;
-	my $pk_seq=$col->get_attrs_value qw(PK_SEQ);
+	my $pk_seq=$col->get_attrs_value(qw(PK_SEQ));
 	return undef unless defined $pk_seq;
 	return $params{PK_SEQ_VALUES}->[$pk_seq] 
 		if ref($params{PK_SEQ_VALUES}) eq 'ARRAY' && $pk_seq < scalar(@{$params{PK_SEQ_VALUES}});

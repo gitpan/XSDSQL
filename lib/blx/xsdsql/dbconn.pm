@@ -16,7 +16,7 @@ sub get_application_string {
 	unless (defined $s) {
 		return wantarray ? () : undef;
 	}
-	for my $p qw(APPLICATION DBTYPE) {
+	for my $p(qw(APPLICATION DBTYPE)) {
 		$params{$p} = $self->{$p} unless defined $params{$p};
 	}
 	croak "APPLICATION param not set" unless defined $params{APPLICATION};
@@ -31,7 +31,7 @@ sub get_application_string {
 	my $use="blx::xsdsql::dbconn::${dbtype}::".$params{APPLICATION};
 	ev("use $use");
 	my $appl=$use->new;
-	for my $p qw(APPLICATION DBTYPE) {
+	for my $p('APPLICATION DBTYPE') {
 		delete $params{$p};
 	}
 	

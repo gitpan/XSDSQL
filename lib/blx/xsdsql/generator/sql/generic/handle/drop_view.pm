@@ -2,7 +2,7 @@ package blx::xsdsql::generator::sql::generic::handle::drop_view;
 use strict;
 use warnings;
 use Carp;
-use base qw(blx::xsdsql::generator::sql::generic::handle);
+use base(qw(blx::xsdsql::generator::sql::generic::handle));
 
 sub _get_drop_prefix {
 	my ($self,%params)=@_;
@@ -17,7 +17,7 @@ sub get_binding_objects  {
 
 sub table_header {
 	my ($self,$table,%params)=@_;
-	my $path=$table->get_attrs_value qw(PATH);
+	my $path=$table->get_attrs_value(qw(PATH));
 	my $comm=defined $path ? $table->comment('PATH: '.$path) : '';
 	my $name=$table->get_view_sql_name;
 	$self->{STREAMER}->put_line($self->_get_drop_prefix,' ',$name,' ',$comm,$table->command_terminator);

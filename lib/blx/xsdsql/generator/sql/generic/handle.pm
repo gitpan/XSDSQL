@@ -123,7 +123,7 @@ sub get_view_columns {
 
 sub get_join_columns {
 	my ($self,$table,%params)=@_;
-	my @cols=grep(defined $_->get_attrs_value qw(JOIN_TABLE),$self->_get_columns($table,%params));
+	my @cols=grep(defined $_->get_attrs_value(qw(JOIN_TABLE)),$self->_get_columns($table,%params));
 	return wantarray ? @cols : \@cols;
 }
 

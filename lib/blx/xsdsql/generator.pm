@@ -18,7 +18,7 @@ sub _check_table_filter {
 	}
 	if (defined $self->{_PARAMS}->{TABLES_FILTER}) {
 		return 1 if $self->{_PARAMS}->{TABLES_FILTER}->{uc($table->get_sql_name)};
-		my $path=$table->get_attrs_value qw(PATH);
+		my $path=$table->get_attrs_value(qw(PATH));
 		return 0 unless defined $path;
 		return 1 if $self->{_PARAMS}->{TABLES_FILTER}->{$path};
 		return 0;

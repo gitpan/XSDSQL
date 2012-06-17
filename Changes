@@ -94,5 +94,7 @@ Revision history for Perl extension blx::xsdsql
 	- support for import,fractionDigit,attributes,custom_header,element_ref,attribute_ref
     - better algorithm for generate names
 
+0.09.1 - May 10 18:05 2012 
+    - new syntax for perl 5.14
 
 

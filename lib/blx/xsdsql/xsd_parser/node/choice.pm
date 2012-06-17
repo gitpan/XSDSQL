@@ -1,12 +1,12 @@
 package blx::xsdsql::xsd_parser::node::choice;
-use base qw(blx::xsdsql::xsd_parser::node);
+use base(qw(blx::xsdsql::xsd_parser::node));
 use strict;
-use warnings;
+use warnings FATAL => 'all';
 use integer;
 use Carp;
 use POSIX;
 use Data::Dumper;
-use blx::xsdsql::ut qw(nvl);
+use blx::xsdsql::ut(qw(nvl));
 use blx::xsdsql::xsd_parser::type;
 
 use constant {
@@ -19,11 +19,11 @@ sub trigger_at_start_node {
 	my $path=$parent_table->get_path;
 	my ($maxoccurs,$minoccurs)=(
 		$self->_resolve_maxOccurs
-		,$self->_resolve_minOccurs(CHOICE => $parent_table->get_attrs_value qw(CHOICE))
+		,$self->_resolve_minOccurs(CHOICE => $parent_table->get_attrs_value(qw(CHOICE)))
 	);
 	if ($maxoccurs > 1) {
-		my $schema=$self->get_attrs_value qw(STACK)->[1];
-		my $table = $self->get_attrs_value qw(TABLE_CLASS)->new(
+		my $schema=$self->get_attrs_value(qw(STACK))->[1];
+		my $table = $self->get_attrs_value(qw(TABLE_CLASS))->new(
 			NAME			=> DEFAULT_OCCURS_TABLE_PREFIX.$parent_table->get_attrs_value(qw(NAME))
 			,MAXOCCURS		=> $maxoccurs
 			,PARENT_PATH	=> $path
@@ -33,15 +33,15 @@ sub trigger_at_start_node {
 		$schema->set_table_names($table);
 
 		$table->_add_columns(
-			$schema->get_attrs_value qw(ANONYMOUS_COLUMN)->_factory_column(qw(ID))
-			,$schema->get_attrs_value qw(ANONYMOUS_COLUMN)->_factory_column(qw(SEQ))
+			$schema->get_attrs_value(qw(ANONYMOUS_COLUMN))->_factory_column(qw(ID))
+			,$schema->get_attrs_value(qw(ANONYMOUS_COLUMN))->_factory_column(qw(SEQ))
 		);
 		$parent_table->_add_child_tables($table);
-		my $isparent_choice=$parent_table->get_attrs_value qw(CHOICE);
+		my $isparent_choice=$parent_table->get_attrs_value(qw(CHOICE));
 
-		my $column =  $self->get_attrs_value qw(COLUMN_CLASS)->new (	 #hook the column to the parent table 
-			NAME				=> $table->get_attrs_value qw(NAME)
-			,TYPE				=> $schema->get_attrs_value qw(ID_SQL_TYPE)
+		my $column =  $self->get_attrs_value(qw(COLUMN_CLASS))->new (	 #hook the column to the parent table 
+			NAME				=> $table->get_attrs_value(qw(NAME))
+			,TYPE				=> $schema->get_attrs_value(qw(ID_SQL_TYPE))
 			,MINOCCURS			=> 0
 			,MAXOCCURS			=> 1
 			,PATH_REFERENCE		=> $table->get_path
@@ -66,7 +66,7 @@ sub trigger_at_start_node {
 
 sub trigger_at_end_node {
 	my ($self,%params)=@_;
-	my $parent_table=$self->get_attrs_value qw(STACK)->[-1]->get_attrs_value qw(TABLE);
+	my $parent_table=$self->get_attrs_value(qw(STACK))->[-1]->get_attrs_value(qw(TABLE));
 	$parent_table->_inc_xsd_seq;  
 	return $self;
 }

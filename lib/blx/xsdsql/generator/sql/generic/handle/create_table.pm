@@ -2,7 +2,7 @@ package blx::xsdsql::generator::sql::generic::handle::create_table;
 use strict;
 use warnings;
 use Carp;
-use base qw(blx::xsdsql::generator::sql::generic::handle);
+use base(qw(blx::xsdsql::generator::sql::generic::handle));
 
 sub _get_create_prefix {
 	my ($self,%params)=@_;
@@ -17,7 +17,7 @@ sub get_binding_objects  {
 
 sub table_header {
 	my ($self,$table,%params)=@_;
-	my $path=$table->get_attrs_value qw(PATH);
+	my $path=$table->get_attrs_value(qw(PATH));
 	my $comm=defined  $path ? $table->comment('PATH: '.$path) : '';
 	$self->{STREAMER}->put_line($self->_get_create_prefix,' ',$table->get_sql_name,"( $comm");
 	return $self;
@@ -32,10 +32,10 @@ sub table_footer {
 
 sub column {
 	my ($self,$col,%params)=@_;
-	my $first_column=$col->get_attrs_value qw(COLUMN_SEQUENCE) == 0 ? 1 : 0;
-	my ($col_name,$col_type,$path)=($col->get_sql_name(%params),$col->get_sql_type(%params),$col->get_attrs_value qw(PATH));
+	my $first_column=$col->get_attrs_value(qw(COLUMN_SEQUENCE)) == 0 ? 1 : 0;
+	my ($col_name,$col_type,$path)=($col->get_sql_name(%params),$col->get_sql_type(%params),$col->get_attrs_value(qw(PATH)));
 	my $comm=defined $path ? 'PATH: '.$path : '';
-	my $ref=$col->get_attrs_value qw(TABLE_REFERENCE);
+	my $ref=$col->get_attrs_value(qw(TABLE_REFERENCE));
 	$ref=$ref->get_sql_name if ref($ref) =~/::table/;
 	$comm.=defined $ref ? ' REF: '.$ref : '';
 	$comm=~s/^(\s+|\s+)$//;

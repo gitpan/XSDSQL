@@ -4,8 +4,8 @@ use strict;
 use warnings FATAL => 'all';
 use Carp;
 use Data::Dumper;
-use blx::xsdsql::ut qw(nvl);
-use base qw(blx::xsdsql::common_interfaces blx::xsdsql::log);
+use blx::xsdsql::ut(qw(nvl));
+use base(qw(blx::xsdsql::common_interfaces blx::xsdsql::log));
 
 our %_ATTRS_R=();
 our %_ATTRS_W=();
@@ -125,7 +125,7 @@ sub _resolve_path_ref {
 sub _resolve_table_path {
 	my ($self,$t,%params)=@_;
 	my $x=-1; 
-	while(!$t->get_attrs_value qw(PATH)) {
+	while(!$t->get_attrs_value(qw(PATH))) {
 		$t=$params{STACK}->[$x--]->{T};
 	}
 	return $t;
@@ -136,7 +136,7 @@ sub _resolve_relative_path {
 	for my $i(1..3) {
 		confess "internal error - $i param not set\n" unless defined $_[$i];
 	}
-	my $path=$startpath.substr($relative_path,length($self->_resolve_table_path($table,%params)->get_attrs_value qw(PATH)));
+	my $path=$startpath.substr($relative_path,length($self->_resolve_table_path($table,%params)->get_attrs_value(qw(PATH))));
 	return $path;
 }
 
@@ -154,7 +154,7 @@ sub _mapping_path {
 			$self->_register_attribute(%params,T => $table,C => $col,TAG => __LINE__);
 			next;
 		}
-		my ($path_ref,$table_ref)=$col->get_attrs_value qw(PATH_REFERENCE TABLE_REFERENCE);
+		my ($path_ref,$table_ref)=$col->get_attrs_value(qw(PATH_REFERENCE TABLE_REFERENCE));
 		if (defined $path_ref || defined $table_ref) {
 			if (defined $table_ref) {  #the column ref a table
 				if ($col->is_internal_reference) {
@@ -195,7 +195,7 @@ sub _mapping_path {
 				my $orig_path_name=$params{ORIG_PATH_NAME};
 				if (my $path=$col->get_path) {
 					$orig_path_name=$self->_resolve_relative_path(
-						nvl($params{ORIG_PATH_NAME},$table->get_attrs_value qw(PATH))
+						nvl($params{ORIG_PATH_NAME},$table->get_attrs_value(qw(PATH)))
 						,$table
 						,$path
 						,%params

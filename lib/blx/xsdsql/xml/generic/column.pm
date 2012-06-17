@@ -4,18 +4,18 @@ use strict;
 use warnings;
 use integer;
 use Carp;
-use blx::xsdsql::ut qw(nvl);
+use blx::xsdsql::ut(qw(nvl));
 use File::Basename;
 use Storable;
 
 use blx::xsdsql::xml::generic::table qw(:overload);
-use base qw(blx::xsdsql::xml::generic::catalog blx::xsdsql::xml::generic::name_generator);
+use base(qw(blx::xsdsql::xml::generic::catalog blx::xsdsql::xml::generic::name_generator));
 
 
 our %_ATTRS_R=( 
 			NAME   				=> sub { 
 											my $self=$_[0]; 	
-											my ($n,$p)=map { $self->{$_} } qw(NAME PATH); 
+											my ($n,$p)=map { $self->{$_} }(qw(NAME PATH)); 
 											return $self->{ATTRIBUTE} || !defined  $p ? $n : basename($p); 
 			} 			
 			,MAXOCCURS 			=> sub {	my $m=$_[0]->{MAXOCCURS}; return nvl($m,1); }
@@ -45,9 +45,9 @@ sub _get_default_predef_colum {
 
 sub _get_default_sql_column  {
 	my ($self,$type,%params)=@_;
-	return { NAME	=> 'ID',TYPE 	=> $self->_get_default_predef_colum qw(ID),MINOCCURS => 1,MAXOCCURS => 1, PK_SEQ => 0 } if $type eq 'ID';
-	return { NAME	=> 'SEQ',TYPE	=> $self->_get_default_predef_colum qw(SEQ),MINOCCURS => 1,MAXOCCURS => 1,PK_SEQ => 1 } if $type eq 'SEQ';
-	return { NAME	=> 'VALUE',TYPE	=> $self->_get_default_predef_colum qw(VALUE),MINOCCURS => 1,MAXOCCURS => 1,VALUE_COL => 1   } if $type eq 'VALUE';
+	return { NAME	=> 'ID',TYPE 	=> $self->_get_default_predef_colum(qw(ID)),MINOCCURS => 1,MAXOCCURS => 1, PK_SEQ => 0 } if $type eq 'ID';
+	return { NAME	=> 'SEQ',TYPE	=> $self->_get_default_predef_colum(qw(SEQ)),MINOCCURS => 1,MAXOCCURS => 1,PK_SEQ => 1 } if $type eq 'SEQ';
+	return { NAME	=> 'VALUE',TYPE	=> $self->_get_default_predef_colum(qw(VALUE)),MINOCCURS => 1,MAXOCCURS => 1,VALUE_COL => 1   } if $type eq 'VALUE';
 	confess "$type: not valid\n";
 }
 
@@ -119,8 +119,8 @@ sub _set_sql_name {
 	my $name=$self->_gen_name(
 				TY 		=> 'c'
 				,LIST 	=> $params{COLUMNNAME_LIST}
-				,NAME 	=> $self->get_attrs_value qw(NAME)
-				,PATH	=> $self->get_attrs_value qw(PATH)
+				,NAME 	=> $self->get_attrs_value(qw(NAME))
+				,PATH	=> $self->get_attrs_value(qw(PATH))
 	);
 	return $self->{SQL_NAME}=$name;
 }
@@ -207,7 +207,7 @@ sub _factory_dictionary_columns {
 sub get_sql_type {
 	my ($self,%params)=@_;
 	return $self->{SQL_TYPE} if defined $self->{SQL_TYPE};
-	if ($self->get_attrs_value qw(DEBUG)) {
+	if ($self->get_attrs_value(qw(DEBUG))) {
 		if ((my $r=ref($self->{TYPE}))  ne 'HASH') {
 			unless ($r =~/simple/i) {
 				$self->_debug(__LINE__," not hash ref but '$r' - column ",$self->get_full_name,' - type is ',$self->{TYPE}); 
@@ -240,82 +240,82 @@ sub get_sql_type {
 
 sub get_column_sequence {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(COLUMN_SEQUENCE);
+	return $self->get_attrs_value(qw(COLUMN_SEQUENCE));
 }
 
 sub get_name { 	
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(NAME);
+	return $self->get_attrs_value(qw(NAME));
 }
 
 sub get_sql_name {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(SQL_NAME);
+	return $self->get_attrs_value(qw(SQL_NAME));
 }
 
 sub is_internal_reference {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(INTERNAL_REFERENCE);
+	return $self->get_attrs_value(qw(INTERNAL_REFERENCE));
 }
 
 sub is_group_reference {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(GROUP_REF);	
+	return $self->get_attrs_value(qw(GROUP_REF));	
 }
 
 sub is_choice {
 	my ($self,%params)=@_;
-	return  $self->get_attrs_value qw(CHOICE);
+	return  $self->get_attrs_value(qw(CHOICE));
 }
 
 sub is_attribute {
 	my ($self,%params)=@_;
-	return  $self->get_attrs_value qw(ATTRIBUTE);
+	return  $self->get_attrs_value(qw(ATTRIBUTE));
 }
 
 sub is_sys_attributes {
 	my ($self,%params)=@_;
-	return  $self->get_attrs_value qw(SYS_ATTRIBUTES);
+	return  $self->get_attrs_value(qw(SYS_ATTRIBUTES));
 }
 
 sub get_min_occurs {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(MINOCCURS);
+	return $self->get_attrs_value(qw(MINOCCURS));
 }
 
 sub get_max_occurs {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(MAXOCCURS);
+	return $self->get_attrs_value(qw(MAXOCCURS));
 }
 
 sub is_pk {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(PK);
+	return $self->get_attrs_value(qw(PK));
 }
 
 sub get_pk_seq {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(PK_SEQ);
+	return $self->get_attrs_value(qw(PK_SEQ));
 }
 
 sub get_xsd_seq {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(XSD_SEQ);
+	return $self->get_attrs_value(qw(XSD_SEQ));
 }
 
 sub get_path {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(PATH);
+	return $self->get_attrs_value(qw(PATH));
 }
 
 sub get_path_reference {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(PATH_REFERENCE);
+	return $self->get_attrs_value(qw(PATH_REFERENCE));
 }
 
 sub get_table_name {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(TABLE_NAME);
+	return $self->get_attrs_value(qw(TABLE_NAME));
 }
 
 sub get_full_name {
@@ -325,13 +325,13 @@ sub get_full_name {
 
 sub get_table_reference {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(TABLE_REFERENCE);	
+	return $self->get_attrs_value(qw(TABLE_REFERENCE));	
 }
 
 
 sub get_element_form {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(ELEMENT_FORM);
+	return $self->get_attrs_value(qw(ELEMENT_FORM));
 }
 
 sub get_dictionary_data {
@@ -344,7 +344,7 @@ sub get_dictionary_data {
 		my %data=(
 			column_seq  		=> $self->get_column_sequence
 			,column_name		=> $self->get_sql_name
-			,path_name			=> $self->get_attrs_value qw(PATH)
+			,path_name			=> $self->get_attrs_value(qw(PATH))
 			,xsd_seq			=> $self->get_xsd_seq
 			,path_name_ref		=> $path_ref
 			,table_name_ref		=> ($table_ref ? $table_ref->get_sql_name : undef)

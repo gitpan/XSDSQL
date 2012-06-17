@@ -43,7 +43,7 @@ sub comment {
 
 sub get_comment {
 	my ($self,%params)=@_;
-	my $c=$self->get_attrs_value qw(COMMENT);
+	my $c=$self->get_attrs_value(qw(COMMENT));
 	return '' unless $c;
 	return $self->comment($c)
 }

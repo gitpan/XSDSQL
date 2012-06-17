@@ -1,7 +1,7 @@
 package blx::xsdsql::xsd_parser::node;
 
 use strict;
-use warnings;
+use warnings FATAL => 'all';
 use integer;
 use Carp;
 use POSIX;
@@ -24,7 +24,7 @@ use constant {
 
 sub  _resolve_maxOccurs {
 	my ($self,%params)=@_;
-	my $n=exists $params{VALUE} ? $params{VALUE} : $self->get_attrs_value qw(maxOccurs); 
+	my $n=exists $params{VALUE} ? $params{VALUE} : $self->get_attrs_value(qw(maxOccurs)); 
 	$n=nvl($n,1);
 	$n=UNBOUNDED if $n eq 'unbounded';
 	return $n;
@@ -33,14 +33,14 @@ sub  _resolve_maxOccurs {
 sub _resolve_minOccurs {
 	my ($self,%params)=@_;
 	return 0 if $params{CHOICE};
-	my $n=exists $params{VALUE} ? $params{VALUE} : $self->get_attrs_value qw(minOccurs); 
+	my $n=exists $params{VALUE} ? $params{VALUE} : $self->get_attrs_value(qw(minOccurs)); 
 	return nvl($n,1);
 }
 
 sub _resolve_form {
 	my ($self,%params)=@_;
-	my $form=$self->get_attrs_value qw(form);
-	$form=$self->get_attrs_value qw(STACK)->[1]->get_attrs_value qw(elementFormDefault) 	unless defined $form;
+	my $form=$self->get_attrs_value(qw(form));
+	$form=$self->get_attrs_value(qw(STACK))->[1]->get_attrs_value(qw(elementFormDefault)) 	unless defined $form;
 	$form='U' unless defined $form;
 	$form='Q' if $form eq 'qualified';
 	$form='U' if $form eq 'unqualified';
@@ -65,8 +65,8 @@ sub _new {
 
 sub _construct_path {
 	my ($self,$name,%params)=@_;
-	my $parent=nvl($params{PARENT},$self->get_attrs_value qw(STACK)->[-1]);
-	my $path=$parent->get_attrs_value qw(PATH);
+	my $parent=nvl($params{PARENT},$self->get_attrs_value(qw(STACK))->[-1]);
+	my $path=$parent->get_attrs_value(qw(PATH));
 	return $path unless defined $path;
 	if (defined $name) {
 		$path.='/' unless $path eq '/';
@@ -79,9 +79,9 @@ sub _get_parent_table {
 	my ($self,%params)=@_;
 	my $i=-1;
 	while(1) {
-		my $parent=$self->get_attrs_value qw(STACK)->[$i];
+		my $parent=$self->get_attrs_value(qw(STACK))->[$i];
 		last unless defined $parent;
-		if (defined (my $parent_table=$parent->get_attrs_value qw(TABLE))) {
+		if (defined (my $parent_table=$parent->get_attrs_value(qw(TABLE)))) {
 			return $parent_table; 
 		}
 		$i--;
@@ -92,11 +92,11 @@ sub _get_parent_table {
 sub _get_parent_path {
 	my ($self,%params)=@_;
 	my $i=-1;
-	my $stack=$self->get_attrs_value qw(STACK);
+	my $stack=$self->get_attrs_value(qw(STACK));
 	while(1) {
 		my $parent=$stack->[$i];
 		last unless defined $parent;
-		if (defined(my $path=$parent->get_attrs_value qw(PATH))) {
+		if (defined(my $path=$parent->get_attrs_value(qw(PATH)))) {
 			return $path;
 		}
 		$i--;
@@ -111,10 +111,10 @@ sub _resolve_simple_type {
 		$out->{base}='string';
 		return $self;
 	}
-	if (defined (my $base=$t->get_attrs_value qw(base))) {
+	if (defined (my $base=$t->get_attrs_value(qw(base)))) {
 		my $t=blx::xsdsql::xsd_parser::type::factory($base,%params);
 		if (ref($t)=~/::type::simple/) { 
-			$out->{base}=$t->get_attrs_value qw(NAME);
+			$out->{base}=$t->get_attrs_value(qw(NAME));
 		}
 		elsif (defined $types) {
 			my $t=$types->{$base};
@@ -125,7 +125,7 @@ sub _resolve_simple_type {
 			$out->{base}=$t;
 		}
 	}
-	if (defined (my $v=$t->get_attrs_value qw(value))) {
+	if (defined (my $v=$t->get_attrs_value(qw(value)))) {
 		my $r=ref($t);
 		my ($b)=$r=~/::([^:]+)$/;
 		confess "internal error\n" unless defined $b;
@@ -139,7 +139,7 @@ sub _resolve_simple_type {
 		}
 	}
 
-	if (defined (my $child=$t->get_attrs_value qw(CHILD))) {
+	if (defined (my $child=$t->get_attrs_value(qw(CHILD)))) {
 		confess "internal error\n" unless ref($child) eq 'ARRAY';
 		for my $c(@$child) {
 			$self->_resolve_simple_type($c,$types,$out,%params);

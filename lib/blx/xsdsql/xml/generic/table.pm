@@ -6,7 +6,7 @@ use integer;
 use Carp;
 use File::Basename;
 
-use blx::xsdsql::ut qw(nvl);
+use blx::xsdsql::ut('nvl');
 #use base qw(blx::xsdsql::xml::generic::catalog);
 
 use base qw(blx::xsdsql::xml::generic::catalog blx::xsdsql::xml::generic::name_generator);
@@ -16,7 +16,7 @@ use constant {
 };
 
 
-use base qw(Exporter); 
+use base('Exporter'); 
 
 
 my  %t=( overload => [ qw (
@@ -111,8 +111,8 @@ sub _set_sql_name {
 				,TABLE_PREFIX	=> $params{TABLE_PREFIX}
 				,TY 	=> 't'
 				,LIST 	=> $params{TABLENAME_LIST}
-				,NAME 	=> $self->get_attrs_value qw(NAME)
-				,PATH	=> $self->get_attrs_value qw(PATH)
+				,NAME 	=> $self->get_attrs_value(qw(NAME))
+				,PATH	=> $self->get_attrs_value(qw(PATH))
 	);
 	return $self->{SQL_NAME}=$name;
 }
@@ -156,8 +156,8 @@ sub _set_view_sql_name {
 				TY 				=> 't'
 				,LIST 			=> $params{TABLENAME_LIST}
 				,VIEW_PREFIX 	=> $params{VIEW_PREFIX}
-				,NAME 			=> $self->get_attrs_value qw(NAME)
-				,PATH			=> $self->get_attrs_value qw(PATH)
+				,NAME 			=> $self->get_attrs_value(qw(NAME))
+				,PATH			=> $self->get_attrs_value(qw(PATH))
 	);
 	return $self->{VIEW_SQL_NAME}=$name;
 }
@@ -185,12 +185,12 @@ sub _check_obsolete_params {
 
 sub _is_column_group_ref {
 	my ($self,$col,$path_orig,%params)=@_;
-	my $v=$col->get_attrs_value qw(PATH);
-	my $table_ref=$col->get_attrs_value qw(TABLE_REFERENCE);
-	my $table_path=$table_ref->get_attrs_value qw(PATH);
+	my $v=$col->get_attrs_value(qw(PATH));
+	my $table_ref=$col->get_attrs_value(qw(TABLE_REFERENCE));
+	my $table_path=$table_ref->get_attrs_value(qw(PATH));
 	for my $c($table_ref->get_columns) {
-		my $path=$c->get_attrs_value qw(PATH);
-		$path='/'.$c->get_attrs_value qw(NAME) unless defined $path;
+		my $path=$c->get_attrs_value(qw(PATH));
+		$path='/'.$c->get_attrs_value(qw(NAME)) unless defined $path;
 		next unless defined $path;
 		$path=~s/^$table_path//;
 		return 1 if $v.$path eq $path_orig;
@@ -220,13 +220,13 @@ sub _delete_child_tables {
 
 sub _add_columns {
 	my $self=shift;
-	confess "before add a column please set the table name\n" unless defined $self->get_attrs_value qw(SQL_NAME);
+	confess "before add a column please set the table name\n" unless defined $self->get_attrs_value(qw(SQL_NAME));
 	my $table_name=$self->get_sql_name;
-	my $cols=$self->get_attrs_value qw(COLUMNS);
+	my $cols=$self->get_attrs_value(qw(COLUMNS));
 	my @newcols_notattrs=();
 	my @newcols_attrs=();
 	for my $col(@$cols) {
-		if ($col->get_attrs_value qw(ATTRIBUTE) || $col->get_attrs_value qw(SYS_ATTRIBUTES)) {
+		if ($col->get_attrs_value(qw(ATTRIBUTE)) || $col->get_attrs_value(qw(SYS_ATTRIBUTES))) {
 			push @newcols_attrs,$col;
 		}
 		else {
@@ -234,11 +234,11 @@ sub _add_columns {
 		}
 	}
 	for my $col(@_) {
-		if ($col->get_attrs_value qw(ATTRIBUTE) || $col->get_attrs_value qw(SYS_ATTRIBUTES)) {
+		if ($col->get_attrs_value(qw(ATTRIBUTE)) || $col->get_attrs_value(qw(SYS_ATTRIBUTES))) {
 			push @newcols_attrs,$col;
-			if ($col->get_attrs_value qw(SYS_ATTRIBUTES)) {
+			if ($col->get_attrs_value(qw(SYS_ATTRIBUTES))) {
 				croak $self->get_sql_name.": multiply sysattrs column not allowed\n"
-					if defined $self->get_attrs_value qw(SYSATTRS_COL);
+					if defined $self->get_attrs_value(qw(SYSATTRS_COL));
 				$self->{SYSATTRS_COL}=$col;
 			}
 		}
@@ -273,7 +273,7 @@ sub _reset_columns {
 
 sub _new {
 	my ($class,%params)=@_;
-	for my $k 	qw(COLUMNS SYSATTRS_COL) {
+	for my $k (qw(COLUMNS SYSATTRS_COL)) {
 		croak "param $k not allowed in constructor\n" if defined $params{$k};
 	}
 	$params{CHILD_TABLES}=[] unless defined $params{CHILD_TABLES}; 
@@ -286,14 +286,14 @@ sub _new {
 
 sub get_columns {
 	my ($self,%params)=@_;
-	my $v=$self->get_attrs_value qw(COLUMNS);
+	my $v=$self->get_attrs_value('COLUMNS');
 	return wantarray ? @$v : $v;
 }
 
 	
 sub get_child_tables {
 	my $self=shift;
-	my $v=$self->get_attrs_value qw(CHILD_TABLES);
+	my $v=$self->get_attrs_value('CHILD_TABLES');
 	return wantarray ? @$v : $v;
 }
 
@@ -325,43 +325,43 @@ sub is_group_type {
 
 sub is_choice {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(CHOICE);	
+	return $self->get_attrs_value(qw(CHOICE));	
 }	
 
 sub get_path {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(PATH);
+	return $self->get_attrs_value(qw(PATH));
 }
 
 sub get_min_occurs { 
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(MINOCCURS);
+	return $self->get_attrs_value(qw(MINOCCURS));
 }
 
 sub get_max_occurs { 
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(MAXOCCURS);
+	return $self->get_attrs_value(qw(MAXOCCURS));
 }
 
 sub get_xsd_seq {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(XSD_SEQ);
+	return $self->get_attrs_value(qw(XSD_SEQ));
 }
 
 sub get_xsd_type {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(XSD_TYPE);
+	return $self->get_attrs_value(qw(XSD_TYPE));
 }
 
 sub get_sql_name {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(SQL_NAME);
+	return $self->get_attrs_value(qw(SQL_NAME));
 }
 
 
 sub get_view_sql_name {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(VIEW_SQL_NAME);
+	return $self->get_attrs_value(qw(VIEW_SQL_NAME));
 }
 
 
@@ -378,12 +378,12 @@ sub get_sequence_name {
 
 sub get_deep_level {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(DEEP_LEVEL);
+	return $self->get_attrs_value('DEEP_LEVEL');
 }
 
 sub is_internal_reference {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(INTERNAL_REFERENCE);
+	return $self->get_attrs_value('INTERNAL_REFERENCE');
 }
 
 
@@ -402,12 +402,12 @@ sub get_pk_columns {
 
 sub is_root_table {
 	my ($self,%params)=@_;
-	return nvl($self->get_attrs_value qw(PATH)) eq '/' ? 1 : 0;
+	return nvl($self->get_attrs_value('PATH')) eq '/' ? 1 : 0;
 }
 
 sub is_unpath {
 	my ($self,%params)=@_;
-	return 0 if $self->get_attrs_value qw(PATH);
+	return 0 if $self->get_attrs_value('PATH');
 	return 1 if $self->get_max_occurs > 1;
 	return 0;
 }
@@ -415,17 +415,17 @@ sub is_unpath {
 
 sub get_parent_path {
 	my ($self,%params)=@_;
-	return $self->is_unpath ? $self->get_attrs_value qw(PARENT_PATH) : undef;
+	return $self->is_unpath ? $self->get_attrs_value('PARENT_PATH') : undef;
 }
 
 sub get_URI { 
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(URI);
+	return $self->get_attrs_value('URI');
 } 
 
 sub get_sysattrs_column { 
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(SYSATTRS_COL);
+	return $self->get_attrs_value('SYSATTRS_COL');
 }
 
 
@@ -471,7 +471,7 @@ sub get_dictionary_data {
 	}
 	
 	if ($dictionary_type eq 'COLUMN_DICTIONARY') {
-		my @data=map { my $data=$_->get_dictionary_data qw(COLUMN_DICTIONARY); $data->{table_name}=$self->get_sql_name; $data } $self->get_columns;
+		my @data=map { my $data=$_->get_dictionary_data('COLUMN_DICTIONARY'); $data->{table_name}=$self->get_sql_name; $data } $self->get_columns;
 		return wantarray ? @data : \@data;	 
 	}
 	

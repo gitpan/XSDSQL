@@ -12,10 +12,10 @@ sub trigger_at_start_node {
 		my $parser=$params{PARSER};
 		croak "parser param not set\n" unless defined $params{PARSER};
 		my %p=map { ($_,$self->{$_}); } grep($_ eq uc($_) && ref($self->{$_}) eq '' && defined $self->{$_},keys %$self);
-		my $current_schema=$self->get_attrs_value qw(STACK)->[1];
+		my $current_schema=$self->get_attrs_value(qw(STACK))->[1];
 		my $ns=$self->{namespace};
 		$self->_debug(__LINE__,"import: location '$sl' namespace '$ns'");
-		my $cs=$parser->get_attrs_value qw(CHILDS_SCHEMA);
+		my $cs=$parser->get_attrs_value(qw(CHILDS_SCHEMA));
 		push @$cs,[$current_schema,$sl,$ns,\%p];
 		$parser->set_attrs_value(CHILDS_SCHEMA => $cs);
 	}

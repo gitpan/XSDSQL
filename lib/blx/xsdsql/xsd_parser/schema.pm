@@ -23,12 +23,12 @@ sub _get_attrs_r { return \%_ATTRS_R; }
 
 sub get_root_table {
 	my ($self,%params)=@_;
-	return $self->get_attrs_value qw(TABLE);
+	return $self->get_attrs_value(qw(TABLE));
 }
 
 sub get_types_name {
 	my ($self,%params)=@_;
-	my $types=$self->get_attrs_value qw(TYPE_NAMES);
+	my $types=$self->get_attrs_value(qw(TYPE_NAMES));
 	return undef unless defined $types;
 	return wantarray ? %$types : $types;
 }

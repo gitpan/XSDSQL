@@ -9,7 +9,7 @@ use XML::Writer;
 use File::Basename;
 use Data::Dumper;
 use blx::xsdsql::ut qw( nvl ev);
-use base qw(blx::xsdsql::log blx::xsdsql::common_interfaces);
+use base(qw(blx::xsdsql::log blx::xsdsql::common_interfaces));
 
 use constant {
 					DEFAULT_NAMESPACE => ''
@@ -136,7 +136,7 @@ sub _read {
 	croak "SCHEMA param not set" unless defined $schema;
 	$self->{_PARAMS}=$p;
 	$p->{SQL_BINDING}->set_attrs_value(SEQUENCE_NAME => $schema->get_sequence_name)
-		unless defined $p->{SQL_BINDING}->get_attrs_value qw(SEQUENCE_NAME); 
+		unless defined $p->{SQL_BINDING}->get_attrs_value(qw(SEQUENCE_NAME)); 
 	$self->{PARSER}->setHandlers($self->_get_handler);
 	my $root=$schema->get_root_table;
 	my $insert=$self->_prepared_insert($root,TAG => __LINE__);
@@ -156,7 +156,7 @@ sub _write {
 	croak "SCHEMA param not set" unless defined $schema;
 	$self->{_PARAMS}=$p;
 	$p->{SQL_BINDING}->set_attrs_value(SEQUENCE_NAME => $schema->get_sequence_name)
-		unless defined $p->{SQL_BINDING}->get_attrs_value qw(SEQUENCE_NAME); 
+		unless defined $p->{SQL_BINDING}->get_attrs_value(qw(SEQUENCE_NAME)); 
 	$p->{XMLWRITER}->setOutput($fd);
 	$p->{OUTPUT_STREAM}=$p->{XMLWRITER};
 	my $root_id=$p->{ROOT_ID};
@@ -778,10 +778,10 @@ sub _get_current_namespace_prefix {
 
 sub _xml_decl {
 	my ($self,%params)=@_;
-	for my $k qw(OUTPUT_STREAM TAG) { 
+	for my $k(qw(OUTPUT_STREAM TAG)) { 
 		confess "param $k not set\n" unless defined  $params{$k};
 	}
-	my ($hb,$ha)=map { delete $params{$_}  }  qw(HANDLE_BEFORE_XMLDECL HANDLE_AFTER_XMLDECL);
+	my ($hb,$ha)=map { delete $params{$_}  } (qw(HANDLE_BEFORE_XMLDECL HANDLE_AFTER_XMLDECL));
 	if (ref($hb) eq 'CODE') {
 		$hb->(%params) || return 0;
 	}
@@ -797,12 +797,12 @@ sub _xml_decl {
 
 sub _start_tag {
 	my ($self,$tag,%params)=@_;
-	for my $k qw(XPATH OUTPUT_STREAM TAG) {
+	for my $k(qw(XPATH OUTPUT_STREAM TAG)) {
 		confess "param $k not set\n" unless defined  $params{$k};
 	}
 	$params{XPATH_ARRAY}=[grep(length($_),split("/",$params{XPATH}))];
 	$params{XPATH_LEVEL}=scalar(@{$params{XPATH_ARRAY}});
-	my ($hb,$ha)=map { delete $params{$_}  }  qw(HANDLE_BEFORE_START_NODE HANDLE_AFTER_START_NODE);
+	my ($hb,$ha)=map { delete $params{$_}  } (qw(HANDLE_BEFORE_START_NODE HANDLE_AFTER_START_NODE));
 	if (ref($hb) eq 'CODE') {
 		$hb->($tag,%params) || return 0;
 	}
@@ -820,12 +820,12 @@ sub _start_tag {
 
 sub _end_tag {
 	my ($self,$tag,%params)=@_;
-	for my $k qw(XPATH OUTPUT_STREAM TAG) {
+	for my $k(qw(XPATH OUTPUT_STREAM TAG)) {
 		confess "param $k not set\n" unless defined  $params{$k};
 	}
 	$params{XPATH_ARRAY}=[grep(length($_),split("/",$params{XPATH}))];
 	$params{XPATH_LEVEL}=scalar(@{$params{XPATH_ARRAY}});
-	my ($hb,$ha)=map { delete $params{$_}  }  qw(HANDLE_BEFORE_END_NODE HANDLE_AFTER_END_NODE);
+	my ($hb,$ha)=map { delete $params{$_}  } (qw(HANDLE_BEFORE_END_NODE HANDLE_AFTER_END_NODE));
 	if (ref($hb) eq 'CODE') {
 		$hb->($tag,%params) || return 0;
 	}
@@ -842,12 +842,12 @@ sub _end_tag {
 
 sub _data_element {
 	my ($self,$tag,$value,%params)=@_;
-	for my $k qw(XPATH OUTPUT_STREAM TAG) {
+	for my $k(qw(XPATH OUTPUT_STREAM TAG)) {
 		confess "param $k not set\n" unless defined  $params{$k};
 	}
 	$params{XPATH_ARRAY}=[grep(length($_),split("/",$params{XPATH}))];
 	$params{XPATH_LEVEL}=scalar(@{$params{XPATH_ARRAY}});
-	my ($hb,$ha)=map { delete $params{$_}  }  qw(HANDLE_BEFORE_DATA_ELEMENT HANDLE_AFTER_DATA_ELEMENT);
+	my ($hb,$ha)=map { delete $params{$_}  } (qw(HANDLE_BEFORE_DATA_ELEMENT HANDLE_AFTER_DATA_ELEMENT));
 	$hb->($tag,$value,%params) if ref($hb) eq 'CODE';
 	if (ref($hb) eq 'CODE') {
 		$hb->($tag,$value,%params) || return 0;
@@ -862,10 +862,10 @@ sub _data_element {
 
 sub _end {
 	my ($self,%params)=@_;
-	for my $k qw(OUTPUT_STREAM TAG) {
+	for my $k(qw(OUTPUT_STREAM TAG)) {
 		confess "param $k not set\n" unless defined  $params{$k};
 	}
-	my ($hb,$ha)=map { delete $params{$_}  }  qw(HANDLE_BEFORE_END HANDLE_AFTER_END);
+	my ($hb,$ha)=map { delete $params{$_}  } (qw(HANDLE_BEFORE_END HANDLE_AFTER_END));
 	if (ref($hb) eq 'CODE') {
 		$hb->(%params) || return 0;
 	}
@@ -964,16 +964,16 @@ sub _write_xml {
 					}
 				}
 				elsif (!$col->is_internal_reference) {
-					if (defined $table->get_attrs_value qw(PATH)) {
+					if (defined $table->get_attrs_value(qw(PATH))) {
 						if (!$table->is_type) { 
-							my $xpath=$table->get_attrs_value qw(PATH);
+							my $xpath=$table->get_attrs_value(qw(PATH));
 							my $ns=$self->_get_current_namespace_prefix($params{NS_PREFIXES},$params{TABLE}->get_URI,TAG => __LINE__);
 							my $tag=_tag_with_ns($ns,$col,$xpath);
 							$self->_write_xml(ID => $value,TABLE	=> $table,LEVEL	=> $params{LEVEL} + 1,NS_PREFIXES => $params{NS_PREFIXES},START_TAG => $tag,END_TAG => $tag,XPATH => $xpath);
 						}
 						else {  #the column reference a complex type
 							my $cur=$self->_prepared_query($table,ID => $value,TAG => __LINE__);
-							my $xpath=$col->get_attrs_value qw(PATH);
+							my $xpath=$col->get_attrs_value(qw(PATH));
 							my $ns=$self->_get_current_namespace_prefix($params{NS_PREFIXES},$params{TABLE}->get_URI,TAG => __LINE__);
 							my $tag=_tag_with_ns($ns,$col,$xpath);
 							$self->_prepared_delete($table,ID => $value,TAG => __LINE__) if $p->{DELETE_ROWS};
@@ -1006,7 +1006,7 @@ sub _write_xml {
 				}
 				else   { #the column reference a simple type
 					my $cur=$self->_prepared_query($table,ID => $value,TAG => __LINE__);
-					my $xpath=$col->get_attrs_value qw(PATH);
+					my $xpath=$col->get_attrs_value(qw(PATH));
 					my $ns=$self->_get_current_namespace_prefix($params{NS_PREFIXES},$params{TABLE}->get_URI,TAG => __LINE__);
 					my $tag=_tag_with_ns($ns,$col,$xpath);
 					while (my $r=$cur->fetchrow_arrayref) {

@@ -2,7 +2,7 @@ package blx::xsdsql::generator::sql::generic::handle::insert_dictionary;
 use strict;
 use warnings;
 use Carp;
-use base qw(blx::xsdsql::generator::sql::generic::handle);
+use base(qw(blx::xsdsql::generator::sql::generic::handle));
 
 sub _get_create_prefix {
 	my ($self,%params)=@_;
@@ -55,9 +55,9 @@ sub get_binding_objects  {
 sub first_pass {
 	my ($self,%params)=@_;
 	my $schema=$params{SCHEMA};
-	my $data=$schema->get_dictionary_data qw(SCHEMA_DICTIONARY);
+	my $data=$schema->get_dictionary_data(qw(SCHEMA_DICTIONARY));
 	return $self unless defined $data->{URI};
-	my $dic=$schema->get_dictionary_table qw(SCHEMA_DICTIONARY);
+	my $dic=$schema->get_dictionary_table(qw(SCHEMA_DICTIONARY));
 	my $dic_columns=$dic->get_columns;
 	$self->{STREAMER}->put_line(
 			$self->_get_create_prefix
@@ -75,9 +75,9 @@ sub table_header {
 	my ($self,$table,%params)=@_;
 	my $schema=$params{SCHEMA};
 	croak "param SCHEMA not set " unless defined $schema;
-	my $dic=$schema->get_dictionary_table qw(TABLE_DICTIONARY);
-	confess "not attr TABLE_DICTIONARY set for schema ".$schema->get_attrs_value qw(URI)."\n" unless defined $dic;
-	my $data=$table->get_dictionary_data qw(TABLE_DICTIONARY);
+	my $dic=$schema->get_dictionary_table(qw(TABLE_DICTIONARY));
+	confess "not attr TABLE_DICTIONARY set for schema ".$schema->get_attrs_value(qw(URI))."\n" unless defined $dic;
+	my $data=$table->get_dictionary_data(qw(TABLE_DICTIONARY));
 	my $dic_columns=$dic->get_columns;
 	$self->{STREAMER}->put_line(
 			$self->_get_create_prefix
@@ -89,10 +89,10 @@ sub table_header {
 			,$table->command_terminator
 	);
 
-	$dic=$schema->get_dictionary_table qw(COLUMN_DICTIONARY);
+	$dic=$schema->get_dictionary_table(qw(COLUMN_DICTIONARY));
 	$dic_columns=$dic->get_columns;
 	
-	for my $data($table->get_dictionary_data qw(COLUMN_DICTIONARY)) {
+	for my $data($table->get_dictionary_data(qw(COLUMN_DICTIONARY))) {
 		$self->{STREAMER}->put_line(
 			$self->_get_create_prefix
 			,$dic->get_sql_name
@@ -104,9 +104,9 @@ sub table_header {
 		);
 	}
 
-	$dic=$schema->get_dictionary_table qw(RELATION_DICTIONARY);
+	$dic=$schema->get_dictionary_table(qw(RELATION_DICTIONARY));
 	$dic_columns=$dic->get_columns;
-	for my $data($table->get_dictionary_data qw(RELATION_DICTIONARY)) {
+	for my $data($table->get_dictionary_data(qw(RELATION_DICTIONARY))) {
 		$self->{STREAMER}->put_line(
 			$self->_get_create_prefix
 			,$dic->get_sql_name
