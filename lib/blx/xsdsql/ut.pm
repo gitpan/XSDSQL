@@ -11,7 +11,7 @@ our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
 our @EXPORT = qw( );
 
-our $VERSION = '0.009001';
+our $VERSION = '0.009002';
 
 sub  nvl {
 	return '' if scalar(@_) == 0;

@@ -97,4 +97,7 @@ Revision history for Perl extension blx::xsdsql
 0.09.1 - May 10 18:05 2012 
     - new syntax for perl 5.14
 
+0.09.2 - November 27 - 17:19 2012
+    - package in form tar.gz for win users (suggest from MITHALDU@cpan.org)
+
 
