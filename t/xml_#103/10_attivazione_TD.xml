@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListOfDataExchange>
+	
+	<DataExchangeFisso>   <!-- ERRORE - ATTIVAZIONE GIA ESISTENTE con utente differente -->
+		<AccessoTelefonico>
+			<NumTel>
+				<NumTelCompl>0131226101</NumTelCompl>
+			</NumTel>
+			<CategAbbon>00</CategAbbon>
+			<CodLavoro>01</CodLavoro> 
+			<Data>2006-01-09</Data>
+			<Time>20:51:20</Time>
+		</AccessoTelefonico>
+		<DatiUtente>
+			<Cognome>DIGESÙ</Cognome>
+			<Nome>TRIPLO</Nome>
+			<!-- <Email>muffi@tele2.it</Email> -->
+			<CodFiscale>PRNGDN40A22B345E</CodFiscale>
+			<FlagConsensi>51</FlagConsensi>
+			<FlagAggregCF>0</FlagAggregCF>
+			<FlagAltriCanali>1</FlagAltriCanali>
+			<CodiceOperatoreTLC>TD</CodiceOperatoreTLC>
+		</DatiUtente>
+		<Localita>
+			<CAP>15121</CAP>
+			<Provincia>AL</Provincia>
+			<Comune>ALESSANDRIA</Comune>
+			<PartTopon>V.</PartTopon>
+			<PartTopon>X.</PartTopon>
+			<DescIndirizzo>ISONZO</DescIndirizzo>
+			<NumCivico>2</NumCivico>
+		</Localita>
+		<DatiAccessori>
+			<CodProgressivo>1</CodProgressivo>
+			<NoteP>ID_TELE2:999:ACCOUNT_NUMBER:23520805579</NoteP>
+		</DatiAccessori>
+		<GestioneScarti>
+			<PubblicazioneDatoScarto>0</PubblicazioneDatoScarto>
+		</GestioneScarti>
+	</DataExchangeFisso>
+
+</ListOfDataExchange>
+

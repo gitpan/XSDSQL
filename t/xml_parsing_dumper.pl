@@ -42,7 +42,7 @@ my %H=(
 );
 
 
-unless (getopts ('h',\%Opt)) {
+unless (getopts ('hi',\%Opt)) {
 	print STDERR "option error\n";
 	exit 1;
 }
@@ -52,15 +52,19 @@ if ($Opt{h}) {
 crossing an xml and print on stderr the handlers name and data 
     <options>: 
         -h  - this help
+		-i  - use custom XML::Parser otherwise the standard XML::Parser
     <args>:
         <xml_file>...  - read files 
 \n"; 
     exit 0;
 }
 
+if ($Opt{i}) {
+	eval("use lib qw(../lib)");
+	croak $@ if $@;
+}
 
-
-my $p=XML::Parser->new(Namespaces	=> 0);
+my $p=XML::Parser->new(Namespaces	=> 0,MYPARAM => 'myparam');
 $p->setHandlers(%H);
 
 
@@ -72,13 +76,8 @@ for my $f(@files) {
 	my $tag_file=scalar(@files) < 2  ? "" : "$f "; 
 	my $fd=$f eq '-' ? *STDIN : undef;
 	if (defined $fd || open($fd,'<',$f)) {
-		eval { $p->parse($fd) };
+		$p->parse($fd,MY_PARSE_PARAM => 1);
 		close($fd) if $f ne '-';
-		if ($@) {
-			print STDERR $@,"\n";
-			close $fd;
-			exit 2;
-		}
 	}
 	else {
 		print STDERR "$f: open error: $!\n";

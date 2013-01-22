@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListOfDataExchange>
+	
+	<DataExchangeFisso>   <!-- CESSAZIONE  -->
+		<AccessoTelefonico>
+			<NumTel>
+				<NumTelCompl>0498600123</NumTelCompl>
+			</NumTel>
+			<CategAbbon>01</CategAbbon>
+			<CodLavoro>06</CodLavoro> 
+			<Data>2006-01-09</Data>
+			<Time>18:51:20</Time>
+		</AccessoTelefonico>
+		<DatiUtente>
+			<RagioneSociale>CARTA STRACCI INC</RagioneSociale>
+			<!-- <Email>a_bizzotto@tele2.it</Email> -->
+			<CodFiscale>PRNGDN40A22B345E</CodFiscale>
+			<FlagConsensi>81</FlagConsensi>
+			<FlagAggregCF>0</FlagAggregCF>
+			<FlagAltriCanali>0</FlagAltriCanali>
+			<CodiceOperatoreTLC>TD</CodiceOperatoreTLC>
+		</DatiUtente>
+		<Localita>
+			<CAP>35100</CAP>
+			<Provincia>PD</Provincia>
+			<Comune>PADOVA</Comune>
+			<PartTopon>V.</PartTopon>
+			<PartTopon>X.</PartTopon>
+			<DescIndirizzo>BELZONI</DescIndirizzo>
+			<NumCivico>2</NumCivico>
+		</Localita>
+		<DatiAccessori>
+			<CodProgressivo>1</CodProgressivo>
+			<NoteP>ID_TELE2:9999999:ACCOUNT_NUMBER:111111</NoteP>
+		</DatiAccessori>
+		<GestioneScarti>
+			<PubblicazioneDatoScarto>0</PubblicazioneDatoScarto>
+		</GestioneScarti>
+	</DataExchangeFisso>
+</ListOfDataExchange>
+

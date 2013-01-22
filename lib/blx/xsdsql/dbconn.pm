@@ -42,52 +42,136 @@ sub get_application_string {
 }
 	
 	
-
-sub get_applications_classname {
+{
+	my $cached=0;
 	my @n=();
-	for my $i(@INC) {
-		my $dirgen=File::Spec->catdir($i,'blx','xsdsql','dbconn');
-		next unless  -d "$dirgen";
-		next if $dirgen=~/^\./;
-		next unless opendir(my $fd,$dirgen);
-		while(my $d=readdir($fd)) {
-			my $dirout=File::Spec->catdir($dirgen,$d);
-			next unless -d $dirout;
-			next if $d=~/^\./;
-			next unless opendir(my $fd1,$dirout);
-			while(my $d1=readdir($fd1)) {
-				my $f=File::Spec->catdir($dirgen,$d,$d1);
-				next unless -r $f;
-				next if $d1=~/^\./;
-				next unless $d1=~/\.pm$/;
-				$d1=~s/\.pm$//;
-				push @n,'blx::xsdsql::dbconn::'.$d.'::'.$d1;
+		
+	sub get_applications_classname {
+		if (!$cached) {
+			for my $i(@INC) {
+				my $dirgen=File::Spec->catdir($i,'blx','xsdsql','dbconn');
+				next unless  -d "$dirgen";
+				next if $dirgen=~/^\./;
+				next unless opendir(my $fd,$dirgen);
+				while(my $d=readdir($fd)) {
+					my $dirout=File::Spec->catdir($dirgen,$d);
+					next unless -d $dirout;
+					next if $d=~/^\./;
+					next unless opendir(my $fd1,$dirout);
+					while(my $d1=readdir($fd1)) {
+						my $f=File::Spec->catdir($dirgen,$d,$d1);
+						next unless -r $f;
+						next if $d1=~/^\./;
+						next unless $d1=~/\.pm$/;
+						$d1=~s/\.pm$//;
+						push @n,'blx::xsdsql::dbconn::'.$d.'::'.$d1;
+					}
+					closedir $fd1;
+				}
+				closedir($fd);
 			}
-			closedir $fd1;
+			$cached=1;
 		}
-		closedir($fd);
+		return wantarray ? @n : \@n;
 	}
-	return wantarray ? @n : \@n;
 }
 
-sub get_database_availables {
-	my %db=();
-	for my $n(get_applications_classname) {
-		if ($n=~/::(\w+)::\w+$/) {
-			$db{$1}=undef;
+{
+	my $cached=0;
+	my @db=();
+	sub get_database_availables {
+		if (!$cached) {
+			my %db=();
+			for my $n(get_applications_classname) {
+				if ($n=~/::(\w+)::\w+$/) {
+					$db{$1}=undef;
+				}
+			}
+			@db=sort keys %db;
+			$cached=1;
 		}
+		return @db;		
 	}
-	return keys %db;		
 }
 
-sub get_application_avaliables {
-	my %appl=();
-	for my $n(get_applications_classname) {
-		if ($n=~/::(\w+)$/) {
-			$appl{$1}=undef;
+{
+	my $cached=0;
+	my @appl=();
+	sub get_application_availables {
+		if (!$cached) {
+			my %appl=();
+			for my $n(get_applications_classname) {
+				if ($n=~/::(\w+)$/) {
+					$appl{$1}=undef;
+				}
+			}
+			@appl=sort keys %appl;
+			$cached=1;
 		}
+		return @appl
 	}
-	return keys %appl;			
+}
+
+sub get_application_avaliables { 
+	warn "deprecated method: use get_application_availables"; 
+	goto &get_application_availables; 
+}
+
+=pod
+{
+	my $cached=0;
+	my @db=();
+
+	sub get_database_codes_availables {
+		if (!$cached) {
+			my %db=();
+			for my $n(get_applications_classname) {
+				my $m=$n.'::get_code';
+				my $eval_code="
+					use $n;
+					&$m;
+				";
+		#		print STDERR $eval_code,"\n";
+				my $code=eval($eval_code);		
+		#		print STDERR $@ if $@;
+				$db{$code}=undef if !$@ && defined $code && length($code);
+			}
+			@db=sort keys %db;
+			$cached=1;
+		}
+		return @db;
+	}
+}
+=cut
+
+
+
+{
+	my %info=();
+	my $cached=0;
+	sub get_info {
+		if (!$cached) {
+			for my $n(get_applications_classname) {
+				my $m=$n.'::get_code';
+				my $eval_code="
+					use $n;
+					&$m;
+				";
+				my $code=eval($eval_code);		
+				my($dbtype,$application)=$n=~/(\w+)::(\w+)$/;
+				if (defined $dbtype) {
+					$info{$dbtype}->{$application}={
+						CLASSNAME 		=> $n
+						,DBTYPE			=> $dbtype
+						,APPLICATION 	=> $application
+						,CODE			=> $code
+					}
+				}
+			}
+		}
+		$cached=1;
+		return \%info;
+	}
 }
 
 1;
@@ -98,7 +182,8 @@ __END__
 =head1 NAME
 
 blx::xsdsql::dbconn  -  convert database connection string into specific application form
-
+						the application is for example dbi
+						
 =head1 SYNOPSIS
 
 use blx::xsdsql::dbconn
@@ -139,15 +224,34 @@ get_applications_classname - return the classes associated to an application
 	this method is a class method 
 	
 
-get_database_availables - return the database types avalilables 
+get_application_avaliables - return the application code availables - Ex dbi 
+                             this method is deprecated - use get_application_availables
 
 	PARAMS: none
 	
 	this method is a class method 
 
 
+get_application_availables - return the application code availables - Ex dbi 
+
+	PARAMS: none
+	
+	this method is a class method 
+
+get_database_availables - return the database types availables - Ex: pg
+
+	PARAMS: none
+	
+	this method is a class method 
 
 
+get_info - return the info (an hash pointer) for databases and application  availables 
+
+	PARAMS: none
+	
+	this method is a class method 
+
+	
 =head1 EXPORT
 
 None by default.

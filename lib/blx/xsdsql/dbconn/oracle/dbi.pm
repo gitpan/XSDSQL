@@ -6,17 +6,24 @@ use integer;
 use base qw(blx::xsdsql::dbconn::generic);
 
 use constant {
-		DBI_TYPE  => 'dbi:Oracle'
+		CODE  => 'dbi:Oracle'
 };
 
 sub _get_as {
 	my ($self,$h,%params)=@_;
 	my @args=();
-	push @args,DBI_TYPE.':'.$h->{DBNAME};
+	my $s=CODE.':';
+	$s.="host=".$h->{HOST}.';' if defined $h->{HOST};
+	$s.="sid=".$h->{DBNAME}.';' if defined $h->{DBNAME};
+	$s.="port=".$h->{PORT}.';' if defined $h->{PORT};
+	push @args,$s;
 	push @args,$h->{USER};
 	push @args,$h->{PWD};
 	return @args;
 }
+
+sub get_code { return CODE; }
+
 
 1;
 

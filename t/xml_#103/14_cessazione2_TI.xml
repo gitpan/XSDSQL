@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListOfDataExchange>
+	
+	<DataExchangeFisso>   
+		<AccessoTelefonico>
+			<NumTel>
+				<Prefix>0331</Prefix>
+				<NumTel>404921</NumTel>
+			</NumTel>
+			<CategAbbon>01</CategAbbon>
+			<CodLavoro>06</CodLavoro> 
+			<Data>2006-10-18</Data>
+			<Time>18:51:20</Time>
+		</AccessoTelefonico>
+		<DatiUtente>
+			<RagioneSociale>PIPPO</RagioneSociale>
+			<RagioneSociale>PLUTO</RagioneSociale>
+			<Email>a_bizzotto@tele2.it</Email>
+			<CodFiscale>PRNGDN40A22B345E</CodFiscale>
+			<FlagConsensi>81</FlagConsensi>
+			<FlagAggregCF>0</FlagAggregCF>
+			<FlagAltriCanali>0</FlagAltriCanali>
+			<CodiceOperatoreTLC>TI</CodiceOperatoreTLC>
+		</DatiUtente>
+		<Localita>
+			<CAP>37126</CAP>
+			<Provincia>VR</Provincia>
+			<Comune>VERONA</Comune>
+			<PartTopon>V.</PartTopon>
+			<PartTopon>X.</PartTopon>
+			<DescIndirizzo>ISONZO</DescIndirizzo>
+			<NumCivico>2</NumCivico>
+		</Localita>
+		<DatiAccessori>
+			<CodProgressivo>12</CodProgressivo>
+		</DatiAccessori>
+		<GestioneScarti>
+			<PubblicazioneDatoScarto>0</PubblicazioneDatoScarto>
+		</GestioneScarti>
+	</DataExchangeFisso>
+
+</ListOfDataExchange>
+

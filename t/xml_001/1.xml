@@ -1,3 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<simple_schema>ciao bello </simple_schema>
+<!-- lomg commento 
+
+   fine long commento -->
+   
+<simple_schema>à&#8364;</simple_schema>

@@ -2,7 +2,7 @@ package blx::xsdsql::generator;
 use strict;
 use warnings;
 use Carp;
-use Data::Dumper;
+use File::Spec;
 
 use blx::xsdsql::ut qw(nvl ev);
 use base qw(blx::xsdsql::log blx::xsdsql::common_interfaces);

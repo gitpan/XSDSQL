@@ -45,7 +45,7 @@
 
 	<customSimpleType>12</customSimpleType>
 	<customSimpleType1>13</customSimpleType1>
-	<customSimpleType2>13000</customSimpleType2>
+	<customSimpleType2>xàbcìùòx&gt;&#8364;&#x20AC;</customSimpleType2>
 	<customSimpleType3>999</customSimpleType3>
 	<customSimpleType4>AA</customSimpleType4>
 </Types>

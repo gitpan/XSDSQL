@@ -25,12 +25,15 @@ DEPENDENCIES
 
 This module requires these other modules and libraries:
 
-	XML::Parser => '1.21' 
-	XML::Writer => '0.600'
-	DBI	    => '1.58'
-
+	XML::Parser 	=> '1.21' 
+	XML::Writer 	=> '0.600'
+	DBI	    		=> '1.58'
+    Test::Database	=> '1.11.1'
+    
+    
 For the connection to a database  the module DBI (version 1.58 or better) 
-and the driver of the appropriate database are  required. 
+and the driver of the appropriate database are  required.
+The database supported is only oracle and postgresql
 
 After the installation the directory $PREFIX/bin contain two example of programs:
 	xsd2sql - convert a xsd file into a database schema (text file with prefix .sql)

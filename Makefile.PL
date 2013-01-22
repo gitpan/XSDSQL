@@ -1,9 +1,10 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 use 5.008000;
 use strict;
 use warnings;
 use ExtUtils::MakeMaker;
 use Getopt::Long qw(GetOptions);
+use File::Copy;
 
 GetOptions(\my %opt,
    'no-programs|n'
@@ -24,17 +25,23 @@ WriteMakefile(
 	NAME              => 'blx::xsdsql'
 	,VERSION_FROM      => 'lib/blx/xsdsql/ut.pm'
 	,PREREQ_PM         => { 
-						  'XML::Parser' => '1.21' 
-						, 'XML::Writer' => '0.600'
-						, 'DBI'		=> '1.58'
+						  'XML::Parser' 	=> '1.21' 
+						, 'XML::Writer' 	=> '0.600'
+						, 'DBI'			=> '1.58'
+						, 'Test::Database' 	=> '1.11'
 	}
 	,LICENSE => "perl"
 	,EXE_FILES => [ map "bin/$_", @prog ]
 	,($] >= 5.005 ?     ## Add these new keywords supported since 5.005
 		(
-			ABSTRACT 	=> 'xsd converter to relational database  objects; xml  load & unload from/to the database'
-			,AUTHOR         => 'lorenzo.bellotti <pauseblx@gmail.com>'
+			ABSTRACT 	=> 'xml schema (xsd) converter to relational database  objects (database supported are oracle and postgresql); xml put and get from/to the database'
+			,AUTHOR         => 'lorenzo bellotti <pauseblx@gmail.com>'
 		) : ()
 	)
-	,clean => { FILES => "  t/xml_*/*.sql   t/xml_*/*.diff t/xml_*/*.tmp  t/xml_*/.step t/.strconn " }
+	,clean => { FILES => "  *.old t/xml_*/*.sql   t/xml_*/*.diff t/xml_*/*.tmp  t/xml_*/.step* t/.strconn " }
 );
+
+
+move("MYMETA.yml","META.yml");
+exit 0;
+

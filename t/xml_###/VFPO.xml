@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<VerificaProgrammazioneOlo>  
+	<VerificaFileProgrammazioneWLR>
+		<CodiceArea>CCCC</CodiceArea>
+		<DescrizioneArea>DescrizioneArea</DescrizioneArea>
+		<QuantitaRichiesta>0</QuantitaRichiesta>
+		<CodiceRifiuto>7777</CodiceRifiuto>
+		<MotivoRifiuto>MotivoRifiuto</MotivoRifiuto>
+	</VerificaFileProgrammazioneWLR>
+</VerificaProgrammazioneOlo>

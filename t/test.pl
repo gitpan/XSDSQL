@@ -7,8 +7,10 @@ use English '-no_match_vars';
 use Carp;
 use Getopt::Std;
 use File::Spec;
+use Cwd;
 use Data::Dumper;
 use DBI;
+use Test::Database;
 
 use blx::xsdsql::dbconn;
 use blx::xsdsql::ut qw(nvl);
@@ -17,7 +19,7 @@ use constant {
 	DIR_PREFIX				=> 'xml_'
 	,STRCONN_FILE			=> '.strconn'
 	,APPLICATION			=> 'dbi'
-	,STEP_FILE				=> '.step'
+	,STEP_FILE_PREFIX		=> '.step_'
 	,CUST_PARAMS_FILE		=> 'custom_params'
 };
 
@@ -30,9 +32,7 @@ sub debug {
 
 sub xsd2sql { 
 	my %params=@_;
-	$params{DB_CONNECTION_STRING}=~/^(\w+):/;
-	croak $params{DB_CONNECTION_STRING}.": internal error" unless defined $1;
-	my ($typefile,$typedb)=('sql',$1);
+	my ($typefile,$typedb)=('sql',$params{DBTYPE});
 	my %ret=(
 		NAMESPACE 		=>  $typefile.'::'.$typedb
 		,DB_TYPE		=>	$typedb
@@ -47,17 +47,17 @@ sub xsd2sql {
 		."" 
 		." '".$params{SCHEMA_FILE}."'";
 	my @args=qw(drop_table create_table addpk drop_sequence create_sequence drop_view create_view drop_dictionary create_dictionary insert_dictionary);
+	my $rinchi="_".$typedb;
 	unless ($params{XSD2SQL_ONE_PASS}) {
 		for my $c (@args) {
-			$ret{$c}="${c}.sql";
+			$ret{$c}="${c}${rinchi}.sql";
 			my $cmd=$pcmd." '${c}'  > ".$ret{$c};
 			debug(__LINE__,$cmd) if $params{DEBUG};
 			system($cmd);
 			return (%ret,ERR_MSG => "$cmd: execution error") if $?;
 		}				
 	}
-	else {
-		my $rinchi="";
+	{
 		my $cmd=$pcmd.' '.join(' ',map { "'".$_."'" } grep(/^drop/,@args)).' > all_drops'.$rinchi.'.sql';
 		debug(__LINE__,$cmd) if $params{DEBUG};
 		system($cmd);
@@ -78,7 +78,8 @@ sub isql {
 	$file=~s/^\s*//;
 	$file=~s/\s*$//;
 	confess "internal error: param FILE not set" unless $file;
-	my $cmd="perl ../isql.pl -c '".$params{DB_CONNECTION_STRING}."' -t c $x '$file'";
+	my $utd=$params{USE_TEST_DATABASE} ? ' -e ' : '';
+	my $cmd="perl ../isql.pl -c '".$params{DB_CONNECTION_STRING}."' $utd -t c $x '$file'";
 	debug(__LINE__,$cmd) if $params{DEBUG};
 	system($cmd);
 	my $rc=$?;
@@ -91,8 +92,19 @@ sub isql {
 
 sub xml_load { #xml load & write & compare
 	my %params=@_;
-	my ($typedb,$conn)=$params{DB_CONNECTION_STRING}=~/^(\w+):(.*)$/;
-	croak $params{DB_CONNECTION_STRING}.": internal error" unless defined $typedb;
+	my $utd=$params{USE_TEST_DATABASE} ? ' -e ' : '';
+	my ($typedb,$conn)=sub {
+		my @out=();
+		if ($params{USE_TEST_DATABASE}) {
+			@out=($params{DBTYPE},$params{DB_CONNECTION_STRING});
+		}
+		else {
+			@out=$params{DB_CONNECTION_STRING}=~/^(\w+):(.*)$/;
+			croak $params{DB_CONNECTION_STRING}.": internal error" unless scalar @out;
+			croak $params{DB_CONNECTION_STRING}.": internal error" unless $out[0] eq $params{DBTYPE};
+		}
+		return @out;
+	}->();
 	my $db_command="c";
 	my $pcmd="perl -MCarp=verbose ../xml.pl -c '$conn' "
 							." -p '".$params{PREFIX_TABLES}."' "
@@ -100,6 +112,8 @@ sub xml_load { #xml load & write & compare
 							." -q '".$params{PREFIX_SEQUENCE}."' "
 							." -n '$typedb' "
 							." -t '".$params{TRANSACTION_MODE}."' "
+							.$utd
+							.($params{DBTYPE}=~/oracle/i ? ' -u ' : '') #force utf8 in XML::Writer for oracle database 
 							.($params{ROOT_TAG_PARAMS} ? " -x ".$params{ROOT_TAG_PARAMS} : "")
 							.($params{DEBUG} ? " -d " : "")
 							.($params{WRITER_UTF8} ? " -u " : "")
@@ -187,7 +201,7 @@ my @STEPS=(
 			my %ret=xsd2sql(%params);
 			return %ret unless $params{XSD2SQL_ONE_PASS};
 			return %ret if $ret{ERR_MSG};
-			my $rinchi="";
+			my $rinchi="_".$params{DBTYPE};
 			%ret=isql(%params,FILE => 'all_drops'.$rinchi.'.sql',DROP => 1);
 			return %ret if scalar(keys %ret);
 			return isql(%params,FILE => 'all_creates'.$rinchi.'.sql');
@@ -277,7 +291,8 @@ my @STEPS=(
 		,F => sub { return xml_load(@_); }
 	}
 );	
-	
+
+
 my %OPERATIONS=map {
 		my $p=$STEPS[$_];
 		($p->{NAME},$_,$p->{SH_NAME},$_);
@@ -297,7 +312,7 @@ sub get_operations {
 }
 
 my %Opt=();
-unless (getopts ('hdrRcCTeiuo:f:t:b:a:p:v:XSx:K',\%Opt)) {
+unless (getopts ('hdrRcCTeiuo:f:t:b:a:p:v:XSx:KDF',\%Opt)) {
 	 print STDERR "invalid option or option not set\n";
 	 exit 1;
 }
@@ -338,10 +353,12 @@ $0  [<options>] [<args>]..
                     false is no limit (the default)
     -o  - execute only the target operation
         <op> must be ".join("|",map { ($_->{NAME},$_->{SH_NAME}) } @STEPS)." 
+    -D  - do not use Test::Database for get connection but the old method
+    -F  - do not clean the database on the end of tests
 arguments>:
     <testnumber>|<testnumber>-<testnumber>...
     if <testnumber> is not spec all tests can be executed
-
+    if the test is OK the database is cleaned (see option -F)
 "; 
     exit 0;
 }
@@ -381,8 +398,8 @@ sub xprint {
 }
 
 sub store_step {
-	my %params=@_;
-	my $fd=xopen('>',STEP_FILE);
+	my ($dbcode,%params)=@_;
+	my $fd=xopen('>',STEP_FILE_PREFIX.$dbcode);
 	for my $k(keys %params) {
 		xprint($fd,$k,' ',$params{$k},"\n") if defined $params{$k} && ref($params{$k}) eq '';
 	}
@@ -391,13 +408,15 @@ sub store_step {
 }
 
 sub get_last_step {
-	unless (-e STEP_FILE) {
+	my $dbcode=shift;
+	my $step_file=STEP_FILE_PREFIX.$dbcode;
+	unless (-e $step_file) {
 		my %params=@_;
 		$params{LAST_STEP}=0;
-		store_step(%params);
+		store_step($dbcode,%params);
 	}
 	my %params=();
-	my $fd=xopen('<',STEP_FILE);
+	my $fd=xopen('<',$step_file);
 	while(<$fd>) {
 		chop;
 		/^(\w+)\s+(.*)$/;
@@ -408,13 +427,14 @@ sub get_last_step {
 }
 
 sub do_test {
-	my %p=@_;
+	my (%p)=@_;
+	my $dbcode=$p{DBTYPE};
 	my $not_store_params=delete $p{NOT_STORE_PARAMS};
 	if ($not_store_params->{CLEAN}) {
 		if (opendir(my $d,'.')) {
 			while(my $f=readdir($d)) {
 				next if -d $f;
-				if ($f=~/\.(diff|tmp|sql)$/i || $f eq STEP_FILE) {
+				if ($f=~/\.(diff|tmp|sql)$/i || $f eq STEP_FILE_PREFIX.$dbcode) {
 					debug(__LINE__,"remove file $f") if $not_store_params->{DEBUG};
 					unless (unlink $f) {
 						print STDERR "$f: cannot remove: $!\n";
@@ -428,9 +448,17 @@ sub do_test {
 			exit 1;	
 		}
 	}	
-	unlink(STEP_FILE) if $not_store_params->{RESET};
+	if ($not_store_params->{RESET}) {
+		if  (opendir(my $fd,'.')) {
+			while(my $d=readdir($fd)) {
+				next unless $d=~/^\.step/;
+				unlink($d);
+			}
+			closedir($fd);
+		}
+	}
 	return 1 if $not_store_params->{NOT_EXECUTE};
-	my %params=get_last_step(%p);
+	my %params=get_last_step($dbcode,%p);
 	my @operations=split(',',nvl($p{OPERATIONS},''));
 	for my $i(0..scalar(@operations) - 1) {
 		my $step=$operations[$i];
@@ -447,7 +475,7 @@ sub do_test {
 		}
 		if ($ret{ERR_MSG}) {
 			print STDERR "test failed: ",$ret{ERR_MSG},"\n";
-			store_step(%params,LAST_STEP => $step) if $step > $params{LAST_STEP};
+			store_step($dbcode,%params,LAST_STEP => $step) if $step > $params{LAST_STEP};
 			exit 1;
 		}
 		for my $k (keys %ret) {
@@ -459,19 +487,22 @@ sub do_test {
 		print STDERR " passed\n";
 	}
 	my $step=scalar(@STEPS);
-	store_step(%params,LAST_STEP => $step) if $step > $params{LAST_STEP};
+	store_step($dbcode,%params,LAST_STEP => $step) if $step > $params{LAST_STEP};
 	return 1;
 }
 
-sub test_db_connection {
-	my $strconn=shift;
-	my $conn=eval {  DBI->connect(@_) };
-	if ($@ || !defined $conn) {
-		print STDERR $@;
-		print STDERR "$strconn: wrong connect string\n";
-		return 0;
+sub test_db_connections {
+	for my $c(@_) {
+		my @c=@$c;
+		my $strconn=shift @c;
+		my $conn=eval {  DBI->connect(@c) };
+		if ($@ || !defined $conn) {
+			print STDERR $@;
+			print STDERR "$strconn: wrong connect string\n";
+			return 0;
+		}
+		$conn->disconnect;
 	}
-	$conn->disconnect;
 	return 1;
 }
 
@@ -491,6 +522,19 @@ sub get_message {
 	}
 	push @f,"\n"  unless scalar(@f);
 	return wantarray ? @f : \@f;
+}
+
+sub get_db_connection_string {
+	my $strconn=shift;
+	return $strconn->[0] if $Opt{D};
+	my ($code)=$strconn->[1]=~/^\w+:(\w+)/;
+	return $code;
+}
+
+sub get_dbtype {
+	my $strconn=shift;
+	my ($dbtype)=$strconn->[0]=~/^(\w+)/;
+	return $dbtype;
 }
 
 ### main ####
@@ -546,11 +590,16 @@ unless (scalar(@testdirs)) {
 
 $Opt{NOT_EXECUTE}=1 if $Opt{C} || $Opt{R} || $Opt{T};
 
-my @strconn=sub {
+my @strconn=$Opt{NOT_EXECUTE} ? () : $Opt{D} ? sub {
 	my $connstr=$ENV{DB_CONNECT_STRING};
-	return ($connstr)  if $connstr;
+	return ([$connstr])  if $connstr;
 	unlink(STRCONN_FILE) if $Opt{c} || $Opt{C};
 	return () if $Opt{NOT_EXECUTED};
+	my %app=map {  ($_,1) } blx::xsdsql::dbconn::get_application_availables;
+	unless ($app{&APPLICATION}) {
+		print STDERR "the application '&APPLICATION' is not available\n";
+		exit 1;
+	}
 	my $dbconn=blx::xsdsql::dbconn->new;
 	while (! -e STRCONN_FILE) {
 		my @db_aval=blx::xsdsql::dbconn::get_database_availables();
@@ -591,17 +640,64 @@ my @strconn=sub {
 	if (open(my $fd,'<',STRCONN_FILE)) {
 		my @l=map { chop($_); $_; } <$fd>;
 		close $fd; 
-		return @l;
+		return (\@l);
 	}
 	else {
 		print STDERR STRCONN_FILE,": $!\n";
 		exit 1;				
 	}
 	croak "internal error";
+}->()
+
+: 
+
+sub {  #return the connection string from Test::Database
+		my $info=blx::xsdsql::dbconn::get_info;
+		my %dbtype=();
+		for my $dbtype(keys %$info) {
+			my $h=$info->{$dbtype};
+			for my $appl(keys %$h) {
+				my $data=$h->{$appl};
+				$dbtype{$data->{CODE}}=$data;
+			}
+		}
+		my @dbcodes=keys %dbtype;
+#		my @dbcodes=blx::xsdsql::dbconn::get_database_codes_availables;
+		unless (@dbcodes) {
+			print STDERR "no database codes available - the package is installed correctly and is into PERL5LIB ?\n";
+			exit 1;
+		}
+		Test::Database->load_drivers;
+		my @config_file=grep(defined $_ && length($_),($ENV{TEST_DATABASE_CONFIG})); 
+		Test::Database->load_config(@config_file);
+		my @params=map { /^dbi:(\w+)/ ? { dbd => $1 } : () } @dbcodes;
+		unless (@params) {
+			print STDERR "no dbi database availables - internal error ?\n";
+			exit 1;
+		}
+		
+		my @handle = Test::Database->handles(@params);
+		unless(@handle) {
+			print STDERR "Test::Database not offer connections - configure it\n"; 
+			exit 1;
+		}
+		
+		return map {  
+			my @ci=$_->connection_info;
+			my ($code,$oth)=$ci[0]=~/^(\w+:\w+)(.*)/;
+			my @out=();
+			if (defined $code) {
+				my $dbt=$dbtype{$code}->{DBTYPE};
+				push @out,$dbt.$oth;
+				push @out,@ci;
+			}
+			\@out;
+		} @handle;		
 }->();
 
+			
 unless ($Opt{NOT_EXECUTE}) {
-	test_db_connection(@strconn)  || exit 1;
+	test_db_connections(@strconn)  || exit 1;
 }
 
 my $startdir=File::Spec->rel2abs(File::Spec->curdir);
@@ -644,69 +740,123 @@ my %not_store_params=(
 						,XMLDIFF						=> $Opt{X} ? 0 : 1
 						,XSD2SQL_ONE_PASS				=> $Opt{S} ? 0 : 1
 						,OK_FOR_DIFF					=> $Opt{K}
+						,USE_TEST_DATABASE				=> $Opt{D} ? 0 : 1
 );
-	
+
+my $cwd=getcwd;
+
 for my $n(@testdirs) { 
 	my $testdir=DIR_PREFIX.$n;
-	print STDERR "test number $n - ";
-	unless (chdir $testdir) {
-		print STDERR "(W) $testdir: $!\n";
-		next;
-	}
-
-	print STDERR get_message;
-	my %test_params=(
-		SCHEMA_FILE					=> 'schema.xsd'
-		,TEST_NUMBER 				=> $n
-		,DB_CONNECTION_STRING 		=> $strconn[0]
-		,PREFIX_VIEWS 				=> 'V'.$n.'_'
-		,PREFIX_TABLES 				=> 'T'.$n.'_'
-		,PREFIX_SEQUENCE			=> 'S'.$n.'_'
-		,NOT_STORE_PARAMS			=> { %not_store_params }
-		,OPERATIONS					=> join(',',@operations)
-		,ROOT_TAG_PARAMS			=> $Opt{x}
-	);
-
-	if (-r CUST_PARAMS_FILE) {
-		if (open(my $fd,'<',CUST_PARAMS_FILE)) {
-			while(<$fd>) {
-				next if /^\s*#/;
-				next if /^\s*$/;
-				if (/^\s*(\w+)\s+(.*)$/) {
-					my $fl=1;
-					my ($k,$v)=($1,$2);
-					if (grep($_ eq $k,keys %test_params)) {
-						if ($k eq 'NOT_STORE_PARAMS') {
-							$fl=0;
+	for my $strconn(@strconn) {
+		unless (chdir $testdir) {
+			print STDERR "(W) $testdir: $!\n";
+			next;
+		}
+		print STDERR "test number $n - ";
+		my $code=sub {
+			my @out=();
+			if ($Opt{D}) {
+				@out=$strconn->[0]=~/^(\w+)/;
+			}
+			else {
+				@out=$strconn->[1]=~/^\w+:(\w+)/;
+			}
+			$out[0];
+		}->();
+		print STDERR " database $code - ";
+		print STDERR get_message;
+		
+		my %test_params=(
+			SCHEMA_FILE					=> 'schema.xsd'
+			,TEST_NUMBER 				=> $n
+			,DB_CONNECTION_STRING 		=> get_db_connection_string($strconn)
+			,PREFIX_VIEWS 				=> 'V'.$n.'_'
+			,PREFIX_TABLES 				=> 'T'.$n.'_'
+			,PREFIX_SEQUENCE			=> 'S'.$n.'_'
+			,NOT_STORE_PARAMS			=> { %not_store_params }
+			,OPERATIONS					=> join(',',@operations)
+			,ROOT_TAG_PARAMS			=> $Opt{x}
+			,DBTYPE						=> get_dbtype($strconn)
+		);
+		if (-r CUST_PARAMS_FILE) {
+			if (open(my $fd,'<',CUST_PARAMS_FILE)) {
+				while(<$fd>) {
+					next if /^\s*#/;
+					next if /^\s*$/;
+					if (/^\s*(\w+)\s+(.*)$/) {
+						my $fl=1;
+						my ($k,$v)=($1,$2);
+						if (grep($_ eq $k,keys %test_params)) {
+							if ($k eq 'NOT_STORE_PARAMS') {
+								$fl=0;
+							}
+							else {
+								$test_params{$k}=$v;
+							}
+						}
+						elsif (grep($_ eq $k,keys %not_store_params)) { 
+							$test_params{NOT_STORE_PARAMS}->{$k}=$v;
 						}
 						else {
-							$test_params{$k}=$v;
+							$fl=0;
 						}
-					}
-					elsif (grep($_ eq $k,keys %not_store_params)) { 
-						$test_params{NOT_STORE_PARAMS}->{$k}=$v;
+						print STDERR CUST_PARAMS_FILE,": (W) unknow  key $k in line $NR\n" unless $fl;
 					}
 					else {
-						$fl=0;
+						print STDERR CUST_PARAMS_FILE,": (W) wrong  line $NR\n";
 					}
-					print STDERR CUST_PARAMS_FILE,": (W) unknow  key $k in line $NR\n" unless $fl;
 				}
-				else {
-					print STDERR CUST_PARAMS_FILE,": (W) wrong  line $NR\n";
-				}
+				close $fd;
 			}
-			close $fd;
+			else {
+				print STDERR CUST_PARAMS_FILE,": (W) $!\n";
+			}
 		}
-		else {
-			print STDERR CUST_PARAMS_FILE,": (W) $!\n";
+		
+		do_test(%test_params);
+
+		unless (chdir $cwd) {
+			print STDERR "(E) $cwd: $!\n";
+			exit 1
 		}
 	}
-	
-	do_test(%test_params);
+}
 
-	unless (chdir $startdir) {
-		print STDERR "(W) $startdir: $!\n";
-		exit 1
+unless  ($Opt{F} ||  $Opt{R} || $Opt{T}) {
+	for my $n(@testdirs) { 
+		my $testdir=DIR_PREFIX.$n;
+		for my $strconn(@strconn) {
+			unless (chdir $testdir) {
+				print STDERR "(W) $testdir: $!\n";
+				next;
+			}
+			my $dbtype=get_dbtype($strconn);
+			print STDERR "test number $n - clean database $dbtype\n";
+			my %test_params=(
+				%not_store_params
+				,SCHEMA_FILE				=> 'schema.xsd'
+				,TEST_NUMBER 				=> $n
+				,USE_TEST_DATABASE			=> $Opt{D} ? 0 : 1
+				,DB_CONNECTION_STRING 		=> get_db_connection_string($strconn)
+				,PREFIX_VIEWS 				=> 'V'.$n.'_'
+				,PREFIX_TABLES 				=> 'T'.$n.'_'
+				,PREFIX_SEQUENCE			=> 'S'.$n.'_'
+				,ROOT_TAG_PARAMS			=> $Opt{x}
+				,DBTYPE						=> $dbtype
+			);
+						
+			my $rinchi="_".$test_params{DBTYPE};
+			my %ret=isql(%test_params,FILE => 'all_drops'.$rinchi.'.sql',DROP => 1);
+			if ($ret{WARN_MSG}) {
+				print STDERR "(W) ",$ret{WARN_MSG},"\n";
+			}
+			if ($ret{ERR_MSG}) {
+				print STDERR "(W) clean database failed: ",$ret{ERR_MSG},"\n";
+			}
+			unless (chdir $cwd) {
+				print STDERR "(W) $cwd: $!\n";
+			}			
+		}
 	}
 }
 

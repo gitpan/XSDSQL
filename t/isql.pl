@@ -7,6 +7,8 @@ use strict;
 use warnings;
 use integer;
 use English '-no_match_vars';
+use Test::Database;
+use blx::xsdsql::dbconn;
 
 sub new {
 	my ($class,%params)=@_;
@@ -245,7 +247,7 @@ sub do_other {
 }
 
 my %Opt=();
-unless (getopts ('hdc:n:lat:Is:XR',\%Opt)) {
+unless (getopts ('hdc:n:lat:Is:XRe',\%Opt)) {
 	print STDERR "invalid option or option not set - use $0 -h for help\n";
 	exit 1;
 }
@@ -259,6 +261,7 @@ if ($Opt{h}) {
 			-c - connect string to database - the default is the value of the env var DB_CONNECT_STRING
 				otherwise is an error
 			     the form is  [<dbtype>:]<user>/<password>\@<dbname>[:<hostname>[:<port>]]>
+			     if option e is set the parameter of this option is the database name 
 			-n <database_type> - the default is the value of the env var DB_TYPE otherwise is an error
 			-l - list the know database types and exit with 0 
 			-a - enable autocommit
@@ -269,6 +272,7 @@ if ($Opt{h}) {
 			-s <term> - sql command terminator - the default is the env var SQL_COMMAND_TERMINATOR
 						else a puntuation char ';'
 			-R - issue a rollback on error  
+			-e - use Test::Database for connection
 		<file> - read the sql commands for <file> - the default is the stdin
 		the return code is 0 for ok with commit, 1 exit after a rollback, 2 exit after a sql error 
 	"; 
@@ -288,16 +292,54 @@ if ($Opt{l}) {
 
 $Opt{c}=$ENV{DB_CONNECT_STRING} unless defined $Opt{c};
 unless ($Opt{c}) { print STDERR "connection string not spec - see c option\n"; exit 1; }
-my ($dbtype,$connstr)=$Opt{c}=~/^(\w+):(.*)$/;
-if (defined $dbtype && defined $Opt{n} && $dbtype ne $Opt{n}) {
-	print STDERR "dbtype in the option c is incongruent with the value of the option n\n";
-	exit 1;
-}
+
+my ($dbtype,$connstr)=sub {
+	my ($conn,$testdb)=@_;
+	my @out=();
+	if ($testdb) {
+		my $info=blx::xsdsql::dbconn::get_info;
+		my %dbtype=();
+		for my $dbtype(keys %$info) {
+			my $h=$info->{$dbtype};
+			for my $appl(keys %$h) {
+				my $data=$h->{$appl};
+				$dbtype{$data->{CODE}}=$data;
+			}
+		}
+		unless (keys %dbtype) {
+			print STDERR "no database codes available - the package is installed correctly and is into PERL5LIB ?\n";
+			exit 1;
+		}		
+		Test::Database->load_drivers;
+		my @config_file=grep(defined $_ && length($_),($ENV{TEST_DATABASE_CONFIG})); 
+		Test::Database->load_config(@config_file);
+		my @handle = Test::Database->handles({ dbd => $conn});
+		unless(@handle) {
+			print STDERR "Test::Database not offer connections - configure it\n"; 
+			exit 1;
+		}
+		my @ci=$handle[0]->connection_info;
+		my ($code)=$ci[0]=~/^(\w+:\w+)/;
+		$out[0]=$dbtype{$code};
+		$out[1]=\@ci;
+	}
+	else {
+		@out=$conn=~/^(\w+):(.*)$/;
+	}
+	return @out;
+}->($Opt{c},$Opt{e});
+
 $Opt{c}=$connstr if defined $connstr;
 $dbtype=$Opt{n} unless defined $dbtype;
 $dbtype=$ENV{DB_TYPE} unless defined $dbtype;
 unless ($dbtype) { print STDERR "dbtype is not spec - see n option\n"; exit 1; }
 
+if (defined $Opt{n} && $dbtype ne $Opt{n}) {
+	print STDERR "dbtype in the option c is incongruent with the value of the option n\n";
+	exit 1;
+}
+
+		
 $Opt{s}=$ENV{SQL_COMMAND_TERMINATOR} unless $Opt{s};
 $Opt{s}=DEFAULT_TERMINATOR unless $Opt{s};
 unless ($Opt{s} =~/^[;?^~$%@#]$/) { print STDERR $Opt{s},": invalid terminator char\n"; exit 1; }
@@ -315,7 +357,9 @@ for my $file(@ARGV) { #test the files
 	}
 }
 
-my @dbi_params=blx::xsdsql::dbconn->get_application_string($Opt{c},APPLICATION => 'dbi',DBTYPE => $dbtype);
+my @dbi_params=$Opt{e} 
+	? @{$Opt{c}}
+	: blx::xsdsql::dbconn->get_application_string($Opt{c},APPLICATION => 'dbi',DBTYPE => $dbtype);
 unless (scalar(@dbi_params)) {
 	print STDERR $Opt{c},": connection string is not correct\n";
 	exit 1;

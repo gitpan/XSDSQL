@@ -101,3 +101,16 @@ Revision history for Perl extension blx::xsdsql
     - package in form tar.gz for win users (suggest from MITHALDU@cpan.org)
 
 
+0.09.3 - January 20 - 18:00 2013 
+	- new class method blx::xsdsql::dbconn::get_info
+	- the method  blx::xsdsql::dbconn::get_application_avaliables is deprecated, use the new method get_application_availables
+	- the class methods get_applications_classname,get_database_availables,get_application_avaliables 
+	  of the class blx::xsdsql::dbconn are cached and return a sorted array 
+	- the regression test use Test::Database for default (suggest from  CHORNY@cpan.org)
+	- test.pl - new option D (do not use Test::Database for connection but the old method)
+	- test.pl - new option F (do not clean the database after tests end)
+	- isql.pl - new option e (use Test::Database for connection)
+	- xml.pl  - new option e (use Test::Database for connection)
+	- correct bug to retrieve connection string in blx::xsdsql::dbconn::oracle::dbi
+    - adding META.yml (suggest from  CHORNY@cpan.org)
+    - for tests xmldiff is mandatory

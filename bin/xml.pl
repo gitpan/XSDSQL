@@ -12,6 +12,7 @@ use File::Basename;
 use XML::Parser;
 use XML::Writer;
 use Getopt::Std;
+use Test::Database;
 
 use blx::xsdsql::ut qw(:all);
 #use blx::xsdsql::parser;
@@ -96,7 +97,7 @@ my %CMD=();
 
 
 my %Opt=();
-unless (getopts ('hdut:n:s:c:r:p:w:i:q:b:a:x:',\%Opt)) {
+unless (getopts ('hdut:n:s:c:r:p:w:i:q:b:a:x:e',\%Opt)) {
 	print STDERR "invalid option or option not set\n";
 	exit 1;
 }
@@ -111,6 +112,7 @@ $0  [<options>]  <command>  [<xsdfile>] [<xmlfile>|<root_id>]
         otherwise is an error
          the form is  <user/password\@dbname[:hostname[:port]]>
          for the database type see <n> option
+         if option e is set this option is ignored 
     -t <c|r|h>     - issue a commit or rollback at the end  (default commit)
                    - with  h issue  a commit after a read 
     -n <db_namespace> - default pg (PostgreSQL)
@@ -128,6 +130,7 @@ $0  [<options>]  <command>  [<xsdfile>] [<xmlfile>|<root_id>]
     -a - set the execute suffix for db objects (Ex: '\@dblink' in oracle)
          this option not influence database objects names
     -x - force the root_tag params in form name=value,...
+    -e - use Test::Database for connection
 <command>
     C      - test the connection to the database and exit
     r[ead] - read <xmlfile> and put into a database 
@@ -139,11 +142,12 @@ $0  [<options>]  <command>  [<xsdfile>] [<xmlfile>|<root_id>]
     exit 0;
 }
 
-
-$Opt{c}=$ENV{DB_CONNECT_STRING} unless $Opt{c};
-unless ($Opt{c}) {
-	print STDERR "the connect string (see 'c' option) is not defined\n";
-	exit 1;
+unless ($Opt{e}) {
+	$Opt{c}=$ENV{DB_CONNECT_STRING} unless $Opt{c};
+	unless ($Opt{c}) {
+		print STDERR "the connect string (see 'c' option) is not defined\n";
+		exit 1;
+	}
 }
 
 $Opt{t}='c' unless $Opt{t};
@@ -159,12 +163,39 @@ unless (grep($Opt{n} eq $_,blx::xsdsql::xsd_parser::get_db_namespaces)) {
 	exit 1;
 }
 
-my $dbconn=blx::xsdsql::dbconn->new;
-my @dbi_params=$dbconn->get_application_string($Opt{c},APPLICATION => 'dbi',DBTYPE => $Opt{n});
-if (scalar(@dbi_params) == 0) {
-	print STDERR $Opt{c},": connection string is not correct\n";
-	exit 1;
-}
+my @dbi_params=sub {
+	my @out=();
+	if ($Opt{e}) {
+		my $info=blx::xsdsql::dbconn::get_info;
+		my $code=$info->{$Opt{n}}->{dbi}->{CODE};
+		unless (defined $code) {
+			print STDERR $Opt{n},": dbtype not supported\n";
+			exit 1;
+		}
+		my ($appl,$dbtype)=$code=~/^(\w+):(\w+)/;
+		unless (defined $dbtype) {
+			print STDERR "$code: is not a dbi connection\n";
+			exit 1;
+		}
+		Test::Database->load_drivers;
+		my @config_file=grep(defined $_ && length($_),($ENV{TEST_DATABASE_CONFIG})); 
+		Test::Database->load_config(@config_file);
+		my @handle = Test::Database->handles({ dbd => $dbtype});
+		unless(@handle) {
+			print STDERR "Test::Database not offer connection for database '$dbtype' - configure it\n"; 
+			exit 1;
+		}
+		@out=$handle[0]->connection_info;
+	}
+	else {
+		@out=blx::xsdsql::dbconn->new->get_application_string($Opt{c},APPLICATION => 'dbi',DBTYPE => $Opt{n});
+		unless (@out) {
+			print STDERR $Opt{c},": connection string is not correct\n";
+			exit 1;
+		}
+	}
+	return @out;
+}->();
 
 if (defined $Opt{x}) {
 	my @h=();
@@ -245,7 +276,6 @@ my $xml=blx::xsdsql::xml->new(
 
 
 binmode(*STDERR,':utf8');
-
 my $rc=$cmd->($xml,@ARGV);
 $xml->finish;
 $Opt{t} eq 'c'  ? $conn->commit : $conn->rollback;
