@@ -1,27 +1,24 @@
 package blx::xsdsql::generator::sql::generic::handle::drop_sequence;
-use strict;
-use warnings;
-use Carp;
+use strict;  # use strict is for PBP
+use Filter::Include;
+include blx::xsdsql::include;
+#line 6
 use base qw(blx::xsdsql::generator::sql::generic::handle);
-use blx::xsdsql::ut qw(nvl);
 
-sub _get_drop_prefix {
-	my ($self,%params)=@_;
-	return "drop sequence ";
-}
-
-sub get_binding_objects  {
-	my ($self,$schema,%params)=@_;
-	my $table=$schema->get_root_table;
-	return wantarray ? ( $table ) : [ $table ];
+sub _sql_drop_sequence {
+	return 'drop sequence %n';
 }
 
 sub table_header {
 	my ($self,$table,%params)=@_;
-	return $self unless $table->is_root_table;
+	affirm { ref($table)=~/::extra_tables$/ } ref($table).": 1^ param must be extra_tables class";
 	my $name=$table->get_sequence_name(%params);
-	$self->{STREAMER}->put_line($self->_get_drop_prefix,' ',$name,$table->command_terminator);
-	return undef;
+	my $sql=$self->_sql_drop_sequence;
+	$sql=~s/\%n/$name/g;
+	$self->{STREAMER}->put_line($sql,$table->get_attrs_value(qw(CATALOG_INSTANCE))->command_terminator);
+	affirm { defined $self->{BINDING} } "attribute BINDING not set";
+	$self->{BINDING}->set_attrs_value(SEQUENCE_NAME => undef);
+	undef;
 }
 
 1;
@@ -31,7 +28,6 @@ __END__
 =head1 NAME
 
 blx::xsdsql::generator::sql::generic::handle::drop_sequence - generic handle for drop a  sequence
-
 
 =head1 SYNOPSIS
 
@@ -45,9 +41,16 @@ this package is a class - instance it with the method new
 =cut
 
 
+
+=head1 VERSION
+
+0.10.0
+
+=cut
+
 =head1 FUNCTIONS
 
-see the methods of blx::xsdsql::generator::sql::generic::handle 
+see the methods of blx::xsdsql::generator::sql::generic::handle
 
 
 =head1 EXPORT
@@ -62,7 +65,7 @@ None
 =head1 SEE ALSO
 
 
-See  blx::xsdsql::generator::sql::generic::handle - this class inherit from this 
+See  blx::xsdsql::generator::sql::generic::handle - this class inherit from this
 
 
 =head1 AUTHOR
@@ -79,5 +82,5 @@ under the same terms as Perl itself.
 See http://www.perl.com/perl/misc/Artistic.html
 
 =cut
- 
+
 

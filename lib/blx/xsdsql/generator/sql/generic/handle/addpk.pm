@@ -1,7 +1,8 @@
 package blx::xsdsql::generator::sql::generic::handle::addpk;
-use strict;
-use warnings;
-use Carp;
+use strict;  # use strict is for PBP
+use Filter::Include;
+include blx::xsdsql::include;
+#line 6
 use base qw(blx::xsdsql::generator::sql::generic::handle);
 
 sub get_binding_objects  {
@@ -12,10 +13,7 @@ sub get_binding_objects  {
 
 sub table_header {
 	my ($self,$table,%params)=@_;
-	my $table_name=$table->get_sql_name(%params);
-	my $pk_name=$table->get_constraint_name('pk');
-	my @cols=map { $_->get_sql_name } $table->get_pk_columns;
-	$self->{STREAMER}->put_line("alter table $table_name add constraint $pk_name primary key (".join(',',@cols).')',$table->command_terminator);
+	$self->_create_indexes($table,%params);
 	return $self;
 }
 
@@ -26,7 +24,6 @@ __END__
 =head1 NAME
 
 blx::xsdsql::generator::sql::generic::handle::addpk - generic handle for add primary key
-
 
 =head1 SYNOPSIS
 
@@ -40,9 +37,16 @@ this package is a class - instance it with the method new
 =cut
 
 
+
+=head1 VERSION
+
+0.10.0
+
+=cut
+
 =head1 FUNCTIONS
 
-see the methods of blx::xsdsql::generator::sql::generic::handle 
+see the methods of blx::xsdsql::generator::sql::generic::handle
 
 
 =head1 EXPORT
@@ -57,7 +61,7 @@ None
 =head1 SEE ALSO
 
 
-See  blx::xsdsql::generator::sql::generic::handle - this class inherit from this 
+See  blx::xsdsql::generator::sql::generic::handle - this class inherit from this
 
 
 =head1 AUTHOR
@@ -74,5 +78,5 @@ under the same terms as Perl itself.
 See http://www.perl.com/perl/misc/Artistic.html
 
 =cut
- 
+
 

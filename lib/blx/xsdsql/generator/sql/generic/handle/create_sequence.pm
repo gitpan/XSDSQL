@@ -1,22 +1,24 @@
 package blx::xsdsql::generator::sql::generic::handle::create_sequence;
-use strict;
-use warnings;
-use Carp;
+use strict;  # use strict is for PBP
+use Filter::Include;
+include blx::xsdsql::include;
+#line 6
 use base qw(blx::xsdsql::generator::sql::generic::handle);
-use blx::xsdsql::ut qw(nvl);
 
-sub get_binding_objects  {
-	my ($self,$schema,%params)=@_;
-	my $table=$schema->get_root_table;
-	return wantarray ? ( $table ) : [ $table ];
+sub _sql_create_sequence {
+	return 'create sequence %n';
 }
 
 sub table_header {
 	my ($self,$table,%params)=@_;
-	return $self unless $table->is_root_table;
+	affirm { ref($table) =~/::extra_tables$/ } ref($table).": 1^ param must be extra_tables class";
 	my $name=$table->get_sequence_name(%params);
-	$self->{STREAMER}->put_line("create sequence $name ",$table->command_terminator);
-	return undef;
+	my $sql=$self->_sql_create_sequence($table,%params);
+	$sql=~s/\%n/$name/g;
+	$self->{STREAMER}->put_line($sql,$table->get_attrs_value(qw(CATALOG_INSTANCE))->command_terminator);
+	affirm { defined $self->{BINDING} } "attribute BINDING not set";
+	$self->{BINDING}->set_attrs_value(SEQUENCE_NAME => $name);
+	undef;
 }
 
 1;
@@ -26,7 +28,6 @@ __END__
 =head1 NAME
 
 blx::xsdsql::generator::sql::generic::handle::create_sequence - generic handle for create sequence
-
 
 =head1 SYNOPSIS
 
@@ -40,9 +41,16 @@ this package is a class - instance it with the method new
 =cut
 
 
+
+=head1 VERSION
+
+0.10.0
+
+=cut
+
 =head1 FUNCTIONS
 
-see the methods of blx::xsdsql::generator::sql::generic::handle 
+see the methods of blx::xsdsql::generator::sql::generic::handle
 
 
 =head1 EXPORT
@@ -57,7 +65,7 @@ None
 =head1 SEE ALSO
 
 
-See  blx::xsdsql::generator::sql::generic::handle - this class inherit from this 
+See  blx::xsdsql::generator::sql::generic::handle - this class inherit from this
 
 
 =head1 AUTHOR
@@ -74,5 +82,5 @@ under the same terms as Perl itself.
 See http://www.perl.com/perl/misc/Artistic.html
 
 =cut
- 
+
 

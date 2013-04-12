@@ -1,4 +1,0 @@
-oracle:lorenzo/blx@orcl:192.168.100.4:1522
-dbi:Oracle:host=192.168.100.4;sid=orcl;port=1522
-lorenzo
-blx

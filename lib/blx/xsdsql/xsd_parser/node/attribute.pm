@@ -1,24 +1,28 @@
 package blx::xsdsql::xsd_parser::node::attribute;
-use base(qw(blx::xsdsql::xsd_parser::node));
-use strict;
-use warnings FATAL => 'all';
-use integer;
-use Carp;
+use strict;  # use strict is for PBP
+use Filter::Include;
+include blx::xsdsql::include;
+#line 6
+use blx::xsdsql::ut::ut qw(nvl);
 use blx::xsdsql::xsd_parser::type;
+use base qw(blx::xsdsql::xsd_parser::node);
 
 sub trigger_at_start_node {
 	my ($self,%params)=@_;
+	my $schema=$self->get_attrs_value(qw(STACK))->[1];
 
 	if (defined (my $name=$self->get_attrs_value(qw(name)))) {
 		my $column = $self->get_attrs_value(qw(COLUMN_CLASS))->new(
-			NAME		=> $name
-			,ATTRIBUTE	=> 1
+			NAME			=> $name
+			,ATTRIBUTE		=> 1
+			,DEBUG 			=> $self->get_attrs_value(qw(DEBUG))
+			,ELEMENT_FORM 	=> $self->get_attrs_value(qw(form))
 		);
 
 		if (defined (my $type=$self->get_attrs_value(qw(type)))) {
 			my $ty_obj=blx::xsdsql::xsd_parser::type::factory(
 				$type
-				,SCHEMA => $self->get_attrs_value(qw(STACK))->[1]
+				,SCHEMA => $schema
 				,DEBUG => $self->get_attrs_value(qw(DEBUG))
 			);
 			$column->set_attrs_value(TYPE => $ty_obj);
@@ -26,25 +30,41 @@ sub trigger_at_start_node {
 	
 		my $parent_table=$self->_get_parent_table;
 		if ($parent_table->is_root_table) {
-			 $self->get_attrs_value(qw(STACK))->[1]->_add_attrs($column);
+			 $schema->add_attrs($column);
+		}
+		elsif ($parent_table->get_attrs_value(qw(ATTRIBUTE_GROUP))) {
+			$parent_table->add_columns($column);			
 		}
 		else {
-			$parent_table->_add_columns($column);
+			$parent_table->add_columns($column);
 		}
 		$self->set_attrs_value(TABLE => $parent_table);
 	}
 	elsif (defined (my $ref=$self->get_attrs_value(qw(ref)))) {
+		my ($ns,$base)=$ref=~/^([^:]+):(.*)$/;
+		if (defined $ns) {  			#search the namespace naame 
+			$ref=$base;
+			my $namespace=$schema->find_namespace_from_abbr($ns);
+			affirm { defined $namespace } "$ns: not find URI from this namespace abbr";
+			$ns=$namespace eq nvl($schema->get_attrs_value(qw(URI))) ? undef : $namespace;
+		}
+		
 		my $column = $self->get_attrs_value(qw(COLUMN_CLASS))->new(
 			NAME		=> $ref
 			,ATTRIBUTE	=> 1
 			,REF		=> 1
+			,URI		=> $ns
+			,DEBUG 		=> $self->get_attrs_value(qw(DEBUG))
 		);
 		my $parent_table=$self->_get_parent_table;
 		if ($parent_table->is_root_table) {
-			 $self->get_attrs_value(qw(STACK))->[1]->_add_attrs($column);
+			$schema->add_attrs($column);
+		}
+		elsif ($parent_table->get_attrs_value(qw(ATTRIBUTE_GROUP))) {
+				$parent_table->add_columns($column);			
 		}
 		else {
-			$parent_table->_add_columns($column);
+				$parent_table->add_columns($column);
 		}
 		$self->set_attrs_value(TABLE => $parent_table);
 	} else {
@@ -72,19 +92,13 @@ sub trigger_at_end_node {
 			#empty 
 		}
 		else {
-			confess "attribute without  type and childs\n";
+			croak "attribute without  type and childs\n";
 		}
 	}
 	return $self;
 }
 
-sub factory_type {
-	my ($self,$t,$types,%params)=@_;
-	my ($schema,$debug)=($t->get_attrs_value(qw(STACK))->[1],$self->get_attrs_value(qw(DEBUG)));
-	my $table=$t->get_attrs_value(qw(TABLE));
-	confess "not implemented\n";
 
-}
 
 1;
 
@@ -93,6 +107,41 @@ __END__
 
 =head1  NAME
 
-blx::xsdsql::xsd_parser::node::attribute - internal class for parsing schema 
+blx::xsdsql::xsd_parser::node::attribute - internal class for parsing schema
+
+=cut
+
+=head1 VERSION
+
+0.10.0
+
+=cut
+
+
+
+=head1 BUGS
+
+Please report any bugs or feature requests to https://rt.cpan.org/Public/Bug/Report.html?Queue=XSDSQL
+
+=cut
+
+
+
+=head1 AUTHOR
+
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
+
+
+=cut
+
+
+=head1 COPYRIGHT
+
+Copyright (C) 2010 by lorenzo.bellotti
+
+This program is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
+
+See http://www.perl.com/perl/misc/Artistic.html
 
 =cut

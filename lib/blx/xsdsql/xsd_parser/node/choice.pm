@@ -1,13 +1,13 @@
 package blx::xsdsql::xsd_parser::node::choice;
-use base(qw(blx::xsdsql::xsd_parser::node));
-use strict;
-use warnings FATAL => 'all';
-use integer;
-use Carp;
-use POSIX;
-use Data::Dumper;
-use blx::xsdsql::ut(qw(nvl));
+
+use strict;  # use strict is for PBP
+use Filter::Include;
+include blx::xsdsql::include;
+#line 7
+
+use blx::xsdsql::ut::ut qw(nvl);
 use blx::xsdsql::xsd_parser::type;
+use base qw(blx::xsdsql::xsd_parser::node);
 
 use constant {
 	DEFAULT_OCCURS_TABLE_PREFIX	=> 'm_'
@@ -26,17 +26,17 @@ sub trigger_at_start_node {
 		my $table = $self->get_attrs_value(qw(TABLE_CLASS))->new(
 			NAME			=> DEFAULT_OCCURS_TABLE_PREFIX.$parent_table->get_attrs_value(qw(NAME))
 			,MAXOCCURS		=> $maxoccurs
-			,PARENT_PATH	=> $path
 			,CHOICE			=> 1
+			,DEBUG 			=> $self->get_attrs_value(qw(DEBUG))
 		);
 		
 		$schema->set_table_names($table);
 
-		$table->_add_columns(
-			$schema->get_attrs_value(qw(ANONYMOUS_COLUMN))->_factory_column(qw(ID))
-			,$schema->get_attrs_value(qw(ANONYMOUS_COLUMN))->_factory_column(qw(SEQ))
+		$table->add_columns(
+			$schema->get_attrs_value(qw(EXTRA_TABLES))->factory_column(qw(ID))
+			,$schema->get_attrs_value(qw(EXTRA_TABLES))->factory_column(qw(SEQ))
 		);
-		$parent_table->_add_child_tables($table);
+		$parent_table->add_child_tables($table);
 		my $isparent_choice=$parent_table->get_attrs_value(qw(CHOICE));
 
 		my $column =  $self->get_attrs_value(qw(COLUMN_CLASS))->new (	 #hook the column to the parent table 
@@ -48,13 +48,14 @@ sub trigger_at_start_node {
 			,TABLE_REFERENCE	=> $table
 			,CHOICE				=> $isparent_choice
 			,ELEMENT_FORM 		=> $self->_resolve_form
+			,DEBUG 				=> $self->get_attrs_value(qw(DEBUG))
 		);
 
 		if (defined $parent_table->get_xsd_seq) {	   #the table is a sequence or a choice 
 			$column->set_attrs_value(XSD_SEQ => $parent_table->get_xsd_seq); 
-			$parent_table->_inc_xsd_seq unless $isparent_choice;
+			$parent_table->inc_xsd_seq unless $isparent_choice;
 		}
-		$parent_table->_add_columns($column);
+		$parent_table->add_columns($column);
 		$self->set_attrs_value(TABLE => $table);
 	}
 	else {
@@ -67,7 +68,7 @@ sub trigger_at_start_node {
 sub trigger_at_end_node {
 	my ($self,%params)=@_;
 	my $parent_table=$self->get_attrs_value(qw(STACK))->[-1]->get_attrs_value(qw(TABLE));
-	$parent_table->_inc_xsd_seq;  
+	$parent_table->inc_xsd_seq;  
 	return $self;
 }
 
@@ -81,6 +82,41 @@ __END__
 
 =head1  NAME
 
-blx::xsdsql::xsd_parser::node::choice - internal class for parsing schema 
+blx::xsdsql::xsd_parser::node::choice - internal class for parsing schema
+
+=cut
+
+=head1 VERSION
+
+0.10.0
+
+=cut
+
+
+
+=head1 BUGS
+
+Please report any bugs or feature requests to https://rt.cpan.org/Public/Bug/Report.html?Queue=XSDSQL
+
+=cut
+
+
+
+=head1 AUTHOR
+
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
+
+
+=cut
+
+
+=head1 COPYRIGHT
+
+Copyright (C) 2010 by lorenzo.bellotti
+
+This program is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
+
+See http://www.perl.com/perl/misc/Artistic.html
 
 =cut

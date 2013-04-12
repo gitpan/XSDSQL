@@ -1,7 +1,8 @@
 package blx::xsdsql::generator::sql::generic::handle::drop_table;
-use strict;
-use warnings;
-use Carp;
+use strict;  # use strict is for PBP
+use Filter::Include;
+include blx::xsdsql::include;
+#line 6
 use base(qw(blx::xsdsql::generator::sql::generic::handle));
 
 sub _get_drop_prefix {
@@ -23,7 +24,7 @@ sub get_binding_objects  {
 sub table_header {
 	my ($self,$table,%params)=@_;
 	my $path=$table->get_attrs_value(qw(PATH));
-	my $comm=defined  $path ? $table->comment('PATH: '.$path) : '';
+	my $comm=defined  $path && !$params{NO_EMIT_COMMENTS} ? $table->comment('PATH: '.$path) : '';
 	$self->{STREAMER}->put_line($self->_get_drop_prefix(%params),' ',$table->get_sql_name,' ',$self->_get_drop_suffix(%params),' ',$comm,' ',$table->command_terminator);
 	return $self;
 }
@@ -35,7 +36,6 @@ __END__
 =head1 NAME
 
 blx::xsdsql::generator::sql::generic::handle::drop_table  - generic handle for drop table
-
 
 =head1 SYNOPSIS
 
@@ -50,9 +50,16 @@ this package is a class - instance it with the method new
 =cut
 
 
+
+=head1 VERSION
+
+0.10.0
+
+=cut
+
 =head1 FUNCTIONS
 
-see the methods of blx::xsdsql::generator::sql::generic::handle 
+see the methods of blx::xsdsql::generator::sql::generic::handle
 
 =head1 EXPORT
 
@@ -66,7 +73,7 @@ None
 =head1 SEE ALSO
 
 
-See  blx::xsdsql::generator::sql::generic::handle - this class inherit from this 
+See  blx::xsdsql::generator::sql::generic::handle - this class inherit from this
 
 
 =head1 AUTHOR
@@ -83,5 +90,5 @@ under the same terms as Perl itself.
 See http://www.perl.com/perl/misc/Artistic.html
 
 =cut
- 
+
 

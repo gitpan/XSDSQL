@@ -1,24 +1,22 @@
-#!/usr/bin/perl
-eval 'exec /usr/bin/perl  -S $0 ${1+"$@"}'
-    if 0; # not running under some shell
-use strict;
-use warnings;
-use integer;
-use English '-no_match_vars';
+#!/usr/bin/env perl
+use strict;  # use strict is for PBP
+use Filter::Include;
+include blx::xsdsql::include;
+#line 6
 
 use Getopt::Std;
 use File::Basename;
-use Data::Dumper;
-use Carp;
 
-use blx::xsdsql::ut qw(nvl ev);
+use blx::xsdsql::ut::ut qw(nvl ev);
 use blx::xsdsql::xsd_parser;
-use blx::xsdsql::generator;
+use blx::xsdsql::schema_repository;
+use blx::xsdsql::connection;
+use DBI;
 
 use constant {
  	DEFAULT_VIEW_PREFIX				=> 'V'
 	,DEFAULT_ROOT_TABLE_NAME 		=> 'ROOT'
- 	,DEFAULT_SEQUENCE_PREFIX		=> 'S'
+ 	,DEFAULT_SEQUENCE_PREFIX			=> 'S'
  	,DEFAULT_TABLE_DICTIONARY		=> 'table_dictionary'
  	,DEFAULT_COLUMN_DICTIONARY		=> 'column_dictionary'
 	,DEFAULT_RELATION_DICTIONARY 	=> 'relation_dictionary'
@@ -26,30 +24,60 @@ use constant {
 	
 };
 
+sub get_dbconn_cs {
+	my ($connstr,%params)=@_;
+	$connstr=$ENV{DB_CONNECT_STRING} unless defined $connstr;
+	unless (defined $connstr) {
+		print STDERR "no connection string specify - set the option 'c' or define the env var DB_CONNECT_STRING\n";
+		return ();
+	}
+
+	my $connection=blx::xsdsql::connection->new;
+	unless ($connection->do_connection_list($connstr)) {
+		print STDERR $connection->get_last_error,"\n";
+		return ();
+	}
+	my @a=$connection->get_connection_list;
+	return ( { 
+				OUTPUT_NAMESPACE => $connection->get_output_namespace
+				,DB_NAMESPACE	 => $connection->get_db_namespace
+			 },@a
+	);
+}
+
+
 my %Opt=();
-unless (getopts ('hn:r:p:l:t:w:s:b:do:',\%Opt)) {
+unless (getopts ('hc:r:p:t:v:do:',\%Opt)) {
 	print STDERR "invalid option or option not set\n";
 	exit 1;
 }
 
 if ($Opt{h}) {
-	print STDOUT "
-$0  [<options>]  [<xsdfile>] [<command>...]
+	print STDOUT 
+$0,q(  [<options>]  [<xsdfile>] [<command>...]
     <options>: 
         -h  - this help
         -d  - emit debug info 
-        -n <output_namespace>::<db_namespace> - default sql::pg  (sql for PostgreSQL)
+		-c <connstr> - connect string to database - the default is the value of the env var DB_CONNECT_STRING
+			otherwise is an error
+			the form is  [<output_namespace>::]<dbtype>:<user>/<password>@<dbname>[:hostname[:port]][;<attribute>[,<attribute>...]
+			<output_namespace>::<dbtype> - see the output of namespaces command 
+				the default for <output_namespace> is 'sql'
+			<dbname> - database name 
+			<hostname> - remote host name or ip address 
+			<port> - remote host port
+			<attribute> - extra attribute
+			Examples: 
+				sql::pg:user/pwd@mydb:127.0.0.1;RaiseError => 1,AutoCommit => 0,pg_enable_utf8 => 1
+				sql::mysql:user/pwd@mydb:127.0.0.1;RaiseError => 1,AutoCommit => 0,mysql_enable_utf8 => 1
+				sql::oracle:user/pwd@orcl:neutrino:1522;RaiseError => 1,AutoCommit => 0
+			
         -r <root_table_name> - set the root table name  (default '".DEFAULT_ROOT_TABLE_NAME."')
         -p <table_prefix_name> - set the prefix for the tables name (default none)
-        -w <view_prefix_name>  - set the prefix for views name (default '".DEFAULT_VIEW_PREFIX."')
+        -v <view_prefix_name>  - set the prefix for views name (default '".DEFAULT_VIEW_PREFIX."')
                 WARNING - This option can influence table names
-        -s <sequence_prefix_name>  - set the prefix for sequences name (default '".DEFAULT_SEQUENCE_PREFIX."')
-                WARNING - This option can influence table names
-        -l <start_table_level> - set the start level for generate create/drop view (the root has level 0) (default 0)
         -t <table_name>|<path_name>[,<table_name>|<path_name>...] - generate view starting only from <table_name> (default all tables)
             if the first <table_name>|<path_name> begin with comma then <table_name>|<path_name> (without comma) is a file name containing a list of <table_name>|<path_name>
-        -b [<table_dictionary_name>][:<column_dictionary_name>[:<relation_dictionary_name>]] - set the name of the table_dictionary, the column_dictionary  and or the relation dictionary
-                the default names are '".DEFAULT_TABLE_DICTIONARY."' , '".DEFAULT_COLUMN_DICTIONARY."' and '".DEFAULT_RELATION_DICTIONARY."' 
         -o <name>=<value>[,<name>=<value>...]
             set extra params - valid names are:
                 MAX_VIEW_COLUMNS     =>  produce view code only for views with columns number <= MAX_VIEW_COLUMNS
@@ -58,9 +86,8 @@ $0  [<options>]  [<xsdfile>] [<command>...]
                 MAX_VIEW_JOINS         =>  produce view code only for views with join number <= MAX_VIEW_JOINS 
                     -1 is a system limit (database depend)
                     false is no limit (the default)
-                EMIT_SCHEMA_DUMPER     => is true emit the tree parser, before the conversion
     <commands>
-        display_cl_namespaces - display on stdout the namespaces (type+db) founded (Es: sql::pg)
+        display_namespaces - display on stdout the namespaces (type+db) founded (Es: sql::pg)
         drop_table  - generate a drop tables on stdout
         create_table - generate a create tables on stdout
         addpk - generate primary keys on stdout
@@ -72,41 +99,27 @@ $0  [<options>]  [<xsdfile>] [<command>...]
         create_dictionary - generate a create dictionary on stdout
         insert_dictionary - generate an insert dictionary on stdout
         display_path_relation - display on stdout the relation from path and table/column
-\n"; 
+),"\n";
     exit 0;
 }
 
 
 my @cl_namespaces=blx::xsdsql::generator::get_namespaces;
-my @db_namespaces=blx::xsdsql::xsd_parser::get_db_namespaces;
 
 if (nvl($ARGV[0]) eq 'display_namespaces') {	
-	for my $n(sort @cl_namespaces) {
+	for my $n(@cl_namespaces) {
 		print STDOUT $n,"\n";
 	}
 	exit 0;
 }
 
-$Opt{n}='sql::pg' unless defined $Opt{n};
+my ($ns,@conn)=get_dbconn_cs($Opt{c});
+exit 1 unless defined $ns;
+$Opt{output_namespace}=$ns->{OUTPUT_NAMESPACE};
+$Opt{db_namespace}=$ns->{DB_NAMESPACE};
 
-my ($output_namespace,$db_namespace)=$Opt{n}=~/^(\S+)::([^:]+)$/;
-unless (defined $db_namespace) {
-	print STDERR $Opt{n},": option n is invalid - valid is (<output_namespace>::<db_namespace>)\n";
-    exit 1;
-}
-
-unless (grep($Opt{n} eq $_,@cl_namespaces)) {
-	print STDERR $Opt{n},": option n is invalid - valid values are: (",join(',',@cl_namespaces),")\n";
-	exit 1;
-}
-
-unless (grep($db_namespace eq $_,@db_namespaces)) {
-	print STDERR $Opt{n},": option n is invalid - can't locate db_namespace in \@INC\n";
-	exit 1;
-}
-
-unless (nvl($Opt{l},0)=~/^\d{1,11}$/) {
-	print STDERR $Opt{l},": option l is invalid - valid is a abs number\n";
+unless (grep($_ eq $ns->{OUTPUT_NAMESPACE}.'::'.$ns->{DB_NAMESPACE},@cl_namespaces)) {
+	print STDERR $ns->{OUTPUT_NAMESPACE}.'::'.$ns->{DB_NAMESPACE}.": namespace not know";
 	exit 1;
 }
 
@@ -115,10 +128,11 @@ if (defined (my $t=$Opt{t})) {
 	if ($t=~/^,(.*)$/) {  # is a file name
 		if (open(my $fd,'<',$1)) {
 			my @lines=grep(!/^\s*$/,
-				map {  
-					s/^\s*//; 
-					s/\s*$//; 
-					my $l=/^\s*#/ ? '' : $_;
+				map {
+					my $v=$_;
+					$v=~s/^\s*//; 
+					$v=~s/\s*$//; 
+					my $l=$v=~/^\s*#/ ? '' : $v;
 					$l;  
 				} <$fd>);
 			$Opt{t}=\@lines;
@@ -183,35 +197,39 @@ my $schema_pathname=sub {
 
 my @cmds=@ARGV;
 for my $cmd(@cmds) {
-	unless (grep($_ eq $cmd,qw( drop_table create_table addpk drop_sequence create_sequence drop_view create_view drop_dictionary create_dictionary insert_dictionary display_path_relation display_cl_namespaces))) {
+	unless (grep($_ eq $cmd,qw( drop_table create_table addpk drop_sequence create_sequence drop_view create_view drop_dictionary create_dictionary insert_dictionary display_path_relation display_namespaces))) {
 		print STDERR "$cmd: invalid command\n";
 		exit 1;
 	}
 }
 
 
-my $p=blx::xsdsql::xsd_parser->new(DB_NAMESPACE => $db_namespace,DEBUG => $Opt{d});
-
-unless (grep($_ eq $Opt{n},blx::xsdsql::generator::get_namespaces)) {
-	print STDERR $Opt{n},": Can't locate namespace in \@INC\n";
+my $conn=eval { DBI->connect(@conn) };
+if ($@ || !defined $conn) {
+	print STDERR $@ if $@;
+	print STDERR "connection failed\n";
 	exit 1;
 }
 
 
-my $g=blx::xsdsql::generator->new(OUTPUT_NAMESPACE => $output_namespace,DB_NAMESPACE => $db_namespace,FD => *STDOUT,DEBUG => $Opt{d});
+my $repo=blx::xsdsql::schema_repository->new(
+	%$ns
+	,DB_CONN 	=> $conn
+	,DEBUG		=> $Opt{d}
+);
 
 
-my $schema=$p->parsefile(
-	$schema_pathname
-	,ROOT_TABLE_NAME 				=> $Opt{r}
-	,TABLE_PREFIX 					=> $Opt{p}
-	,VIEW_PREFIX 					=> $Opt{w}
-	,SEQUENCE_PREFIX				=> $Opt{s}
-	,TABLE_DICTIONARY_NAME 			=> $Opt{b}->[0]
-	,COLUMN_DICTIONARY_NAME			=> $Opt{b}->[1] 
-	,RELATION_DICTIONARY_NAME 		=> $Opt{b}->[2]
-	,SCHEMA_DUMPER					=> $Opt{o}->{EMIT_SCHEMA_DUMPER}
-) || exit 1;
+
+my $g=$repo->get_attrs_value(qw(GENERATOR));
+my $xsd_parser=blx::xsdsql::xsd_parser->new(%$ns,DEBUG => $Opt{d});
+
+my $schema=$xsd_parser->parsefile(
+		$schema_pathname
+		,ROOT_TABLE_NAME 				=> $Opt{r}
+		,TABLE_PREFIX 					=> $Opt{p}
+		,VIEW_PREFIX 					=> $Opt{v}
+);
+					
 
 
 for my $cmd(@cmds) {
@@ -229,20 +247,72 @@ for my $cmd(@cmds) {
 		}
 		print "\n";
 	}
-	elsif ($cmd eq 'display_cl_namespaces') {
-		for my $n(sort @cl_namespaces) {
+	elsif ($cmd eq 'display_namespaces') {
+		for my $n(@cl_namespaces) {
 			print STDOUT $n,"\n";
 		}
 	}
 	else {
-		$g->generate(
-			SCHEMA				=> $schema
-			,COMMAND 			=> $cmd
-			,LEVEL_FILTER		=> $Opt{l}
-			,TABLES_FILTER		=> $Opt{t}
-			,%{$Opt{o}}
-		);
+		if (grep ($cmd eq $_,(qw(drop_dictionary create_dictionary)))) {
+			$g->generate(
+				SCHEMA				=> undef
+				,COMMAND 			=> $cmd
+				,FD 				=> *STDOUT
+
+			);
+		}
+		else {
+			$g->generate(
+				SCHEMA				=> $schema
+				,COMMAND 			=> $cmd
+				,FD 				=> *STDOUT
+				,CATALOG_NAME		=> basename($schema_pathname)
+				,SCHEMA_CODE		=> basename($schema_pathname)
+				,LOCATION			=> $schema_pathname
+			);
+		}
 	}
 }
 
 exit 0;
+__END__
+
+=head1 NAME xsd2sql.pl
+
+=cut
+
+
+=head1 VERSION
+
+0.10.0
+
+=cut
+
+
+
+=head1 BUGS
+
+Please report any bugs or feature requests to https://rt.cpan.org/Public/Bug/Report.html?Queue=XSDSQL
+
+=cut
+
+
+
+=head1 AUTHOR
+
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
+
+
+=cut
+
+
+=head1 COPYRIGHT
+
+Copyright (C) 2010 by lorenzo.bellotti
+
+This program is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
+
+See http://www.perl.com/perl/misc/Artistic.html
+
+=cut

@@ -1,4 +1,0 @@
-pg:xsdsql/xsdsql@mydb:127.0.0.1
-dbi:Pg:host=127.0.0.1;dbname=mydb
-xsdsql
-xsdsql

@@ -1,545 +1,398 @@
-eval 'exec /usr/bin/perl  -S $0 ${1+"$@"}'
-    if 0; # not running under some shell
-use strict;
-use warnings qw(FATAL);
-use integer;
-use English '-no_match_vars';
-use Carp;
-use Getopt::Std;
-use File::Spec;
-use Cwd;
-use Data::Dumper;
-use DBI;
-use Test::Database;
+#!/usr/bin/perl
 
-use blx::xsdsql::dbconn;
-use blx::xsdsql::ut qw(nvl);
+use strict;  # use strict is for PBP
+use Filter::Include;
+include blx::xsdsql::include;
+#line 7
+use Getopt::Std;
+use File::Spec::Functions;
+use File::Basename;
+use DBI;
+use XML::Writer;
+
+
+use blx::xsdsql::connection;
+use blx::xsdsql::schema_repository;
+use blx::xsdsql::xml;
+use blx::xsdsql::ut::fake_ansicolor;
+
 
 use constant {
 	DIR_PREFIX				=> 'xml_'
-	,STRCONN_FILE			=> '.strconn'
-	,APPLICATION			=> 'dbi'
 	,STEP_FILE_PREFIX		=> '.step_'
 	,CUST_PARAMS_FILE		=> 'custom_params'
+	,PERL					=> $ENV{PERL} // 'perl'
 };
+
+my %Opt=();
+
+sub abort {
+	my $conn=shift;
+	print STDERR join('',@_),"\n" if scalar(@_);
+	if (defined $conn) {
+		unless ($conn->{AutoCommit}) {
+			print STDERR "(W) ROLLBACK issue for abort\n";
+			$conn->rollback;
+		}
+		$conn->disconnect;
+	}
+	exit 1;
+}
 
 sub debug {
 	my ($n,@l)=@_;
 	$n='<undef>' unless defined $n; 
 	print STDERR 'test (D ',$n,'): ',join(' ',grep(defined $_,@l)),"\n"; 
-	return  undef;
+	undef;
 }
-
-sub xsd2sql { 
-	my %params=@_;
-	my ($typefile,$typedb)=('sql',$params{DBTYPE});
-	my %ret=(
-		NAMESPACE 		=>  $typefile.'::'.$typedb
-		,DB_TYPE		=>	$typedb
-	); 
-	my $pcmd="perl -MCarp=verbose ../xsd2sql.pl "
-		.($params{DEBUG} ? " -d " : "") 
-		." -n '".$ret{NAMESPACE}."'"
-		." -p '".$params{PREFIX_TABLES}."'"
-		." -w '".$params{PREFIX_VIEWS}."'"
-		." -s '".$params{PREFIX_SEQUENCE}."'"
-		.($params{EXTRA_PARAMS} ? " -o '".$params{EXTRA_PARAMS}."'" : "")
-		."" 
-		." '".$params{SCHEMA_FILE}."'";
-	my @args=qw(drop_table create_table addpk drop_sequence create_sequence drop_view create_view drop_dictionary create_dictionary insert_dictionary);
-	my $rinchi="_".$typedb;
-	unless ($params{XSD2SQL_ONE_PASS}) {
-		for my $c (@args) {
-			$ret{$c}="${c}${rinchi}.sql";
-			my $cmd=$pcmd." '${c}'  > ".$ret{$c};
-			debug(__LINE__,$cmd) if $params{DEBUG};
-			system($cmd);
-			return (%ret,ERR_MSG => "$cmd: execution error") if $?;
-		}				
+sub count_rows {
+	my ($t,$pcount,%params)=@_;
+	my $table_name=$t->get_sql_name;
+	my $sql="select count(*) from $table_name";
+	my $sth=$params{CONN}->prepare($sql) || die "prepare failed\n";
+	$sth->execute || die "execute failed\n";
+	my $row=$sth->fetchrow_arrayref || die "fetchrow_arrayref failed\n";
+	my $c=$row->[0];
+	$sth->finish;
+	if ($c > 0) {
+		print STDERR "table '$table_name'  contains $c rows\n";
+		$$pcount++;
 	}
-	{
-		my $cmd=$pcmd.' '.join(' ',map { "'".$_."'" } grep(/^drop/,@args)).' > all_drops'.$rinchi.'.sql';
-		debug(__LINE__,$cmd) if $params{DEBUG};
-		system($cmd);
-		return (%ret,ERR_MSG => "$cmd: execution error") if $?;
-		$cmd=$pcmd.' '.join(' ',map { "'".$_."'" } grep($_!~/^drop/,@args)).' > all_creates'.$rinchi.'.sql';
-		debug(__LINE__,$cmd) if $params{DEBUG};
-		system($cmd);
-		return (%ret,ERR_MSG => "$cmd: execution error") if $?;
+	return;
+}
 
+sub loop_table_childs {
+	my ($t,$pcount,%params)=@_;
+	count_rows($t,$pcount,%params);
+	for my $child($t->get_child_tables) {
+		loop_table_childs($child,$pcount,%params);
 	}
-	return %ret;
+	return;
 }
 
-sub isql {
-	my %params=@_;
-	my $x=$params{DROP} ? ' -I -R ' : '';
-	my $file=nvl($params{FILE});
-	$file=~s/^\s*//;
-	$file=~s/\s*$//;
-	confess "internal error: param FILE not set" unless $file;
-	my $utd=$params{USE_TEST_DATABASE} ? ' -e ' : '';
-	my $cmd="perl ../isql.pl -c '".$params{DB_CONNECTION_STRING}."' $utd -t c $x '$file'";
-	debug(__LINE__,$cmd) if $params{DEBUG};
-	system($cmd);
-	my $rc=$?;
-	return (ERR_MSG => "$cmd: execution error (rc==$rc)") if $rc == -1 || ($rc & 127);											
-	$rc>>=8;
-	return  $rc  == 0 || $rc == 1 && $params{DROP} 
-		? () 
-		: (ERR_MSG => "$cmd: execution error (rc==$rc)");
+sub test_delete {
+	my ($schema,$pcount,%params)=@_;
+	
+	for my $t($params{REPO}->get_dtd_tables) {
+		loop_table_childs($t,$pcount,%params);
+	}
+	
+	for my $k(qw(XML_CATALOG XML_ENCODING)) {
+		my $t=$params{REPO}->get_table_from_type(TYPE => $k);
+		loop_table_childs($t,$pcount,%params);		
+	}
+
+	my %types=$schema->get_types_name;
+	for my $t(values %types) {
+		loop_table_childs($t,$pcount,%params);		
+	}
+	
+	my $root_table=$schema->get_root_table;
+	loop_table_childs($root_table,$pcount,%params);
+	
+	for my $child($schema->get_childs_schema) {
+		test_delete($child->{SCHEMA},$pcount,%params);
+	}
+	
+	return;
 }
 
-sub xml_load { #xml load & write & compare
-	my %params=@_;
-	my $utd=$params{USE_TEST_DATABASE} ? ' -e ' : '';
-	my ($typedb,$conn)=sub {
-		my @out=();
-		if ($params{USE_TEST_DATABASE}) {
-			@out=($params{DBTYPE},$params{DB_CONNECTION_STRING});
-		}
-		else {
-			@out=$params{DB_CONNECTION_STRING}=~/^(\w+):(.*)$/;
-			croak $params{DB_CONNECTION_STRING}.": internal error" unless scalar @out;
-			croak $params{DB_CONNECTION_STRING}.": internal error" unless $out[0] eq $params{DBTYPE};
-		}
-		return @out;
-	}->();
-	my $db_command="c";
-	my $pcmd="perl -MCarp=verbose ../xml.pl -c '$conn' "
-							." -p '".$params{PREFIX_TABLES}."' "
-							." -w '".$params{PREFIX_VIEWS}."' "
-							." -q '".$params{PREFIX_SEQUENCE}."' "
-							." -n '$typedb' "
-							." -t '".$params{TRANSACTION_MODE}."' "
-							.$utd
-							.($params{DBTYPE}=~/oracle/i ? ' -u ' : '') #force utf8 in XML::Writer for oracle database 
-							.($params{ROOT_TAG_PARAMS} ? " -x ".$params{ROOT_TAG_PARAMS} : "")
-							.($params{DEBUG} ? " -d " : "")
-							.($params{WRITER_UTF8} ? " -u " : "")
-							.($params{EXECUTE_OBJECTS_PREFIX} ? " -b '".$params{EXECUTE_OBJECTS_PREFIX}."'" : '')
-							.($params{EXECUTE_OBJECTS_SUFFIX} ? " -a '".$params{EXECUTE_OBJECTS_SUFFIX}."'" : '')
-							.""
-							." $db_command  '".$params{SCHEMA_FILE}."' "
-							;
-	my @files=();
-	my $validator=$params{XML_VALIDATOR};
-	$validator=~s/\%s/$params{SCHEMA_FILE}/g;
-		
-	my @onlyfiles=defined $params{ONLY_FILES} ? split(',',$params{ONLY_FILES}) : ();
-	if (opendir(my $dd,".")) {
-		while(my $f=readdir($dd)) {
-			next if  $f=~/^\./;
+sub get_xml_files {
+	my %p=@_;
+	my @xml=();
+	if  (opendir(my $fd,$p{DIR})) {
+		while(my $f=readdir($fd)) {
+			next if $f=~/^\./;
+			next if -d $f;
 			next unless $f=~/\.xml$/i;
-			next unless -f $f;
-			next unless -r $f;
-			if (scalar(@onlyfiles)) {
-				next unless grep($f eq $_,@onlyfiles);
+			if (defined (my $a=$p{ONLY_FILES})) {
+				next unless grep($_ eq $f,@$a);
 			}
-			push @files,$f
+			my $xml=catfile($p{DIR},$f);
+			next unless -r $xml;
+			my $cmd=$p{XML_VALIDATOR};
+			my $schema=$p{SCHEMA_FILE};
+			$cmd=~s/\%s/$schema/g;
+			$cmd=~s/\%f/$xml/g;
+			debug(__LINE__,$cmd) if $p{DEBUG};
+			system($cmd);
+			if ($?) {
+				print STDERR "$f: not valid xml\n";
+				closedir($fd);
+				return;
+			}
+			push @xml,$f;
 		}
-		closedir($dd);
+		closedir($fd);
 	}
 	else {
-		return (ERR_MSG => 'cannot open current directory: $!');
+		print STDERR " error open current directory\n";
+		return; 
 	}
-	for my $f(sort @files) {
-		my $cmd=$validator;
-		$cmd=~s/\%f/$f/;
-		debug(__LINE__,$cmd) if $params{DEBUG};
-		system($cmd);
-		if ($?) {
-			return (ERR_MSG => "$f: is not a valid xml file") unless $params{EXCLUDE_NOT_VALID_XML_FILES};
-			next;
-		}
-		my $tmp=$f.'.tmp';
-		my $cmd=$pcmd."'$f' | ../tr.sh '$f' > '$tmp'";
-		debug(__LINE__,$cmd) if $params{DEBUG};
-		system($cmd);
-		return (ERR_MSG => "$cmd: execution error") if $?;
-		$cmd=$validator;
-		$cmd=~s/\%f/$tmp/;
-		debug(__LINE__,$cmd) if $params{DEBUG};
-		system($cmd);
-		return (ERR_MSG => "$tmp: is not a valid xml file") if $?;
-		my $diff=$f.'.diff';
-		my $xmldiff=0;
-		if ($params{XMLDIFF}) {
-			system("which xmldiff > /dev/null 2>&1");
-			my $rc=$?;
-			$xmldiff=1 if $rc == 0;
-		}
-		$cmd=$xmldiff ? "xmldiff -c '$f' '$tmp' > '$diff'" : "diff -E -b -a '$f' '$tmp' > '$diff'";
-		debug(__LINE__,$cmd) if $params{DEBUG};
-		system($cmd);
-		my $rc=$?;
-		return (ERR_MSG => "$cmd: execution error (rc==$rc)") if $rc == -1 || ($rc & 127);
-		$rc>>=8;
-		debug(__LINE__,' return code ',$rc) if $params{DEBUG};
-		$rc=1 if $xmldiff && $rc > 1; 
-		my $fd=xopen('<',$diff);
-		while(<$fd>) { xprint(*STDOUT,$_); }
-		close $fd;
-		my $testrc=$params{OK_FOR_DIFF} ? 0 : 1;
-		if ($rc == $testrc) {
-			my $msg=$params{OK_FOR_DIFF} ? "the files equal" : "the files diff";
-			return (ERR_MSG => $msg) unless $params{IGNORE_DIFF};
-			print STDERR "(W) $msg\n"; 
-		}
-		elsif ($rc < 0 || $rc > 1) {
-			return (ERR_MSG => "$cmd: execution error (rc==$rc)");# if $rc != 0;
-		}
-	}
-	return ();
+	[sort @xml];
 }
 
-my @STEPS=(
-	{	#0
-		NAME => 'CREATE_SQL_FILES',SH_NAME => 'SQ',D => 'create sql files'
-		,F => sub {  
-			my %params=@_;
-			my %ret=xsd2sql(%params);
-			return %ret unless $params{XSD2SQL_ONE_PASS};
-			return %ret if $ret{ERR_MSG};
-			my $rinchi="_".$params{DBTYPE};
-			%ret=isql(%params,FILE => 'all_drops'.$rinchi.'.sql',DROP => 1);
-			return %ret if scalar(keys %ret);
-			return isql(%params,FILE => 'all_creates'.$rinchi.'.sql');
-		}
-	}
-	,{	#1
-		NAME => 'DROP_VIEW_OBJECTS',SH_NAME => 'DV',D => 'drop view objects',INCLUDE => [ 0 ]
-		,F	=> sub {
-				my %params=@_;
-				return () if $params{XSD2SQL_ONE_PASS};
-				return isql(%params,FILE => $params{drop_view},DROP => 1);				
-		}
-	}
-	,{	#2
-		NAME => 'DROP_TABLE_OBJECTS',SH_NAME => 'DT',D => 'drop table objects',INCLUDE => [ 1 ] 
-		,F	=> sub {
-				my %params=@_;
-				return () if $params{XSD2SQL_ONE_PASS};
-				return isql(%params,FILE => $params{drop_table},DROP => 1);				
-		}		
-	}
-	,{	#3
-		NAME => 'CREATE_TABLE_OBJECTS',SH_NAME => 'CT',D => 'create table objects',INCLUDE => [ 1,2 ]
-		,F => sub {
-				my %params=@_;
-				return () if $params{XSD2SQL_ONE_PASS};
-				my @errs=isql(%params,FILE => $params{create_table});
-				return @errs if scalar(@errs);
-				return isql(%params,FILE => $params{addpk});				
-		}
-	}
-	,{	#4
-		NAME => 'DROP_SEQUENCE_OBJECTS',SH_NAME => 'DS',D => 'drop sequence objects',INCLUDE => [ 0 ]
-		,F	=> 	sub {
-				my %params=@_;
-				return () if $params{XSD2SQL_ONE_PASS};
-				return isql(%params,FILE => $params{drop_sequence},DROP => 1);
-		}
-	}
-	,{	#5
-		NAME => 'CREATE_SEQUENCE_OBJECTS',SH_NAME => 'CS',D => 'create sequence objects',INCLUDE => [ 4 ]  
-		,F	=> 	sub {
-				my %params=@_;
-				return () if $params{XSD2SQL_ONE_PASS};
-				return isql(%params,FILE => $params{create_sequence});
-		}
-	
-	}
-	,{	#6
-		NAME => 'CREATE_VIEW_OBJECTS',SH_NAME => 'CV',D => 'create view objects',INCLUDE => [ 3 ]  
-		,F	=> 	sub {
-				my %params=@_;
-				return () if $params{XSD2SQL_ONE_PASS};
-				return isql(%params,FILE => $params{create_view});
-		}
-	
-	}
-	,{	#7
-		NAME => 'DROP_DICTIONARY_OBJECTS',SH_NAME => 'DD',D => 'drop dictionary objects',INCLUDE => [ 0 ]  
-		,F	=> 	sub {
-				my %params=@_;
-				return () if $params{XSD2SQL_ONE_PASS};
-				return isql(%params,FILE => $params{drop_dictionary},DROP => 1);
-		}
-	
-	}
-	,{	#8
-		NAME => 'CREATE_DICTIONARY_OBJECTS',SH_NAME => 'CD',D => 'create dictionary objects',INCLUDE => [ 7 ]  
-		,F	=> 	sub {
-				my %params=@_;
-				return () if $params{XSD2SQL_ONE_PASS};
-				return isql(%params,FILE => $params{create_dictionary});
-		}
-	
-	}
-	,{	#9
-		NAME => 'INSERT_DICTIONARY_OBJECTS',SH_NAME => 'ID',D => 'insert dictionary objects',INCLUDE => [ 8 ]  
-		,F	=> 	sub {
-				my %params=@_;
-				return () if $params{XSD2SQL_ONE_PASS};
-				return isql(%params,FILE => $params{insert_dictionary});
-		}
-	
-	}
-	,{ #10
-		NAME => 'LOAD_UNLOAD_COMPARE',SH_NAME => 'L',D => 'load & unload & compare ',INCLUDE => [ 3,5 ]
-		,F => sub { return xml_load(@_); }
-	}
-);	
-
-
-my %OPERATIONS=map {
-		my $p=$STEPS[$_];
-		($p->{NAME},$_,$p->{SH_NAME},$_);
-} (0..scalar(@STEPS) - 1);
-
-
-sub get_operations {
-	my %index=map { ($_,undef)  } @_;
-	for my $i(@_) {
-		my $p=$STEPS[$i];
-		if ($p->{INCLUDE}) {
-			my @i=get_operations(@{$p->{INCLUDE}});
-			for (@i) { $index{$_}=undef};
-		}
-	}
-	return sort keys %index;
+sub check_xml_file {
+	my ($f,%p)=@_;
+	my $cmd=$p{XML_VALIDATOR};
+	my $schema_file=$p{SCHEMA_FILE};
+	$cmd=~s/\%s/$schema_file/g;
+	$cmd=~s/\%f/$f/g;
+	debug(__LINE__,$cmd) if $p{DEBUG};
+	system($cmd);
+	return $? ? 0  : 1;
 }
 
-my %Opt=();
-unless (getopts ('hdrRcCTeiuo:f:t:b:a:p:v:XSx:KDF',\%Opt)) {
-	 print STDERR "invalid option or option not set\n";
-	 exit 1;
-}
-
-if ($Opt{h}) {
-	print STDOUT "
-$0  [<options>] [<args>].. 
-    exec battery test 
-<options>: 
-    -h  - this help
-    -d  - debug mode
-    -r  - reset steps and execute the tests
-    -R  - reset steps and not execute the tests
-    -c  - reset connection string and execute the tests
-    -C  - reset connection string and not execute the tests
-    -T  - clean temporary files in test + step file  and not execute the test
-    -e  - exclude not valid xml files
-    -i  - continue after xml difference
-    -u  - set encondig utf8 to xmlwriter
-    -f   <filename>[,<filename>...] - include in test only file match <filename>
-    -t  <c|r> - transaction database mode ((c)ommit or (r)ollback) - default r
-    -b  - set the execute prefix for db objects (Ex.   'scott.' in oracle)
-    -a  - set the execute suffix for db objects (Ex: '\@dblink' in oracle)
-    -v  <command> - use <command> for xml validation
-            use \%f for xml file tag and \%s for schema (xsd) file tag
-            the default is 'xmllint -schema \%s \%f'
-    -X  - do not use xmldiff for difference - use the normal diff command
-    -S  - do not execute xsd2sql in one pass 
-    -x  - force the root_tag params in form name=value,... for xml.pl
-    -K  - ok for difference
-    -p <name>=<value>[,<name>=<value>...]
-        set extra params for xsd2sql.pl - valid names are:
-                MAX_VIEW_COLUMNS     =>  produce view code only for views with columns number <= MAX_VIEW_COLUMNS - 
-                    -1 is a system limit (database depend)
-                    false is no limit (the default)
-                MAX_VIEW_JOINS         =>  produce view code only for views with join number <= MAX_VIEW_JOINS - 
-                    -1 is a system limit (database depend)
-                    false is no limit (the default)
-    -o  - execute only the target operation
-        <op> must be ".join("|",map { ($_->{NAME},$_->{SH_NAME}) } @STEPS)." 
-    -D  - do not use Test::Database for get connection but the old method
-    -F  - do not clean the database on the end of tests
-arguments>:
-    <testnumber>|<testnumber>-<testnumber>...
-    if <testnumber> is not spec all tests can be executed
-    if the test is OK the database is cleaned (see option -F)
-"; 
-    exit 0;
+sub compare_xml_files {
+	my ($f1,$f2,%p)=@_;
+	my ($name)=$f1=~/^(.*)\.xml$/i;
+	my $diff=$name.'.diff';
+	system("cd '".$p{DIR}."' && xmldiff -c '$f1' '$f2' > '$diff'");
+	my $rc=$?;
+	if ($rc && !$p{OK_FOR_DIFF}) {
+		print STDERR "'$f1' <--> '$f2' - the files are diff\n";
+		return 1; 
+	}
+	elsif(!$rc && $p{OK_FOR_DIFF}) {
+		print STDERR "'$f1' <--> '$f2' - the files are equal\n";
+		return 1;
+	}
+	return 0;
 }
 
 
-$Opt{t}='r' unless $Opt{t};
-unless ($Opt{t}=~/^(c|r)$/) {
-	print STDERR $Opt{t},": bad value for option t\n";
-	exit 1;
-}
+sub get_root_tag_params {
+	my %p=@_;
+	my $tp=$p{ROOT_TAG_PARAMS};
+	$tp=[ map {
+				my $out=$_;
+				SW: for ($out) {
+							/^"(.*)"$/ && do { $out=$1; last SW; };
+							/^'(.*)'$/ && do { $out=$1; last SW; };
+							last;
+					}
+				$out;
+			} split(/[,=]/,$tp)
+	] if defined $tp;
 
-sub xopen {
-	my ($opentype,$filename)=@_;
-	if (open(my $fd,$opentype,$filename)) {
-		return $fd;
-	}
-	print STDERR $opentype,$filename,": $!\n";
-	exit 1;				
-}
-
-sub xclose {
-	unless(close $_[0]) {
-		print STDERR "close: $!\n";
-		exit 1;			
-	}
-	return 1;
-}
-
-sub xprint {
-	my $fd=shift;
-	unless (print $fd @_) {
-		print STDERR "print: $!\n";
-		close $fd;
-		exit 1;
-	}
-	return 1;
-}
-
-sub store_step {
-	my ($dbcode,%params)=@_;
-	my $fd=xopen('>',STEP_FILE_PREFIX.$dbcode);
-	for my $k(keys %params) {
-		xprint($fd,$k,' ',$params{$k},"\n") if defined $params{$k} && ref($params{$k}) eq '';
-	}
-	xclose($fd);
-	return 1;		
-}
-
-sub get_last_step {
-	my $dbcode=shift;
-	my $step_file=STEP_FILE_PREFIX.$dbcode;
-	unless (-e $step_file) {
-		my %params=@_;
-		$params{LAST_STEP}=0;
-		store_step($dbcode,%params);
-	}
-	my %params=();
-	my $fd=xopen('<',$step_file);
-	while(<$fd>) {
-		chop;
-		/^(\w+)\s+(.*)$/;
-		$params{$1}=$2;
-	}
-	xclose $fd;		
-	return %params;
+	return $tp;
 }
 
 sub do_test {
 	my (%p)=@_;
-	my $dbcode=$p{DBTYPE};
-	my $not_store_params=delete $p{NOT_STORE_PARAMS};
-	if ($not_store_params->{CLEAN}) {
-		if (opendir(my $d,'.')) {
+	my $step_file_prefix=STEP_FILE_PREFIX;
+	if ($p{CLEAN}) {
+		if (opendir(my $d,$p{DIR})) {
 			while(my $f=readdir($d)) {
 				next if -d $f;
-				if ($f=~/\.(diff|tmp|sql)$/i || $f eq STEP_FILE_PREFIX.$dbcode) {
-					debug(__LINE__,"remove file $f") if $not_store_params->{DEBUG};
-					unless (unlink $f) {
-						print STDERR "$f: cannot remove: $!\n";
+				if ($f=~/\.(diff|tmp)$/i || $f=~/^$step_file_prefix/) {
+					debug(__LINE__,"remove file $f") if $p{DEBUG};
+					unless (unlink catfile($p{DIR},$f)) {
+						print STDERR "(W) $f: cannot remove: $!\n";
 					}
 				}
 			}
 			closedir($d);
 		}
 		else {
-			print STDERR "test failed: cannot open current directory: $! \n";
-			exit 1;	
+			abort(undef,"cannot open current directory: $! \n");
 		}
 	}	
-	if ($not_store_params->{RESET}) {
-		if  (opendir(my $fd,'.')) {
-			while(my $d=readdir($fd)) {
-				next unless $d=~/^\.step/;
-				unlink($d);
+	return 0 if $p{NOT_EXECUTE};
+	$p{SCHEMA_FILE}=catfile($p{DIR},$p{SCHEMA_FILE});
+	unless (-r  $p{SCHEMA_FILE}) {
+		print STDERR "(W) schema file not exist or not readable - directory skipped\n";
+		return 0;
+	}
+
+	if ($p{USE_XML_REPO}) {
+		my $xml_files=get_xml_files(%p);
+		return 1 unless defined $xml_files;
+
+		if (open(my $fd,"|-",$p{REPO})) {
+			my $s=
+					'create_catalog -o '
+					.'"'
+					.'TABLE_PREFIX='.$p{TABLE_PREFIX}
+					.',VIEW_PREFIX='.$p{VIEW_PREFIX}
+					.',NO_FLAT_GROUPS=0'
+					.'" '
+					.$p{CATALOG_NAME}
+					.' '
+					.$p{SCHEMA_FILE}
+					."\n"
+			;
+			print $fd $s;
+			for my $xml(@$xml_files) {
+				my ($name)=$xml=~/^(.*)\.xml$/i;
+				my $s=
+						'store_xml '
+						.$p{CATALOG_NAME}
+						.' '
+						.catfile($p{DIR},$xml)
+						.' '
+						.$name
+						."\n";
+				print $fd $s;
+				my $tmpname=catfile($p{DIR},$name.'.tmp');
+				$s="put_xml ";
+				if (defined (my $r=$p{ROOT_TAG_PARAMS})) {
+					$s.=" -x '$r' ";
+				} 
+				$s.="-o '$tmpname' ";
+				$s.= " -1 -r " if $p{DELETE};
+				$s.=$p{CATALOG_NAME}." $name\n";
+				print $fd $s;
 			}
-			closedir($fd);
+			if ($p{TEST_VIEWS}) {
+				print $fd "create_catalog_views -i ",$p{CATALOG_NAME},"\n";
+			}
+			close $fd;
+			my $rc=$?;
+			if ($rc) {
+				print STDERR $p{REPO}.": command failed - rc $rc\n" ;
+				return 1;
+			}
+
+			for my $xml(@$xml_files) {
+				my ($name)=$xml=~/^(.*)\.xml$/i;
+				my $tmpname=$name.'.tmp';
+				unless(check_xml_file(catfile($p{DIR},$tmpname),%p)) {
+					print STDERR "$tmpname: not valid xml\n";
+					return 1;						
+				}
+				my $rc=compare_xml_files($xml,$tmpname,%p);
+				return 1 if $rc && !$p{IGNORE_DIFF};
+			}
 		}
-	}
-	return 1 if $not_store_params->{NOT_EXECUTE};
-	my %params=get_last_step($dbcode,%p);
-	my @operations=split(',',nvl($p{OPERATIONS},''));
-	for my $i(0..scalar(@operations) - 1) {
-		my $step=$operations[$i];
-		if ($step < $params{LAST_STEP}) {
-			print STDERR " bypassed step $step\n";
-			next;
-		}
-		my $sub=$STEPS[$step]->{F};
-		croak "internal error" unless ref($sub) eq 'CODE';
-		print STDERR $STEPS[$step]->{D},' ... ';
-		my %ret=$sub->(%params,%$not_store_params,CURRENT_STEP => $step);
-		if ($ret{WARN_MSG}) {
-			print STDERR "(W) ",$ret{WARN_MSG},"\n";
-		}
-		if ($ret{ERR_MSG}) {
-			print STDERR "test failed: ",$ret{ERR_MSG},"\n";
-			store_step($dbcode,%params,LAST_STEP => $step) if $step > $params{LAST_STEP};
+		else {
+			print STDERR "can't run ".$p{REPO}."': $!\n";
 			exit 1;
-		}
-		for my $k (keys %ret) {
-			next if $k eq 'ERR_MSG';
-			next if $k eq 'WARN_MSG';
-			next if $k eq 'CURRENT_STEP';
-			$params{$k}=$ret{$k};
-		}
-		print STDERR " passed\n";
+		}		
 	}
-	my $step=scalar(@STEPS);
-	store_step($dbcode,%params,LAST_STEP => $step) if $step > $params{LAST_STEP};
-	return 1;
-}
-
-sub test_db_connections {
-	for my $c(@_) {
-		my @c=@$c;
-		my $strconn=shift @c;
-		my $conn=eval {  DBI->connect(@c) };
-		if ($@ || !defined $conn) {
-			print STDERR $@;
-			print STDERR "$strconn: wrong connect string\n";
-			return 0;
-		}
-		$conn->disconnect;
-	}
-	return 1;
-}
-
-sub get_message {
-	my @f=();
-	if (open(my $fd,'<message.txt')) {
-		@f=<$fd>;		
-		close $fd;
-	} 
 	else {
-		my $name=readlink 'schema.xsd';
-		if ($name) {
-			$name=~s/_/ /g;
-			$name=~s/\.xsd$//i;
-			push @f,$name."\n";	
+		my $conn=$p{REPO}->get_attrs_value(qw(DB_CONN));
+		if (defined (my $catalog=$p{REPO}->get_catalog($p{CATALOG_NAME}))) {
+			$catalog->drop;
 		}
-	}
-	push @f,"\n"  unless scalar(@f);
-	return wantarray ? @f : \@f;
+		
+		my $schema=$p{PARSER}->parsefile(
+				$p{SCHEMA_FILE}
+				,NO_FLAT_GROUPS		=> 0
+				,TABLE_PREFIX		=> $p{TABLE_PREFIX}
+				,VIEW_PREFIX  		=> $p{VIEW_PREFIX}
+		);
+		
+		my $catalog=$p{REPO}->create_catalog($p{CATALOG_NAME},$schema);
+		
+		abort($conn,$p{CATALOG_NAME},": catalog already exist in the repository")
+				unless defined $catalog;
+
+				
+		unless ($p{NOT_LOAD_SCHEMA}) {
+			unless($catalog=$p{REPO}->get_catalog($p{CATALOG_NAME})) {
+ 				abort($conn,$p{CATALOG_NAME},": catalog not exist in the repository");
+			}
+		}
+				
+		my $catalog_xml=$catalog->get_catalog_xml(
+			WRITER => XML::Writer->new(
+						DATA_INDENT => 4
+						,DATA_MODE => 1
+						,NAMESPACES => 0
+						,UNSAFE    => 1
+			)
+			,EXECUTE_OBJECTS_PREFIX		=> undef
+			,EXECUTE_OBJECTS_SUFFIX		=> undef 
+		);
+		
+		
+		my $xml_files=get_xml_files(%p);
+		return 1 unless defined $xml_files;
+
+		my $root_tag_params=get_root_tag_params(ROOT_TAG_PARAMS => $p{ROOT_TAG_PARAMS});
+		for my $xml(@$xml_files) {
+			if (open(my $fd,'<',catfile($p{DIR},$xml))) {
+				my ($name)=$xml=~/^(.*)\.xml$/i;
+				my $id=$catalog_xml->store_xml(
+					XML_NAME 			=>  $name
+					,FD					=>  $fd
+				);
+				close($fd);
+				abort($conn,$name,':already exist in repository') unless defined $id;
+				my $tmpname=$name.'.tmp';
+				if (open(my $fd,'>',catfile($p{DIR},$tmpname))) {
+					$id=$catalog_xml->put_xml(
+							XML_NAME			=> $name
+							,NO_WRITE_HEADER	=> 0
+							,NO_WRITE_FOOTER	=> 0
+							,FD					=> $fd
+							,ROOT_TAG_PARAMS	=> $root_tag_params
+							,DELETE				=> $p{DELETE}
+					);
+					close $fd;
+					abort($conn,$name,': not found into repository') unless defined $id;
+
+					unless(check_xml_file(catfile($p{DIR},$tmpname),%p)) {
+						print STDERR "$tmpname: not valid xml\n";
+						return 1;						
+					}
+
+					my $rc=compare_xml_files($xml,$tmpname,%p);
+					return 1 if $rc && !$p{IGNORE_DIFF};
+
+					if ($p{DELETE} && !$rc && !$p{OK_FOR_DIFF}) {
+						print STDERR "test delete... \n";
+						my $count=0;
+						test_delete($schema,\$count,CONN => $conn,REPO => $p{REPO});
+						if ($count > 0) {
+							print STDERR "delete test failed - $count tables has rows\n";
+							return 1;
+						}
+					}
+				}
+				else {
+					abort($conn,"$tmpname: open error");
+				}
+			}
+			else {
+				abort($conn,"$xml: open error");		
+			}
+		}
+		if ($p{TEST_VIEWS}) {
+			unless ($p{REPO}->is_support_views) {
+				print STDERR "(W) database not support complex views - test views ignored\n";
+			}
+			else {
+				print STDERR "test views\n";
+				unless ($catalog->create_views) {
+					print STDERR "create views failed\n";
+					return 1;
+				}
+				else {
+					print STDERR "test query views\n";
+					my $binding=$p{REPO}->get_attrs_value(qw(BINDING));
+					for my $r($catalog->get_object_names(TYPE => 'view')) {
+						my $view_name=$r->[2];
+						local $@;
+						my $r=eval { $binding->query_from_view($view_name) };
+						if (!$@ && defined $r) {
+								#empty
+						}
+						else {
+							print STDERR "query_from_view failed for view '$view_name'\n";
+							print STDERR $@ if $p{DEBUG};
+							return 1;
+						}
+					}
+				}
+			}
+		}
+	}	
+	return 0;
 }
 
-sub get_db_connection_string {
-	my $strconn=shift;
-	return $strconn->[0] if $Opt{D};
-	my ($code)=$strconn->[1]=~/^\w+:(\w+)/;
-	return $code;
-}
-
-sub get_dbtype {
-	my $strconn=shift;
-	my ($dbtype)=$strconn->[0]=~/^(\w+)/;
-	return $dbtype;
-}
-
-### main ####
-
-my @onlytests=sub {
+sub give_tests {
 	my @ot=();
 	for my $a(@_) {
 		if ($a=~/^\d+$/) {
@@ -553,311 +406,497 @@ my @onlytests=sub {
 		}
 	}
 	return @ot;
-}->(@ARGV);
-			
+};
 
-my @testdirs=grep (defined $_,map  {  
+sub test_dirs {
+	my ($dp,$dir)=@_;
+	my @testdirs=();
+	if  (opendir(my $fd,$dir)) {
+		while(my $d=readdir($fd)) {
+			next unless $d=~/^$dp(\d+)$/;
+			next unless -d $d;
+			push @testdirs,$1;
+		}
+		closedir($fd);
+	}
+	else {
+		my $absdir=File::Spec->rel2abs($dir);
+		print STDERR "(W) $absdir: $!\n";
+	}
+	my @a=sort @testdirs;;
+	return @a;
+};
+
+sub get_dbconn_cs {
+	my ($connstr,%params)=@_;
+	unless (defined $connstr && length($connstr)) {
+		print STDERR "no connection string specify - set the option 'c' or define the env var DB_CONNECT_STRING\n";
+		return ();
+	}
+	my $conn=blx::xsdsql::connection->new;
+	unless ($conn->do_connection_list($connstr)) {
+		print STDERR $conn->get_last_error,"\n";
+		return ();
+	}
+	my ($output_namespace,$db_namespace)=map { $conn->get_attrs_value($_) } (qw(OUTPUT_NAMESPACE DB_NAMESPACE));
+	my @namespaces=blx::xsdsql::schema_repository::get_namespaces;
+	my $namespace=$output_namespace.'::'.$db_namespace;
+	unless (grep($namespace eq $_,@namespaces)) {
+		print STDERR "$connstr: the namespace '$namespace' is not supported\n";
+		print STDERR "the namespaces actually supported are: ",join(" ",map { "'".$_."'" } @namespaces),"\n";
+		return ();
+	}
+	my @a=$conn->get_connection_list;
+	return ( { 
+				OUTPUT_NAMESPACE => $output_namespace
+				,DB_NAMESPACE	 =>  $db_namespace
+			 },@a
+	);
+}
+
+sub get_message {
+	my (%p)=@_;
+	my @f=();
+	if (open(my $fd,'<',catfile($p{DIR},'message.txt'))) {
+		@f=<$fd>;		
+		close $fd;
+	} 
+	else {
+		my $name=readlink catfile($p{DIR},'schema.xsd');
+		if ($name) {
+			$name=~s/_/ /g;
+			$name=~s/\.xsd$//i;
+			push @f,$name."\n";	
+		}
+	}
+	push @f,"\n"  unless scalar(@f);
+	return wantarray ? @f : \@f;
+}
+
+sub get_schema_file{
+	my $testdir=$_[0];
+	my %schemas=();
+	if (opendir(my $dd,$testdir)) {
+		my @files=();
+		while(my $f=readdir($dd)) {
+			next unless $f=~/\.xsd$/;
+			my $fullname=catfile($testdir,$f);
+			next if -l $fullname;
+			next if -d $fullname;
+			next unless -r $fullname;
+			push @files,$f;
+		}
+		closedir $dd;
+		return @files if scalar(@files) < 2;
+		for my $f(@files) {
+			my $fullname=catfile($testdir,$f);
+			if (open(my $fd,'<',$fullname)) {
+				$schemas{$f}=1 unless exists $schemas{$f};
+				while(<$fd>) {
+					if (/<!--\s+ROOT_SCHEMA\s+/) {
+						close $fd;
+						return ($f);
+					}
+					$schemas{$1}=0 if /include\s+schemaLocation="([^"]+)"/;
+					$schemas{$1}=0 if /import\s+.*\s+schemaLocation="([^"]+)"/;
+				}
+				close $fd;
+			}
+			else {
+				print STDERR "$fullname: $!\n";
+			}
+		}
+	}
+	else {
+		print STDERR "$testdir: $!\n"; 
+	}
+	grep($schemas{$_},keys %schemas);
+}
+
+###### main ####
+
+unless (getopts ('hac:df:int:sv:xDFLTV',\%Opt)) {
+	 print STDERR "invalid option or option not set\n";
+	 exit 1;
+}
+
+if ($Opt{h}) {
+	print STDOUT basename($0).
+q{  [<options>] [<args>].. 
+    exec battery test 
+<options>: 
+    -h  - this help
+    -a - display the know namespaces and exit  
+    -c <connstr> - connect string to database - the default is the value of the env var DB_CONNECT_STRING
+        otherwise is an error
+        the form is  [<output_namespace>::]<dbtype>:<user>/<password>@<dbname>[:hostname[:port]][;<attribute>[,<attribute>...]]
+        <output_namespace>::<dbtype> - see the output with 'a' option set 
+            the default for <output_namespace> is 'sql'
+        <dbname> - database name 
+        <hostname> - remote host name or ip address 
+        <port> - remote host port
+        <attribute> - extra attribute
+        Examples: 
+            sql::pg:user/pwd@mydb:127.0.0.1;RaiseError => 1,AutoCommit => 0,pg_enable_utf8 => 1
+            sql::mysql:user/pwd@mydb:127.0.0.1;RaiseError => 1,AutoCommit => 0,mysql_enable_utf8 => 1
+            sql::oracle:user/pwd@orcl:neutrino:1522;RaiseError => 1,AutoCommit => 0
+            sql::DBM:dbm_mldbm=Storable;RaiseError => 1,f_dir=> q(/tmp) 
+    -d  - debug mode
+    -f   <filename>[,<filename>...] - include in test only file match <filename>
+    -i  - incremental test
+    -n  - continue after xml difference
+    -t  <c|r|C|R> - transaction database mode ((c)ommit for single test, (r)ollback for single test,(C)ommit global,(R)ollback global) - default c
+    -s  - stop on first error
+    -v  <command> - use <command> for xml validation
+            use %f for xml file tag and %s for schema (xsd) file tag
+            the default is 'xmllint -schema %s %f'
+    -x  - use xml_repo.pl for test
+    -F  - do not drop the repository on the end of tests
+    -L  - do not load from repository the schema
+    -T  - clean temporary files in test + step files and not execute the test
+    -V  - not test the views
+    -D  - do not delete rows after write xml
+arguments>:
+    <testnumber>|<testnumber>-<testnumber>...
+    if <testnumber> is not spec all tests can be executed
+    if the test is OK the database is cleaned (see option -F)
+}; 
+    exit 0;
+}
+
+if (-t *STDERR) { ## no critic
+	eval { require  Term::ANSIColor;Term::ANSIColor->import };
+
+}
+
+sub my_color {
+	color @_;
+}
+
+
+if ($Opt{a}) {
+	for my $k(qw(c f i n t s v x L F T V D)) {
+		print STDERR  "(W) Option '$k' is ignored is active option 'a'\n" if delete $Opt{$k};
+	}
+	for my $s(blx::xsdsql::schema_repository::get_namespaces) {
+			print $s,"\n";
+	}
+	exit 0;
+}
+
+if ($Opt{T}) {
+	for my $k(qw(c f i n t s v x L V D)) {
+		print STDERR  "(W) Option '$k' is ignored is active option 'T'\n" if delete $Opt{$k};
+	}
+	$Opt{F}=1;
+}
+
+if ($Opt{x}) {
+	for my $k(qw(L t)) {
+		print STDERR "(W) Option '$k' is ignored is active option 'x'\n" if delete $Opt{$k};
+	}
+}
+
+
+$Opt{t}='c' unless defined $Opt{t};
+abort(undef, $Opt{t},": bad value for option t") unless $Opt{t}=~/^(c|r)$/i;
+
+my @onlytests=give_tests(@ARGV);
+
+my @testdirs=grep (defined $_ && length($_),map  {  
 		my $testnumber=$_;
 		if (scalar(@ARGV)) {
 			$testnumber=undef unless grep($_ == $testnumber,@onlytests);
 		}
 		$testnumber;
-	}  sub {
-		my ($dp,$dir)=@_;
-		my @testdirs=();
-		if  (opendir(my $fd,$dir)) {
-			while(my $d=readdir($fd)) {
-				next unless $d=~/^$dp(\d+)$/;
-				next unless -d $d;
-				next unless -r $d.'/schema.xsd';
-				push @testdirs,$1;
-			}
-			closedir($fd);
-		}
-		else {
-			my $absdir=File::Spec->rel2abs($dir);
-			print STDERR $absdir,": $!\n";
-			exit 1;
-		}
-		return sort @testdirs;
-	}->(DIR_PREFIX,File::Spec->curdir)
-);
+	}  test_dirs(DIR_PREFIX,File::Spec->curdir));
 
 unless (scalar(@testdirs)) {
 	print STDERR "(W) no test required\n";
 	exit 0;
 }
 
-$Opt{NOT_EXECUTE}=1 if $Opt{C} || $Opt{R} || $Opt{T};
+$Opt{NOT_EXECUTE}=1 if $Opt{T};
+$Opt{F}=1 if $Opt{i};
 
-my @strconn=$Opt{NOT_EXECUTE} ? () : $Opt{D} ? sub {
-	my $connstr=$ENV{DB_CONNECT_STRING};
-	return ([$connstr])  if $connstr;
-	unlink(STRCONN_FILE) if $Opt{c} || $Opt{C};
-	return () if $Opt{NOT_EXECUTED};
-	my %app=map {  ($_,1) } blx::xsdsql::dbconn::get_application_availables;
-	unless ($app{&APPLICATION}) {
-		print STDERR "the application '&APPLICATION' is not available\n";
-		exit 1;
-	}
-	my $dbconn=blx::xsdsql::dbconn->new;
-	while (! -e STRCONN_FILE) {
-		my @db_aval=blx::xsdsql::dbconn::get_database_availables();
-		print STDERR "database availables: ",join(' ',@db_aval),"\n";
-		print STDERR "enter database connect string in form dbtype:<user>/<password>\@<dbname>[:<host>[:<port>]]\n";
-		my $connstr=<STDIN>;
-		chomp $connstr;
-		next unless $connstr;
-		my @a=$dbconn->get_application_string($connstr,APPLICATION => APPLICATION);
-		@a=() unless test_db_connection($connstr,@a); #if failure connection print errmsg
-		if (scalar(@a)) {
-			if (open(my $fd,'>',STRCONN_FILE)) {
-				unshift @a,$connstr;
-				for my $a(@a) {				
-					unless (print $fd $a,"\n") {
-						print STDERR STRCONN_FILE,": $!\n";
-						close $fd;
-						unlink STRCONN_FILE;
-						exit 1;
-					}
-				}
-				unless (close $fd) {
-					print STDERR STRCONN_FILE,": $!\n";
-					unlink STRCONN_FILE;
-					exit 1;
-				}
+
+
+unless ($Opt{NOT_EXECUTE}) {
+	$Opt{c}=$ENV{DB_CONNECT_STRING} unless defined $Opt{c};
+	my ($ns,@cs)=get_dbconn_cs($Opt{c});
+	exit 1 unless defined $ns;
+	$Opt{output_namespace}=$ns->{OUTPUT_NAMESPACE};
+	$Opt{db_namespace}=$ns->{DB_NAMESPACE};
+	$ENV{DB_CONNECT_STRING}=$Opt{c} if $Opt{x};
+	if ($Opt{x}) {
+		$Opt{xml_repo}=PERL.' '.File::Spec->rel2abs(catfile('..','bin','xml_repo.pl'))." exec";
+		$Opt{xml_repo}.=' -e "> "' if $Opt{d};
+		unless ($Opt{i}) {
+			if (open(my $fd,"|-",$Opt{xml_repo})) {
+				print $fd 'instruction print STDERR qq(drop eventually existent repository...\n)'."\n";
+				print $fd "drop_repository -i\n";
+				print $fd 'instruction print STDERR qq(create repository...\n)'."\n";
+				print $fd "create_repository\n";
+				close $fd;
+				my $rc=$?;
+				abort(undef,$Opt{xml_repo},": command failed - rc $rc") if $rc;
 			}
 			else {
-				print STDERR STRCONN_FILE,": $!\n";
-				exit 1;				
+				abort(undef,"can't run ",$Opt{xml_repo},"': $!");
 			}
 		}
 		else {
-			print STDERR "$connstr: invalid connection  string\n";
-			print STDERR "the connection string must be in the form dbtype:<user>/<password>\@<dbname>[:<host>[:<port>]]\n";
-		}	
-	}
-	if (open(my $fd,'<',STRCONN_FILE)) {
-		my @l=map { chop($_); $_; } <$fd>;
-		close $fd; 
-		return (\@l);
+			if (open(my $fd,"|-",$Opt{xml_repo})) {
+				print $fd "catalog_names\n";
+				close $fd;
+				my $rc=$?;
+				exit 1 if $rc;
+			}
+		}
 	}
 	else {
-		print STDERR STRCONN_FILE,": $!\n";
-		exit 1;				
+		$Opt{conn}=eval {  DBI->connect(@cs) };
+		if ($@ || !defined $Opt{conn}) {
+			print STDERR $@ if $@;
+			abort($Opt{conn},$Opt{c}." connection failed");
+		}
+
+		$Opt{repo}=blx::xsdsql::schema_repository->new(
+				DB_CONN 			=> $Opt{conn}
+				,OUTPUT_NAMESPACE	=> $Opt{output_namespace}
+				,DB_NAMESPACE		=> $Opt{db_namespace}
+				,DEBUG				=> $Opt{d}
+		);
+		
+		unless ($Opt{i}) {
+			print STDERR "drop eventually existent repository...\n";
+			$Opt{repo}->drop_repository;
+			print STDERR "create repository...\n";
+			$Opt{repo}->create_repository;
+			print STDERR "OK\n";
+		}
+		else {
+			unless($Opt{repo}->is_repository_installed) {
+				abort($Opt{conn},"the repository is not installed");				
+			}
+		}
 	}
-	croak "internal error";
-}->()
 
-: 
-
-sub {  #return the connection string from Test::Database
-		my $info=blx::xsdsql::dbconn::get_info;
-		my %dbtype=();
-		for my $dbtype(keys %$info) {
-			my $h=$info->{$dbtype};
-			for my $appl(keys %$h) {
-				my $data=$h->{$appl};
-				$dbtype{$data->{CODE}}=$data;
-			}
-		}
-		my @dbcodes=keys %dbtype;
-#		my @dbcodes=blx::xsdsql::dbconn::get_database_codes_availables;
-		unless (@dbcodes) {
-			print STDERR "no database codes available - the package is installed correctly and is into PERL5LIB ?\n";
-			exit 1;
-		}
-		Test::Database->load_drivers;
-		my @config_file=grep(defined $_ && length($_),($ENV{TEST_DATABASE_CONFIG})); 
-		Test::Database->load_config(@config_file);
-		my @params=map { /^dbi:(\w+)/ ? { dbd => $1 } : () } @dbcodes;
-		unless (@params) {
-			print STDERR "no dbi database availables - internal error ?\n";
-			exit 1;
-		}
-		
-		my @handle = Test::Database->handles(@params);
-		unless(@handle) {
-			print STDERR "Test::Database not offer connections - configure it\n"; 
-			exit 1;
-		}
-		
-		return map {  
-			my @ci=$_->connection_info;
-			my ($code,$oth)=$ci[0]=~/^(\w+:\w+)(.*)/;
-			my @out=();
-			if (defined $code) {
-				my $dbt=$dbtype{$code}->{DBTYPE};
-				push @out,$dbt.$oth;
-				push @out,@ci;
-			}
-			\@out;
-		} @handle;		
-}->();
-
-			
-unless ($Opt{NOT_EXECUTE}) {
-	test_db_connections(@strconn)  || exit 1;
 }
+
 
 my $startdir=File::Spec->rel2abs(File::Spec->curdir);
 
-my @operations=sub {
-	return  (0..scalar(@STEPS) - 1) unless scalar(@_);
-	my @op=();
-	for my $d(@_) {
-		my $index=$OPERATIONS{uc($d)};
-		unless (defined $index) {
-			print STDERR "$d: operation unknow\n";
-			return ();
-		}
-		push @op,$index;
-	}
-	return get_operations(@op);
-}->(defined $Opt{o} ? split(',',$Opt{o}) : ());
-exit 1 unless scalar(@operations);
-
-my $only_files=sub {
-	return join(',',map {  my $f=$_; $f.='.xml' unless $f=~/\.xml$/i; $f; } @_);
-}->(defined $Opt{f} ? split(',',$Opt{f}) : ());
+my $only_files=defined $Opt{f}
+				? [map {  my $f=$_; $f.='.xml' unless $f=~/\.xml$/i; $f; } split(',',$Opt{f})]
+				: undef
+;
 
 $Opt{v}='xmllint --schema \'%s\' --noout \'%f\'' unless defined $Opt{v};
 
-my %not_store_params=(
-						DEBUG 							=> $Opt{d}
-						,RESET							=> $Opt{r} || $Opt{R}
-						,CLEAN							=> $Opt{T}
-						,NOT_EXECUTE					=> $Opt{NOT_EXECUTE}
-						,EXCLUDE_NOT_VALID_XML_FILES 	=> $Opt{e}
-						,IGNORE_DIFF 					=> $Opt{i}
-						,WRITER_UTF8					=> $Opt{u}
-						,TRANSACTION_MODE				=> $Opt{t} 
-						,EXECUTE_OBJECTS_PREFIX			=> $Opt{b}
-						,EXECUTE_OBJECTS_SUFFIX 		=> $Opt{a}
-						,ONLY_FILES						=> $only_files
-						,EXTRA_PARAMS					=> $Opt{p}
-						,XML_VALIDATOR  				=> $Opt{v}
-						,XMLDIFF						=> $Opt{X} ? 0 : 1
-						,XSD2SQL_ONE_PASS				=> $Opt{S} ? 0 : 1
-						,OK_FOR_DIFF					=> $Opt{K}
-						,USE_TEST_DATABASE				=> $Opt{D} ? 0 : 1
-);
 
-my $cwd=getcwd;
+my $step_file=$Opt{NOT_EXECUTE} 
+				? undef 
+				: STEP_FILE_PREFIX.'_'.$Opt{output_namespace}.'_'.$Opt{db_namespace};
+
+my $parser= $Opt{NOT_EXECUTE} 
+	? undef 
+	: blx::xsdsql::xsd_parser->new(
+			OUTPUT_NAMESPACE 	=> $Opt{output_namespace}
+			,DB_NAMESPACE		=> $Opt{db_namespace}
+			,DEBUG				=> $Opt{d}
+	);
+
+my %C=( #counters
+		N	=> 0
+		,F  => 0
+); 
 
 for my $n(@testdirs) { 
 	my $testdir=DIR_PREFIX.$n;
-	for my $strconn(@strconn) {
-		unless (chdir $testdir) {
-			print STDERR "(W) $testdir: $!\n";
-			next;
-		}
-		print STDERR "test number $n - ";
-		my $code=sub {
-			my @out=();
-			if ($Opt{D}) {
-				@out=$strconn->[0]=~/^(\w+)/;
-			}
-			else {
-				@out=$strconn->[1]=~/^\w+:(\w+)/;
-			}
-			$out[0];
-		}->();
-		print STDERR " database $code - ";
-		print STDERR get_message;
-		
+	my $sf=catfile($testdir,$step_file);
+	if ($Opt{T}) {
 		my %test_params=(
-			SCHEMA_FILE					=> 'schema.xsd'
-			,TEST_NUMBER 				=> $n
-			,DB_CONNECTION_STRING 		=> get_db_connection_string($strconn)
-			,PREFIX_VIEWS 				=> 'V'.$n.'_'
-			,PREFIX_TABLES 				=> 'T'.$n.'_'
-			,PREFIX_SEQUENCE			=> 'S'.$n.'_'
-			,NOT_STORE_PARAMS			=> { %not_store_params }
-			,OPERATIONS					=> join(',',@operations)
-			,ROOT_TAG_PARAMS			=> $Opt{x}
-			,DBTYPE						=> get_dbtype($strconn)
+			TEST_NUMBER 				=> $n
+			,CLEAN 						=> 1
+			,NOT_EXECUTE 				=> $Opt{NOT_EXECUTE}
+			,DIR 						=> $testdir
 		);
-		if (-r CUST_PARAMS_FILE) {
-			if (open(my $fd,'<',CUST_PARAMS_FILE)) {
+		do_test(%test_params);
+		print STDERR "test number $n - cleaned\n";
+	}
+	else {
+		my $rc=0;
+		unlink($sf) unless $Opt{i};
+		print STDERR  my_color 'blue';
+		print STDERR "test number '$n' -  database '".$Opt{db_namespace}."' ";		
+		unless( -e $sf) { 
+			print STDERR get_message(DIR => $testdir);
+			print STDERR  my_color 'reset';
+			my %custom_params=();
+			if (open(my $fd,'<',catfile($testdir,CUST_PARAMS_FILE))) {
 				while(<$fd>) {
+					chop;
 					next if /^\s*#/;
 					next if /^\s*$/;
 					if (/^\s*(\w+)\s+(.*)$/) {
-						my $fl=1;
-						my ($k,$v)=($1,$2);
-						if (grep($_ eq $k,keys %test_params)) {
-							if ($k eq 'NOT_STORE_PARAMS') {
-								$fl=0;
-							}
-							else {
-								$test_params{$k}=$v;
-							}
-						}
-						elsif (grep($_ eq $k,keys %not_store_params)) { 
-							$test_params{NOT_STORE_PARAMS}->{$k}=$v;
-						}
-						else {
-							$fl=0;
-						}
-						print STDERR CUST_PARAMS_FILE,": (W) unknow  key $k in line $NR\n" unless $fl;
+						$custom_params{$1}=$2;
 					}
 					else {
-						print STDERR CUST_PARAMS_FILE,": (W) wrong  line $NR\n";
+						print STDERR "(W) ".CUST_PARAMS_FILE.": $_: line ignored\n";
 					}
 				}
 				close $fd;
 			}
+			my $sn=sprintf("%03d",$n);
+			my @schema_files=get_schema_file($testdir);
+			if (scalar(@schema_files) == 0) {
+				print STDERR "no schema file in directory\n";
+				$rc=1;
+			}
+			elsif (scalar(@schema_files) > 1) {
+				print STDERR join(' ',@schema_files),": many schema file in directory\n";
+				$rc=1;
+			}
 			else {
-				print STDERR CUST_PARAMS_FILE,": (W) $!\n";
+				$rc=eval {
+					do_test(
+						SCHEMA_FILE					=> $schema_files[0]
+						,CATALOG_NAME				=> 'c'.$sn
+						,VIEW_PREFIX 				=> 'V'.$sn.'_'
+						,TABLE_PREFIX 				=> 'T'.$sn.'_'
+						,DEBUG						=> $Opt{d}
+						,XML_VALIDATOR				=> $Opt{v}
+						,IGNORE_DIFF				=> $Opt{n}
+						,DELETE						=> !$Opt{D}
+						,NOT_LOAD_SCHEMA			=> $Opt{L}
+						,TEST_VIEWS					=> !$Opt{V}
+						,%custom_params
+						,PARSER						=> $parser
+						,REPO						=> ($Opt{x} ? $Opt{xml_repo} : $Opt{repo})
+						,USE_XML_REPO				=> $Opt{x}
+						,TEST_NUMBER 				=> $n
+						,OUTPUT_NAMESPACE			=> $Opt{output_namespace}
+						,DB_NAMESPACE				=> $Opt{db_namespace}
+						,NOT_EXECUTE				=> $Opt{NOT_EXECUTE}
+						,DIR 						=> $testdir
+						,ONLY_FILES					=> $only_files
+					);
+				};
+				if ($@) {
+					print STDERR $@;
+					$rc=1;
+				}
 			}
+			$C{N}++;			
+			$C{F}++ if $rc;
+			if($rc) {
+				print STDERR my_color 'red';
+				print STDERR '['.$sn.'] Failed'."\n";
+				print STDERR my_color 'reset';
+			}
+			else {
+				open(my $fd,">",$sf);
+				close $fd;
+				print STDERR my_color 'blue';
+				print STDERR '['.$sn.'] OK'."\n";
+				print STDERR my_color 'reset';
+			}
+			if (defined (my $conn=$Opt{conn}) && ! $Opt{conn}->{AutoCommit}) {
+				if ($Opt{t} eq 'c') {
+					$conn->commit;
+				}
+				elsif ($Opt{t} eq 'r') {
+					print STDERR "(W) ROOLBACK issued for user request\n";
+					$conn->rollback;
+				}
+			}
+			last if $rc && $Opt{s};
 		}
-		
-		do_test(%test_params);
-
-		unless (chdir $cwd) {
-			print STDERR "(E) $cwd: $!\n";
-			exit 1
+		else {
+			print STDERR " - skipped for already tested\n";
+			print STDERR  my_color 'reset';
 		}
 	}
 }
 
-unless  ($Opt{F} ||  $Opt{R} || $Opt{T}) {
-	for my $n(@testdirs) { 
-		my $testdir=DIR_PREFIX.$n;
-		for my $strconn(@strconn) {
-			unless (chdir $testdir) {
-				print STDERR "(W) $testdir: $!\n";
-				next;
-			}
-			my $dbtype=get_dbtype($strconn);
-			print STDERR "test number $n - clean database $dbtype\n";
-			my %test_params=(
-				%not_store_params
-				,SCHEMA_FILE				=> 'schema.xsd'
-				,TEST_NUMBER 				=> $n
-				,USE_TEST_DATABASE			=> $Opt{D} ? 0 : 1
-				,DB_CONNECTION_STRING 		=> get_db_connection_string($strconn)
-				,PREFIX_VIEWS 				=> 'V'.$n.'_'
-				,PREFIX_TABLES 				=> 'T'.$n.'_'
-				,PREFIX_SEQUENCE			=> 'S'.$n.'_'
-				,ROOT_TAG_PARAMS			=> $Opt{x}
-				,DBTYPE						=> $dbtype
-			);
-						
-			my $rinchi="_".$test_params{DBTYPE};
-			my %ret=isql(%test_params,FILE => 'all_drops'.$rinchi.'.sql',DROP => 1);
-			if ($ret{WARN_MSG}) {
-				print STDERR "(W) ",$ret{WARN_MSG},"\n";
-			}
-			if ($ret{ERR_MSG}) {
-				print STDERR "(W) clean database failed: ",$ret{ERR_MSG},"\n";
-			}
-			unless (chdir $cwd) {
-				print STDERR "(W) $cwd: $!\n";
-			}			
+$Opt{F}=1 if $C{F};
+
+unless($Opt{F}) {
+	print STDERR "drop repository\n";
+	if ($Opt{x}) {
+		if (open(my $fd,"|-",$Opt{xml_repo})) {
+			print $fd "drop_repository -i\n";
+			close $fd;
+			my $rc=$?;
+			abort($Opt{conn},"xml_repo.pl failed - rc $rc") if $rc;
+		}
+		else {
+			abort($Opt{conn},"can't run ".$Opt{xml_repo}."': $!");
 		}
 	}
+	else {
+		$Opt{repo}->drop_repository;
+	}
+	print STDERR "(W) REPOSITORY Dropped\n";
 }
 
-exit 0;
+if (defined (my $conn=$Opt{conn})) {
+	unless ($conn->{AutoCommit}) {
+		if ($Opt{t} =~/^c$/i) {
+			$conn->commit;
+		}
+		else {
+			print STDERR "(W) ROOLBACK issued\n";
+			$conn->rollback;
+		}
+	}
+	$conn->disconnect;
+}
+
+print STDERR my_color($C{F} ? 'red' : 'blue'),"test numbers ",$C{N}," - failed ",$C{F},"\n";
+print STDERR my_color 'reset';
+
+exit ($C{F} ? 1 : 0);
+
+__END__
+
+=head1 NAME test.pl
+
+=cut
+
+
+=head1 VERSION
+
+0.10.0
+
+=cut
+
+
+
+=head1 BUGS
+
+Please report any bugs or feature requests to https://rt.cpan.org/Public/Bug/Report.html?Queue=XSDSQL
+
+=cut
+
+
+
+=head1 AUTHOR
+
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
+
+
+=cut
+
+
+=head1 COPYRIGHT
+
+Copyright (C) 2010 by lorenzo.bellotti
+
+This program is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
+
+See http://www.perl.com/perl/misc/Artistic.html
+
+=cut

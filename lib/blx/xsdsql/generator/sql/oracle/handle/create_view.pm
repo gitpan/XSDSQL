@@ -1,7 +1,8 @@
 package blx::xsdsql::generator::sql::oracle::handle::create_view;
-use strict;
-use warnings;
-use Carp;
+use strict;  # use strict is for PBP
+use Filter::Include;
+include blx::xsdsql::include;
+#line 6
 use base qw(blx::xsdsql::generator::sql::generic::handle::create_view);
 
 sub _alias_table {
@@ -17,7 +18,6 @@ __END__
 
 blx::xsdsql::generator::sql::oracle::handle::create_view  - create view  for oracle
 
-
 =head1 SYNOPSIS
 
 
@@ -31,9 +31,16 @@ this package is a class - instance it with the method new
 =cut
 
 
+
+=head1 VERSION
+
+0.10.0
+
+=cut
+
 =head1 FUNCTIONS
 
-see the methods of blx::xsdsql::generator::sql::generic::handle 
+see the methods of blx::xsdsql::generator::sql::generic::handle
 
 =head1 EXPORT
 
@@ -47,7 +54,7 @@ None
 =head1 SEE ALSO
 
 
-See  blx::xsdsql::generator::sql::generic::handle::create_view  - this class inherit from this 
+See  blx::xsdsql::generator::sql::generic::handle::create_view  - this class inherit from this
 
 
 =head1 AUTHOR
@@ -64,6 +71,6 @@ under the same terms as Perl itself.
 See http://www.perl.com/perl/misc/Artistic.html
 
 =cut
- 
+
 
 

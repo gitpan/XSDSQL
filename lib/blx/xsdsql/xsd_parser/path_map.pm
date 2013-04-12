@@ -1,17 +1,33 @@
 package blx::xsdsql::xsd_parser::path_map;
 
-use strict;
-use warnings FATAL => 'all';
-use Carp;
-use Data::Dumper;
-use blx::xsdsql::ut(qw(nvl));
-use base(qw(blx::xsdsql::common_interfaces blx::xsdsql::log));
+use strict;  # use strict is for PBP
+use Filter::Include;
+include blx::xsdsql::include;
+#line 7
 
-our %_ATTRS_R=();
-our %_ATTRS_W=();
+use blx::xsdsql::ut::ut qw(nvl);
+
+      
+use base(qw(blx::xsdsql::ut::common_interfaces blx::xsdsql::ios::debuglogger));
+
+use constant {
+	STD_NAMESPACE		=>  'http://www.w3.org/2001/XMLSchema-instance' 
+};
+
+
+our %_ATTRS_R:Constant(());
+our %_ATTRS_W:Constant(
+	map { my $a=$_;($a,sub {  croak $a.": this attribute is not writeable"}) }
+		qw(
+			LINK_TABLES
+			ATTRS
+			TC
+		)
+);
 
 sub _get_attrs_r {  return \%_ATTRS_R; }
 sub _get_attrs_w {  return \%_ATTRS_W; }
+
 
 sub _register_attribute {
 	my ($self,%params)=@_;
@@ -38,11 +54,9 @@ sub _register_path {
 		$path=$self->_resolve_relative_path($params{ORIG_PATH_NAME},$params{T},$path,%params);
 	}
 	else {
-		confess "(E $tag) ORIG_PATH_NAME not def for type table " if $params{T}->is_type;
+		affirm { !$params{T}->is_type } "$tag: ORIG_PATH_NAME not set for type table";
 	}
-	unless ($path) {
-		confess "(E $tag) path not set\n";
-	}
+	affirm { defined $path && length($path) }  "path not set";
 
 	my $ret=sub {
 		if (defined $params{C}) { #map path into a column
@@ -60,7 +74,8 @@ sub _register_path {
 				.')');
 			return $params{STACK};
 		}
-		confess "dead code\n";
+		affirm { 0 } "dead code";
+		undef;
 	}->();
 
 	if (my $tc=$params{PATH}->{$path}) {  #path is already register
@@ -77,8 +92,6 @@ sub _register_path {
 				$self->_debug(__LINE__,$ret->[-1]->{T}->get_sql_name);
 				$self->_debug(__LINE__,$ret->[-1]->{T}->get_path);
 			}
-
-
 
 			confess "check consistence 3 failed " if ref($tc) eq 'ARRAY' && $tc->[-1]->{T}->get_sql_name ne $ret->[-1]->{T}->get_sql_name;
 
@@ -119,7 +132,7 @@ sub _resolve_path_ref {
 	for my $t($params{ROOT_TABLE}->get_child_tables) {
 		return $t if nvl($t->get_path,'') eq $path_ref;
 	}
-	return undef;
+	undef;
 }
 
 sub _resolve_table_path {
@@ -133,9 +146,9 @@ sub _resolve_table_path {
 
 sub _resolve_relative_path {
 	my ($self,$startpath,$table,$relative_path,%params)=@_;
-	for my $i(1..3) {
-		confess "internal error - $i param not set\n" unless defined $_[$i];
-	}
+	affirm { defined $startpath } "1 param not set";
+	affirm { defined $table } "2 param not set";
+	affirm { defined $relative_path } "3 param not set";	
 	my $path=$startpath.substr($relative_path,length($self->_resolve_table_path($table,%params)->get_attrs_value(qw(PATH))));
 	return $path;
 }
@@ -185,11 +198,10 @@ sub _mapping_path {
 					$self->_mapping_path($table_ref,%params,STACK => \@stack,ORIG_PATH_NAME => $orig_path_name);
 				}
 			}
-			else {	# the column ref a path of an unknow table
-				confess "(E $tag) $path_ref: the column has internal reference and table_ref is not a table: '".$col->get_full_name."'\n"
-					 if $col->is_internal_reference;
+			else {	# the column ref a path of an unknow table				
+				affirm { !$col->is_internal_reference }  nvl($tag).": the column has internal reference and table_ref is not a table: '".$col->get_full_name."'";
 				my $t=$self->_resolve_path_ref($table,$col,$path_ref,%params,TAG => __LINE__);
-				croak "$path_ref: path not resolved from '".$col->get_full_name."'\n" unless defined $t;
+				affirm { defined $t } "$path_ref: path not resolved from '".$col->get_full_name."'";
 				$self->_link_tables($table,$col,$t);
 				$col->set_attrs_value(TABLE_REFERENCE => $t);
 				my $orig_path_name=$params{ORIG_PATH_NAME};
@@ -211,22 +223,26 @@ sub _mapping_path {
 			$self->_register_path(%params,T => $table,C => $col,TAG => __LINE__) if defined $col->get_path;
 		}
 	}
-	return undef;
+	undef;
 }
 
 sub mapping_paths {
 	my ($self,$root_table,$type_paths,%params)=@_;
-	croak ref($root_table).": 1^ param must be a table\n" unless ref($root_table)=~/::table$/;
-	croak ref($type_paths).": 2^ param must be hash\n" unless ref($type_paths) eq 'HASH';
+	affirm { ref($root_table) =~/::table$/ } ": 1^ param must be a table";
+	affirm { ref($type_paths) eq 'HASH' } ": 2^ param must be hash";
 	my %path_translate=();
 	my %attr_translate=();
-	my $p=$self->_fusion_params(%params);
-	my %savekey=%$self;
-	$self->{DEBUG}=$params{DEBUG} if exists $params{DEBUG};
-	$self->_mapping_path($root_table,%$p,PATH => \%path_translate,TYPE_PATHS => $type_paths,STACK => [],ATTRIBUTES => \%attr_translate,ROOT_TABLE => $root_table);
-	$self->set_attrs_value(TC => \%path_translate,ATTRS => \%attr_translate); 
-	$self->{DEBUG}=$savekey{DEBUG};
-	return $self;
+	$self->_mapping_path(
+		$root_table
+		,PATH => \%path_translate
+		,TYPE_PATHS => $type_paths
+		,STACK => []
+		,ATTRIBUTES => \%attr_translate
+		,ROOT_TABLE => $root_table
+	);
+	$self->{TC}=\%path_translate;
+	$self->{ATTRS}=\%attr_translate;
+	$self;
 }
 
 
@@ -244,18 +260,40 @@ sub _manip_path {
 
 sub resolve_path { #return an array if resolve into tables otherwise an hash
 	my ($self,$path,%params)=@_;
-	croak "1^ arg not set" unless defined $path;
+	affirm { defined $path } "1^ arg not set";
 	my $p=$self->_manip_path($path,%params);
+	affirm { defined $p} "_manip_path return undef";
 	my $a=$self->{TC}->{$p};
-	confess "$p: path not resolved - orig path is '$path' " unless defined $a;
-	return $a;
+	$self->_debug($params{TAG},"$p: path not resolved - orig path is '$path'") unless defined $a;
+	$a;
 }
 
 
 sub resolve_attributes {
-	my ($self,$table_name,@attrnames)=@_;
-	$self->_debug(__LINE__,keys %{$self->{ATTRS}->{$table_name}});
-	my @cols=map { 	$self->{ATTRS}->{$table_name}->{$_} } @attrnames;
+	my ($self,$table,$nsprefixes,@attrnames)=@_;
+	affirm { defined $table } "1^ param not set";
+	affirm { ref($nsprefixes) eq 'HASH' } "2^ param is not HASH"; 
+	my $table_name=$table->get_sql_name;
+	$self->_debug(undef,'attributes: ',keys %{$self->{ATTRS}->{$table_name}});
+	my @cols=map {
+		my $fullname=$_;
+		my $out=undef;
+		if ($fullname!~/^xmlns:/ && $fullname ne 'xmlns') {
+			my ($ns,$name)=$fullname=~/^([^:]+):([^:]+)$/;
+			if (defined $ns) {
+				affirm { defined $nsprefixes->{$ns} } "$ns: prefix not know";
+				if ($nsprefixes->{$ns} ne STD_NAMESPACE) {
+					$out=$self->{ATTRS}->{$table_name}->{$name};
+					affirm {defined $out } "$name: not found column for this attribute in table '$table_name'"; 
+				}
+			}
+			else {
+				$out=$self->{ATTRS}->{$table_name}->{$fullname};
+				affirm {defined $out } "$fullname: not found column for this attribute in table '$table_name'"; 
+			}
+		}
+		$out;
+	} @attrnames;
 	return @cols if wantarray;
 	return scalar(@cols) <= 1 ? $cols[0] : \@cols;
 }
@@ -264,18 +302,15 @@ sub resolve_column_link {
 	my ($self,$t1,$t2,%params)=@_;
 	my ($n1,$n2)=($t1->get_sql_name,$t2->get_sql_name);
 	my $col=$self->{LINK_TABLES}->{$n1}->{$n2};
-	croak $n1.' => '.$n2.": link not resolved \n" unless defined $col;
-	return $col;
+	affirm { defined $col }  "$n1 => $n2: link not resolved"; 
+	$col;
 }
 
 sub new {
 	my ($classname,%params)=@_;
 	my $self=bless {},$classname;
 	$self->set_attrs_value(%params);
-	my $r=ref($self);
-	$r=~s/^blx::xsdsql:://;
-	$self->{DEBUG_NAME}=$r;
-	return $self;
+	$self;
 }
 
 
@@ -285,11 +320,42 @@ __END__
 
 =head1  NAME
 
+blx::xsdsql::xsd_parser::path_map  - internal class for parsing schema
 
-blx::xsdsql::xsd_parser::path_map  - internal class for parsing schema 
+=cut
+
+
+=head1 VERSION
+
+0.10.0
 
 =cut
 
 
 
-	
+=head1 BUGS
+
+Please report any bugs or feature requests to https://rt.cpan.org/Public/Bug/Report.html?Queue=XSDSQL
+
+=cut
+
+
+
+=head1 AUTHOR
+
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
+
+
+=cut
+
+
+=head1 COPYRIGHT
+
+Copyright (C) 2010 by lorenzo.bellotti
+
+This program is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
+
+See http://www.perl.com/perl/misc/Artistic.html
+
+=cut

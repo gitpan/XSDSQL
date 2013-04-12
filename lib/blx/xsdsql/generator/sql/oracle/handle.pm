@@ -1,6 +1,8 @@
 package blx::xsdsql::generator::sql::oracle::handle;
-use strict;
-use warnings;
+use strict;  # use strict is for PBP
+use Filter::Include;
+include blx::xsdsql::include;
+#line 6
 use base qw(blx::xsdsql::generator::sql::generic::handle);
 
 1;
@@ -12,7 +14,6 @@ __END__
 =head1 NAME
 
 blx::xsdsql::generator::sql::oracle::handle  - generic handle for oracle
-
 
 =head1 SYNOPSIS
 
@@ -27,9 +28,16 @@ this package is a class - instance it with the method new
 =cut
 
 
+
+=head1 VERSION
+
+0.10.0
+
+=cut
+
 =head1 FUNCTIONS
 
-see the methods of blx::xsdsql::generator::sql::generic::handle 
+see the methods of blx::xsdsql::generator::sql::generic::handle
 
 
 =head1 EXPORT
@@ -44,7 +52,7 @@ None
 =head1 SEE ALSO
 
 
-See  blx::xsdsql::generator::sql::generic::handle - this class inherit from this 
+See  blx::xsdsql::generator::sql::generic::handle - this class inherit from this
 
 
 =head1 AUTHOR
@@ -61,6 +69,6 @@ under the same terms as Perl itself.
 See http://www.perl.com/perl/misc/Artistic.html
 
 =cut
- 
+
 
 

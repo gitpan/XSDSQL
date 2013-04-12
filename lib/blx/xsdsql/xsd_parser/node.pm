@@ -1,24 +1,24 @@
 package blx::xsdsql::xsd_parser::node;
 
-use strict;
-use warnings FATAL => 'all';
-use integer;
-use Carp;
-use POSIX;
-use Data::Dumper;
+use strict;  # use strict is for PBP
+use Filter::Include;
+include blx::xsdsql::include;
+#line 7
 
-use blx::xsdsql::ut qw(ev nvl);
-use base qw(blx::xsdsql::log blx::xsdsql::common_interfaces);
+use blx::xsdsql::ut::ut qw(ev nvl);
+use blx::xsdsql::ut::posix;
 
-our %_ATTRS_W=();
-our %_ATTRS_R=();
+use base qw(blx::xsdsql::ios::debuglogger blx::xsdsql::ut::common_interfaces);
+
+our %_ATTRS_W:Constant(());
+our %_ATTRS_R:Constant(());
 
 sub _get_attrs_w { return \%_ATTRS_W; }
 sub _get_attrs_r { return \%_ATTRS_R; }
 
 
 use constant {
-	UNBOUNDED	=> INT_MAX
+	UNBOUNDED	=>  blx::xsdsql::ut::posix::get_int_max
 };
 
 
@@ -40,11 +40,10 @@ sub _resolve_minOccurs {
 sub _resolve_form {
 	my ($self,%params)=@_;
 	my $form=$self->get_attrs_value(qw(form));
-	$form=$self->get_attrs_value(qw(STACK))->[1]->get_attrs_value(qw(elementFormDefault)) 	unless defined $form;
-	$form='U' unless defined $form;
+	return $form unless defined $form;
 	$form='Q' if $form eq 'qualified';
 	$form='U' if $form eq 'unqualified';
-	return $form;
+	$form;
 }
 
 sub _split_tag_name  {  # split tag into namespace/name
@@ -53,9 +52,27 @@ sub _split_tag_name  {  # split tag into namespace/name
 	@a=('',$name) unless scalar(@a);  # name without namespace prefix 
 	return {
 			FULLNAME		=> $name
-			,NAMESPACE		=> $a[0]
+			,NAMESPACE		=> $a[0]  #namespace abbr
 			,NAME 			=> $a[1]
 	};	
+}
+
+
+sub _resolve_boolean {
+	my ($self,$value,%params)=@_;
+	return 0 unless defined $value;
+	return $value eq 'true' || $value eq '1' ? 1 : 0;
+}
+
+sub _is_into_a_mixed {
+	my ($self,%params)=@_;
+	my $stack=$self->get_attrs_value(qw(STACK));
+	for my $s(reverse @$stack) {
+		if (ref($s)=~/::complexType$/) {
+			return $s->get_attrs_value(qw(MIXED));
+		}
+	}
+	return 0;
 }
 
 sub _new {
@@ -86,7 +103,8 @@ sub _get_parent_table {
 		}
 		$i--;
 	}
-	confess "internal error\n";
+	affirm {  0 }  "no such parent table";
+	undef;
 }
 
 sub _get_parent_path {
@@ -101,7 +119,8 @@ sub _get_parent_path {
 		}
 		$i--;
 	}
-	confess "internal error\n";
+	affirm {  0 }  "no such parent path";
+	undef;
 }
 
 
@@ -118,7 +137,10 @@ sub _resolve_simple_type {
 		}
 		elsif (defined $types) {
 			my $t=$types->{$base};
-			confess "$base: type not found\n" unless defined $t;
+			unless (defined $t) {
+				$self->_debug(undef,"$base: type not found");
+				return;
+			}
 			$self->_resolve_simple_type($t,$types,$out,%params);
 		}
 		else {
@@ -128,7 +150,7 @@ sub _resolve_simple_type {
 	if (defined (my $v=$t->get_attrs_value(qw(value)))) {
 		my $r=ref($t);
 		my ($b)=$r=~/::([^:]+)$/;
-		confess "internal error\n" unless defined $b;
+		affirm { defined $b } "$r: is not a class";
 		if ($b eq 'enumeration') {
 			$out->{$b}=[] unless defined $out->{$b};
 			$self->_debug(__LINE__,$v);
@@ -140,7 +162,6 @@ sub _resolve_simple_type {
 	}
 
 	if (defined (my $child=$t->get_attrs_value(qw(CHILD)))) {
-		confess "internal error\n" unless ref($child) eq 'ARRAY';
 		for my $c(@$child) {
 			$self->_resolve_simple_type($c,$types,$out,%params);
 		}
@@ -155,10 +176,11 @@ sub _dynamic_create {
 		my $class='blx::xsdsql::xsd_parser::node::'.$name;
 		ev("use $class");
 		my $attrs=delete $params{ATTRIBUTES};
-		my $obj=$class->_new(
+		my $obj=$class->new(
 					%params
 					,%$attrs
 					,%$split
+					,DEBUG_NAME => undef
 		);
 		unless ($name eq 'schema') {
 			if (defined (my $path=$obj->_get_parent_path(%params)))  {
@@ -169,32 +191,35 @@ sub _dynamic_create {
 				$obj->set_attrs_value(PATH => $path);
 			}
 			else {
-				confess "internal error - PATH not set\n";
+				affirm {  0 }  "path not set";
 			}
 		}
 		return $obj;
 	}
 	else {
-		confess "$tag: internal error - NAME not set\n";
+		affirm { 0 } "$tag: NAME not set";
 	}
+	undef;
 }
 
 sub factory_object {
 	my ($tag,%params)=@_;
-	croak "STACK param not set\n" unless defined $params{STACK};
-	croak "ATTRIBUTES param not set\n" unless defined $params{ATTRIBUTES};
+	affirm { defined $params{STACK} } "STACK param not set";
+	affirm { defined $params{ATTRIBUTES} } "ATTRIBUTES param not set";	
+	affirm { defined $params{EXTRA_TABLES} } "EXTRA_TABLES param not set";
+	affirm { !defined $params{CHILDS_SCHEMA_LIST} } "CHILDS_SCHEMA_LIST param is reserved";
 	my $obj=_dynamic_create($tag,%params);
 	return $obj;
 }
 
 sub trigger_at_start_node {
 	my ($self,%params)=@_;
-	return undef;
+	undef;
 }
 
 sub trigger_at_end_node {
 	my ($self,%params)=@_;
-	return undef;
+	undef;
 }
 
 
@@ -204,6 +229,41 @@ __END__
 
 =head1  NAME
 
-blx::xsdsql::xsd_parser::node - internal class for parsing schema 
+blx::xsdsql::xsd_parser::node - internal class for parsing schema
+
+=cut
+
+=head1 VERSION
+
+0.10.0
+
+=cut
+
+
+
+=head1 BUGS
+
+Please report any bugs or feature requests to https://rt.cpan.org/Public/Bug/Report.html?Queue=XSDSQL
+
+=cut
+
+
+
+=head1 AUTHOR
+
+lorenzo.bellotti, E<lt>pauseblx@gmail.comE<gt>
+
+
+=cut
+
+
+=head1 COPYRIGHT
+
+Copyright (C) 2010 by lorenzo.bellotti
+
+This program is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
+
+See http://www.perl.com/perl/misc/Artistic.html
 
 =cut

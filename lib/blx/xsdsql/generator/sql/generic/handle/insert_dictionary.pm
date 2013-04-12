@@ -1,7 +1,10 @@
 package blx::xsdsql::generator::sql::generic::handle::insert_dictionary;
-use strict;
-use warnings;
-use Carp;
+use strict;  # use strict is for PBP
+use Filter::Include;
+include blx::xsdsql::include;
+#line 6
+use Scalar::Util qw(looks_like_number);
+
 use base(qw(blx::xsdsql::generator::sql::generic::handle));
 
 sub _get_create_prefix {
@@ -21,20 +24,21 @@ sub _get_begin_value_constant {
 	return " values (";	
 }
 
+sub _manip_value { #manip values from input data
+	my ($self,$col,$v,%params)=@_;
+	$v=$self->{BINDING}->get_attrs_value(qw(DB_CONN))->quote($v)
+			unless defined $v && looks_like_number($v);
+	return $v;
+}
+
 sub _get_value_data {
 	my ($self,$columns,$data,%params)=@_;
+	
 	return join(',',map {
 							my $name=$_->get_name;
-							confess "$name: column non defined in data " if !exists $data->{$name}; 
-							my $d=$data->{$name};
-							if (defined $d) {
-								$d=~s/'/''/g;	#'
-								$d="'".$d."'" unless $d=~/^\d+$/; 
-							}
-							else {
-								$d="null";
-							}
-							$d;
+							affirm { exists $data->{$name} }  "$name: column non defined in data - see  the method get_dictionary_data of the correspondenting class";
+							my $v=$self->_manip_value($_,$data->{$name});
+							$v;
 						}  @$columns
 	);
 }
@@ -51,81 +55,151 @@ sub get_binding_objects  {
 	return wantarray ? ( $root_table ) : [ $root_table ];
 }
 
+sub _get_dictionary_columns {
+	my ($self,$table,%params)=@_;
+	return $table->get_columns(%params);
+}
+
+sub _get_table_data {
+	my ($self,$table,$type,%params)=@_;
+	return {} unless defined $table;
+	if (ref($table)=~/::table$/) {
+		for my $col($table->get_columns) {
+			$col->set_sql_type(EXTRA_TABLES => $self->{EXTRA_TABLES});
+		}
+	}
+	my $data=$table->get_dictionary_data($type,%params);
+	return $data;
+}
+
+sub _get_table_columns_data {
+	my ($self,$extra_tables,$table,$type,%params)=@_;
+	my $dic=$extra_tables->{$type};
+	affirm { defined $dic } "'$type': wrong table type";
+	my $data=$self->_get_table_data($table,$type,%params);
+	my $columns=$self->_get_dictionary_columns($dic);
+	return ($columns,$data);
+}
+
+sub _print_insert {
+	my ($self,$dic,$dic_columns,$data,%params)=@_;
+	my $d=ref($data) eq 'ARRAY' ? $data : [ $data ];
+	for my $data(@$d)  { 
+		$self->{STREAMER}->put_line(
+				$self->_get_create_prefix
+				,$dic->get_sql_name
+				,$self->_get_columns_string_list($dic_columns)
+				,$self->_get_begin_value_constant
+				,$self->_get_value_data($dic_columns,$data)
+				,$self->_get_end_value_constant
+				,$dic->command_terminator
+				,"\n"
+		);	
+	}
+	$self->{STREAMER}->put_line if ref($data) eq 'ARRAY';
+	return $self;
+}
+
+sub _insert_catalog {
+	my ($self,$extra_tables,%params)=@_;
+	my ($dic_columns,$data)=$self->_get_table_columns_data($extra_tables,undef,'CATALOG_DICTIONARY');
+	
+	for my $k(qw(CATALOG_NAME OUTPUT_NAMESPACE DB_NAMESPACE)) {
+		affirm { defined $params{$k} } "$k: param not set";
+		$data->{lc($k)}=$params{$k};
+	}
+	my $dic=$extra_tables->{CATALOG_DICTIONARY};
+	return $self->_print_insert($dic,$dic_columns,$data,%params);
+}
+
+sub _insert_schema {
+	my ($self,$extra_tables,%params)=@_;
+	my $schema=$params{SCHEMA};
+	affirm { defined $schema } "param SCHEMA not set";
+	my ($dic_columns,$data)=$self->_get_table_columns_data($extra_tables,$schema,'SCHEMA_DICTIONARY',%params);
+	$data->{is_root_schema}=$params{ROOT_SCHEMA} ? 1 : 0;
+	$data->{location}=$params{LOCATION} unless $params{ROOT_SCHEMA};
+	my $dic=$extra_tables->{SCHEMA_DICTIONARY};
+	return $self->_print_insert($dic,$dic_columns,$data,%params);
+}
+
+sub _insert_table {
+	my ($self,$extra_tables,$table,%params)=@_;
+	my ($dic_columns,$data)=$self->_get_table_columns_data($extra_tables,$table,'TABLE_DICTIONARY',%params);
+	my $dic=$extra_tables->{TABLE_DICTIONARY};
+	return $self->_print_insert($dic,$dic_columns,$data,%params);
+}
+
+sub _insert_columns {
+	my ($self,$extra_tables,$table,%params)=@_;
+	my ($dic_columns,$data)=$self->_get_table_columns_data($extra_tables,$table,'COLUMN_DICTIONARY',%params);
+	my $dic=$extra_tables->{COLUMN_DICTIONARY};
+	return $self->_print_insert($dic,$dic_columns,$data,%params);
+}
+
+sub _insert_relation_tables {
+	my ($self,$extra_tables,$table,%params)=@_;
+	my $dic=$extra_tables->{RELATION_TABLE_DICTIONARY};
+	my ($dic_columns,$data)=$self->_get_table_columns_data($extra_tables,$table,'RELATION_TABLE_DICTIONARY',%params);
+	return $self->_print_insert($dic,$dic_columns,$data,%params);
+}
+
+sub _insert_relation_schemas {
+	my ($self,$extra_tables,%params)=@_;
+	my $dic=$extra_tables->{RELATION_SCHEMA_DICTIONARY};
+	my ($dic_columns,$data)=$self->_get_table_columns_data($extra_tables,undef,'RELATION_SCHEMA_DICTIONARY',%params);
+
+	my %d=(
+					parent_schema_code 	=> $params{PARENT_SCHEMA_CODE}
+					,child_sequence		=> $params{SCHEMA_CHILD_SEQ}
+					,child_schema_code	=> $params{SCHEMA_CODE}
+					,parent_namespace  => $params{NAMESPACE}
+					,child_location		=> $params{LOCATION}
+					,catalog_name		=> $params{CATALOG_NAME}
+	);
+	
+	for my $k(keys %d) {
+		$data->{$k}=$d{$k}
+	}
+	
+	return $self->_print_insert($dic,$dic_columns,$data,%params);
+}
+
 
 sub first_pass {
 	my ($self,%params)=@_;
-	my $schema=$params{SCHEMA};
-	my $data=$schema->get_dictionary_data(qw(SCHEMA_DICTIONARY));
-	return $self unless defined $data->{URI};
-	my $dic=$schema->get_dictionary_table(qw(SCHEMA_DICTIONARY));
-	my $dic_columns=$dic->get_columns;
-	$self->{STREAMER}->put_line(
-			$self->_get_create_prefix
-			,$dic->get_sql_name
-			,$self->_get_columns_string_list($dic_columns)
-			,$self->_get_begin_value_constant
-			,$self->_get_value_data($dic_columns,$data)
-			,$self->_get_end_value_constant
-			,$schema->get_root_table->command_terminator
-	);
-	return $self;
+	my $extra_tables=$self->{EXTRA_TABLES}->factory_extra_tables;
+	$self->_insert_catalog($extra_tables,%params);
+	return $self->_insert_schema($extra_tables,%params,ROOT_SCHEMA => 1);
 }
 
 sub table_header {
 	my ($self,$table,%params)=@_;
 	my $schema=$params{SCHEMA};
-	croak "param SCHEMA not set " unless defined $schema;
-	my $dic=$schema->get_dictionary_table(qw(TABLE_DICTIONARY));
-	confess "not attr TABLE_DICTIONARY set for schema ".$schema->get_attrs_value(qw(URI))."\n" unless defined $dic;
-	my $data=$table->get_dictionary_data(qw(TABLE_DICTIONARY));
-	my $dic_columns=$dic->get_columns;
-	$self->{STREAMER}->put_line(
-			$self->_get_create_prefix
-			,$dic->get_sql_name
-			,$self->_get_columns_string_list($dic_columns)
-			,$self->_get_begin_value_constant
-			,$self->_get_value_data($dic_columns,$data)
-			,$self->_get_end_value_constant
-			,$table->command_terminator
-	);
-
-	$dic=$schema->get_dictionary_table(qw(COLUMN_DICTIONARY));
-	$dic_columns=$dic->get_columns;
-	
-	for my $data($table->get_dictionary_data(qw(COLUMN_DICTIONARY))) {
-		$self->{STREAMER}->put_line(
-			$self->_get_create_prefix
-			,$dic->get_sql_name
-			,$self->_get_columns_string_list($dic_columns)
-			,$self->_get_begin_value_constant
-			,$self->_get_value_data($dic_columns,$data)
-			,$self->_get_end_value_constant
-			,$table->command_terminator
-		);
-	}
-
-	$dic=$schema->get_dictionary_table(qw(RELATION_DICTIONARY));
-	$dic_columns=$dic->get_columns;
-	for my $data($table->get_dictionary_data(qw(RELATION_DICTIONARY))) {
-		$self->{STREAMER}->put_line(
-			$self->_get_create_prefix
-			,$dic->get_sql_name
-			,$self->_get_columns_string_list($dic_columns)
-			,$self->_get_begin_value_constant
-			,$self->_get_value_data($dic_columns,$data)
-			,$self->_get_end_value_constant
-			,$table->command_terminator
-		);		
-	}
-	$self->{STREAMER}->put_line;
-	return $self;
+	my $extra_tables=$self->{EXTRA_TABLES}->factory_extra_tables;
+	$self->_insert_table($extra_tables,$table,%params);
+	$self->_insert_columns($extra_tables,$table,%params);
+	return $self->_insert_relation_tables($extra_tables,$table,%params);	
 }
 
+sub relation_schema {
+	my ($self,%params)=@_;
+	
+	for my $k(qw(PARENT_SCHEMA_CODE SCHEMA_CODE SCHEMA_CHILD_SEQ  CATALOG_NAME SCHEMA LOCATION NAMESPACE)) {
+		affirm { defined $params{$k} } "$k: param not set";
+	}
+
+	my $extra_tables=$self->{EXTRA_TABLES}->factory_extra_tables;
+	$self->_insert_schema($extra_tables,%params,ROOT_SCHEMA => undef);
+	return $self->_insert_relation_schemas($extra_tables,%params);
+}
 
 sub last_pass {
 	my ($self,%params)=@_;
-	my $schema=$params{SCHEMA};
-	$self->{STREAMER}->put_line($schema->get_root_table->comment(' end of insert dictionary '));
+	unless ($params{NO_EMIT_COMMENTS}) {
+		my $schema=$params{SCHEMA};
+		$self->{STREAMER}->put_line($schema->get_root_table->comment(' end of insert dictionary '));
+	}
 	return $self;
 }
 
@@ -136,7 +210,6 @@ __END__
 =head1 NAME
 
 blx::xsdsql::generator::sql::generic::handle::insert_dictionary  - generic handle for insert dictionary
-
 
 =head1 SYNOPSIS
 
@@ -151,9 +224,16 @@ this package is a class - instance it with the method new
 =cut
 
 
+
+=head1 VERSION
+
+0.10.0
+
+=cut
+
 =head1 FUNCTIONS
 
-see the methods of blx::xsdsql::generator::sql::generic::handle 
+see the methods of blx::xsdsql::generator::sql::generic::handle
 
 =head1 EXPORT
 
@@ -167,7 +247,7 @@ None
 =head1 SEE ALSO
 
 
-See  blx::xsdsql::generator::sql::generic::handle - this class inherit from this 
+See  blx::xsdsql::generator::sql::generic::handle - this class inherit from this
 
 
 =head1 AUTHOR
@@ -184,5 +264,5 @@ under the same terms as Perl itself.
 See http://www.perl.com/perl/misc/Artistic.html
 
 =cut
- 
+
 

@@ -1,5 +1,5 @@
 ---
-abstract: 'xml schema (xsd) converter to relational database  objects (database supported are oracle and postgresql); xml put and get from/to the database'
+abstract: 'stored xml into databases'
 author:
   - 'lorenzo bellotti <pauseblx@gmail.com>'
 build_requires:
@@ -19,8 +19,14 @@ no_index:
     - t
     - inc
 requires:
-  DBI: 1.58
-  Test::Database: 1.11
+  Attribute::Constant: 0.06
+  Carp::Assert: 0.20
+  DBD::DBM: 0.06
+  DBI: 1.616
+  Filter::Include: 1.6
+  MLDBM: 2.05
+  Modern::Perl: 1.20121103
+  SQL::Statement: 1.33
   XML::Parser: 1.21
   XML::Writer: 0.600
-version: 0.009003
+version: 0.010000

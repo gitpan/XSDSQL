@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-use 5.008000;
+use 5.010000;
 use strict;
 use warnings;
 use ExtUtils::MakeMaker;
@@ -13,35 +13,34 @@ GetOptions(\my %opt,
 };
 
 my @prog;
-push(@prog, qw(xml.pl xsd2sql.pl ))
+push(@prog, qw(xml_repo.pl))
     unless $opt{'no-programs'} || grep /^LIB=/, @ARGV;
 
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 
-#print STDERR  "---->",join(" ", map "bin/$_", grep /^[A-Z]+$/, @prog),"\n";
-
 WriteMakefile(
 	NAME              => 'blx::xsdsql'
-	,VERSION_FROM      => 'lib/blx/xsdsql/ut.pm'
+	,VERSION_FROM      => 'lib/blx/xsdsql/version.pm'
 	,PREREQ_PM         => { 
 						  'XML::Parser' 	=> '1.21' 
 						, 'XML::Writer' 	=> '0.600'
-						, 'DBI'			=> '1.58'
-						, 'Test::Database' 	=> '1.11'
+						, 'DBI'			=> '1.616'
+						, 'Carp::Assert'	=> '0.20'
+						, 'DBD::DBM'		=> '0.06'
+						, 'MLDBM'		=> '2.05'
+						, 'SQL::Statement'	=> '1.33'
+						, 'Attribute::Constant'	=> '0.06'
+						, 'Modern::Perl'	=> '1.20121103'
+						, 'Filter::Include'	=> '1.6'
 	}
-	,LICENSE => "perl"
-	,EXE_FILES => [ map "bin/$_", @prog ]
-	,($] >= 5.005 ?     ## Add these new keywords supported since 5.005
-		(
-			ABSTRACT 	=> 'xml schema (xsd) converter to relational database  objects (database supported are oracle and postgresql); xml put and get from/to the database'
-			,AUTHOR         => 'lorenzo bellotti <pauseblx@gmail.com>'
-		) : ()
-	)
-	,clean => { FILES => "  *.old t/xml_*/*.sql   t/xml_*/*.diff t/xml_*/*.tmp  t/xml_*/.step* t/.strconn " }
+	,LICENSE 	=> "perl"
+	,EXE_FILES 	=> [ map "bin/$_", @prog ]
+	,ABSTRACT 	=> 'stored xml into databases'
+	,AUTHOR     	=> 'lorenzo bellotti <pauseblx@gmail.com>'
+	,clean 		=> { FILES => "  *.old t/xml_*/*.sql   t/xml_*/*.diff t/xml_*/*.tmp  t/xml_*/.step* " }
 );
 
 
-move("MYMETA.yml","META.yml");
 exit 0;
 

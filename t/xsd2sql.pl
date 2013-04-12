@@ -1,1 +1,0 @@
-../bin/xsd2sql.pl

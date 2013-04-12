@@ -1,8 +1,9 @@
 package blx::xsdsql::generator::sql::generic::handle::create_view;
 
-use strict;
-use warnings;
-use Carp;
+use strict;  # use strict is for PBP
+use Filter::Include;
+include blx::xsdsql::include;
+#line 7
 use base(qw(blx::xsdsql::generator::sql::generic::handle));
 
 sub _get_create_prefix {
@@ -29,7 +30,7 @@ sub table_header {
 sub _table_header {
 	my ($self,$table,%params)=@_;
 	my $path=$table->get_attrs_value(qw(PATH));
-	my $comm=defined  $path ? $table->comment('ROOTPATH: '.$path) : '';
+	my $comm=defined  $path && !$params{NO_EMIT_COMMENTS} ? $table->comment('ROOTPATH: '.$path) : '';
 	$params{STREAMER}->put_line($self->_get_create_prefix,' ',$table->get_view_sql_name," as select  $comm");
 	my @cols=$self->_get_columns($table,%params);
 	my $colseq=0;
@@ -39,6 +40,7 @@ sub _table_header {
 		next if $col->is_sys_attributes;
 		my $t=$col->get_attrs_value(qw(TABLE));
 		my $sqlcomm=sub {
+			return '' if $params{NO_EMIT_COMMENTS};
 			my $path=$col->get_attrs_value(qw(PATH));
 			my $comm=defined $path ? 'PATH: '.$path : '';
 			my $ref=$col->get_attrs_value(qw(PATH_REFERENCE));
@@ -87,7 +89,6 @@ __END__
 
 blx::xsdsql::generator::sql::generic::handle::create_view  - generic handle for create view
 
-
 =head1 SYNOPSIS
 
 
@@ -101,16 +102,23 @@ this package is a class - instance it with the method new
 =cut
 
 
+
+=head1 VERSION
+
+0.10.0
+
+=cut
+
 =head1 FUNCTIONS
 
-see the methods of blx::xsdsql::generator::sql::generic::handle 
+see the methods of blx::xsdsql::generator::sql::generic::handle
 
 get_view_columns - return an array of the view columns
 
 
 get_join_columns - return an array of the join columns
 
-  
+
 =head1 EXPORT
 
 None by default.
@@ -123,7 +131,7 @@ None
 =head1 SEE ALSO
 
 
-See  blx::xsdsql::generator::sql::generic::handle - this class inherit from this 
+See  blx::xsdsql::generator::sql::generic::handle - this class inherit from this
 
 
 =head1 AUTHOR
@@ -140,5 +148,5 @@ under the same terms as Perl itself.
 See http://www.perl.com/perl/misc/Artistic.html
 
 =cut
- 
+
 
